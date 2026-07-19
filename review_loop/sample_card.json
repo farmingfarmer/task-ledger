@@ -1,0 +1,615 @@
+{
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "type": "AdaptiveCard",
+  "version": "1.5",
+  "refresh": {
+    "action": {
+      "type": "Action.Execute",
+      "verb": "card/refresh",
+      "data": {
+        "packet_id": "pkt-1",
+        "page": 0
+      }
+    },
+    "userIds": [
+      "alex"
+    ]
+  },
+  "body": [
+    {
+      "type": "ColumnSet",
+      "columns": [
+        {
+          "type": "Column",
+          "width": "stretch",
+          "items": [
+            {
+              "type": "TextBlock",
+              "text": "Task review",
+              "weight": "Bolder",
+              "size": "Medium"
+            },
+            {
+              "type": "TextBlock",
+              "isSubtle": true,
+              "spacing": "None",
+              "text": "3 proposed changes from your recent meetings, chats, and email"
+            }
+          ]
+        },
+        {
+          "type": "Column",
+          "width": "auto",
+          "items": [
+            {
+              "type": "TextBlock",
+              "isSubtle": true,
+              "size": "Small",
+              "text": "board v41"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "separator": true,
+      "spacing": "Medium",
+      "items": [
+        {
+          "type": "ColumnSet",
+          "columns": [
+            {
+              "type": "Column",
+              "width": "auto",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "size": "Small",
+                  "weight": "Bolder",
+                  "color": "Good",
+                  "text": "Complete"
+                }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "stretch",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "weight": "Bolder",
+                  "wrap": true,
+                  "text": "Fix intake OCR"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "TextBlock",
+          "wrap": true,
+          "spacing": "Small",
+          "text": "Two independent mentions that the intake OCR fix shipped."
+        },
+        {
+          "type": "FactSet",
+          "spacing": "Small",
+          "facts": [
+            {
+              "title": "Confidence",
+              "value": "88%"
+            }
+          ]
+        },
+        {
+          "type": "Container",
+          "style": "attention",
+          "spacing": "Small",
+          "items": [
+            {
+              "type": "TextBlock",
+              "wrap": true,
+              "size": "Small",
+              "text": "Conflict: You reopened this task manually yesterday."
+            }
+          ]
+        },
+        {
+          "type": "ActionSet",
+          "actions": [
+            {
+              "type": "Action.OpenUrl",
+              "title": "View source",
+              "url": "https://outlook.office.com/mail/4"
+            },
+            {
+              "type": "Action.Execute",
+              "title": "Accept",
+              "verb": "decide",
+              "data": {
+                "packet_id": "pkt-1",
+                "proposal_id": "prop-3",
+                "decision": "accept"
+              }
+            },
+            {
+              "type": "Action.ShowCard",
+              "title": "Reject",
+              "card": {
+                "type": "AdaptiveCard",
+                "body": [
+                  {
+                    "type": "Input.ChoiceSet",
+                    "id": "reject_reason_prop-3",
+                    "style": "compact",
+                    "label": "Why? (tunes future proposals)",
+                    "value": "other",
+                    "choices": [
+                      {
+                        "title": "Not actually a task",
+                        "value": "not_a_task"
+                      },
+                      {
+                        "title": "Duplicate of existing task",
+                        "value": "duplicate"
+                      },
+                      {
+                        "title": "Matched the wrong task",
+                        "value": "wrong_task_match"
+                      },
+                      {
+                        "title": "Wrong status",
+                        "value": "wrong_status"
+                      },
+                      {
+                        "title": "Wrong owner",
+                        "value": "wrong_owner"
+                      },
+                      {
+                        "title": "Date resolved wrong",
+                        "value": "bad_date_resolution"
+                      },
+                      {
+                        "title": "Out of date",
+                        "value": "stale"
+                      },
+                      {
+                        "title": "Other",
+                        "value": "other"
+                      }
+                    ]
+                  }
+                ],
+                "actions": [
+                  {
+                    "type": "Action.Execute",
+                    "title": "Confirm reject",
+                    "verb": "decide",
+                    "data": {
+                      "packet_id": "pkt-1",
+                      "proposal_id": "prop-3",
+                      "decision": "reject",
+                      "reject_reason_input_id": "reject_reason_prop-3"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Action.Execute",
+              "title": "Later",
+              "verb": "decide",
+              "data": {
+                "packet_id": "pkt-1",
+                "proposal_id": "prop-3",
+                "decision": "defer"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "separator": true,
+      "spacing": "Medium",
+      "items": [
+        {
+          "type": "ColumnSet",
+          "columns": [
+            {
+              "type": "Column",
+              "width": "auto",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "size": "Small",
+                  "weight": "Bolder",
+                  "color": "Accent",
+                  "text": "Status"
+                }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "stretch",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "weight": "Bolder",
+                  "wrap": true,
+                  "text": "Ship drift monitoring"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "TextBlock",
+          "wrap": true,
+          "spacing": "Small",
+          "text": "In Tuesday standup you said the drift monitor deploy was underway."
+        },
+        {
+          "type": "FactSet",
+          "spacing": "Small",
+          "facts": [
+            {
+              "title": "Change",
+              "value": "proposed to in_progress"
+            },
+            {
+              "title": "Confidence",
+              "value": "85%"
+            }
+          ]
+        },
+        {
+          "type": "ActionSet",
+          "actions": [
+            {
+              "type": "Action.OpenUrl",
+              "title": "View source",
+              "url": "https://teams.microsoft.com/l/message/x/442"
+            },
+            {
+              "type": "Action.Execute",
+              "title": "Accept",
+              "verb": "decide",
+              "data": {
+                "packet_id": "pkt-1",
+                "proposal_id": "prop-1",
+                "decision": "accept"
+              }
+            },
+            {
+              "type": "Action.ShowCard",
+              "title": "Edit",
+              "card": {
+                "type": "AdaptiveCard",
+                "body": [
+                  {
+                    "type": "Input.ChoiceSet",
+                    "id": "edit_status",
+                    "label": "Status",
+                    "style": "compact",
+                    "value": "in_progress",
+                    "choices": [
+                      {
+                        "title": "proposed",
+                        "value": "proposed"
+                      },
+                      {
+                        "title": "in_progress",
+                        "value": "in_progress"
+                      },
+                      {
+                        "title": "blocked",
+                        "value": "blocked"
+                      },
+                      {
+                        "title": "completed",
+                        "value": "completed"
+                      },
+                      {
+                        "title": "cancelled",
+                        "value": "cancelled"
+                      }
+                    ]
+                  }
+                ],
+                "actions": [
+                  {
+                    "type": "Action.Execute",
+                    "title": "Accept with edits",
+                    "verb": "decide",
+                    "data": {
+                      "packet_id": "pkt-1",
+                      "proposal_id": "prop-1",
+                      "decision": "accept_edited"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Action.ShowCard",
+              "title": "Reject",
+              "card": {
+                "type": "AdaptiveCard",
+                "body": [
+                  {
+                    "type": "Input.ChoiceSet",
+                    "id": "reject_reason_prop-1",
+                    "style": "compact",
+                    "label": "Why? (tunes future proposals)",
+                    "value": "other",
+                    "choices": [
+                      {
+                        "title": "Not actually a task",
+                        "value": "not_a_task"
+                      },
+                      {
+                        "title": "Duplicate of existing task",
+                        "value": "duplicate"
+                      },
+                      {
+                        "title": "Matched the wrong task",
+                        "value": "wrong_task_match"
+                      },
+                      {
+                        "title": "Wrong status",
+                        "value": "wrong_status"
+                      },
+                      {
+                        "title": "Wrong owner",
+                        "value": "wrong_owner"
+                      },
+                      {
+                        "title": "Date resolved wrong",
+                        "value": "bad_date_resolution"
+                      },
+                      {
+                        "title": "Out of date",
+                        "value": "stale"
+                      },
+                      {
+                        "title": "Other",
+                        "value": "other"
+                      }
+                    ]
+                  }
+                ],
+                "actions": [
+                  {
+                    "type": "Action.Execute",
+                    "title": "Confirm reject",
+                    "verb": "decide",
+                    "data": {
+                      "packet_id": "pkt-1",
+                      "proposal_id": "prop-1",
+                      "decision": "reject",
+                      "reject_reason_input_id": "reject_reason_prop-1"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Action.Execute",
+              "title": "Later",
+              "verb": "decide",
+              "data": {
+                "packet_id": "pkt-1",
+                "proposal_id": "prop-1",
+                "decision": "defer"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "Container",
+      "separator": true,
+      "spacing": "Medium",
+      "items": [
+        {
+          "type": "ColumnSet",
+          "columns": [
+            {
+              "type": "Column",
+              "width": "auto",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "size": "Small",
+                  "weight": "Bolder",
+                  "color": "Accent",
+                  "text": "Deadline"
+                }
+              ]
+            },
+            {
+              "type": "Column",
+              "width": "stretch",
+              "items": [
+                {
+                  "type": "TextBlock",
+                  "weight": "Bolder",
+                  "wrap": true,
+                  "text": "Ship drift monitoring"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "TextBlock",
+          "wrap": true,
+          "spacing": "Small",
+          "text": "You told Priya it would land by end of next sprint."
+        },
+        {
+          "type": "FactSet",
+          "spacing": "Small",
+          "facts": [
+            {
+              "title": "Deadline",
+              "value": "none to 2026-07-24"
+            },
+            {
+              "title": "From phrase",
+              "value": "\"end of next sprint\""
+            },
+            {
+              "title": "Confidence",
+              "value": "72%"
+            }
+          ]
+        },
+        {
+          "type": "ActionSet",
+          "actions": [
+            {
+              "type": "Action.OpenUrl",
+              "title": "View source",
+              "url": "https://teams.microsoft.com/l/message/x/9"
+            },
+            {
+              "type": "Action.Execute",
+              "title": "Accept",
+              "verb": "decide",
+              "data": {
+                "packet_id": "pkt-1",
+                "proposal_id": "prop-2",
+                "decision": "accept"
+              }
+            },
+            {
+              "type": "Action.ShowCard",
+              "title": "Edit",
+              "card": {
+                "type": "AdaptiveCard",
+                "body": [
+                  {
+                    "type": "Input.Date",
+                    "id": "edit_deadline",
+                    "label": "Deadline",
+                    "value": "2026-07-24"
+                  }
+                ],
+                "actions": [
+                  {
+                    "type": "Action.Execute",
+                    "title": "Accept with edits",
+                    "verb": "decide",
+                    "data": {
+                      "packet_id": "pkt-1",
+                      "proposal_id": "prop-2",
+                      "decision": "accept_edited"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Action.ShowCard",
+              "title": "Reject",
+              "card": {
+                "type": "AdaptiveCard",
+                "body": [
+                  {
+                    "type": "Input.ChoiceSet",
+                    "id": "reject_reason_prop-2",
+                    "style": "compact",
+                    "label": "Why? (tunes future proposals)",
+                    "value": "other",
+                    "choices": [
+                      {
+                        "title": "Not actually a task",
+                        "value": "not_a_task"
+                      },
+                      {
+                        "title": "Duplicate of existing task",
+                        "value": "duplicate"
+                      },
+                      {
+                        "title": "Matched the wrong task",
+                        "value": "wrong_task_match"
+                      },
+                      {
+                        "title": "Wrong status",
+                        "value": "wrong_status"
+                      },
+                      {
+                        "title": "Wrong owner",
+                        "value": "wrong_owner"
+                      },
+                      {
+                        "title": "Date resolved wrong",
+                        "value": "bad_date_resolution"
+                      },
+                      {
+                        "title": "Out of date",
+                        "value": "stale"
+                      },
+                      {
+                        "title": "Other",
+                        "value": "other"
+                      }
+                    ]
+                  }
+                ],
+                "actions": [
+                  {
+                    "type": "Action.Execute",
+                    "title": "Confirm reject",
+                    "verb": "decide",
+                    "data": {
+                      "packet_id": "pkt-1",
+                      "proposal_id": "prop-2",
+                      "decision": "reject",
+                      "reject_reason_input_id": "reject_reason_prop-2"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "type": "Action.Execute",
+              "title": "Later",
+              "verb": "decide",
+              "data": {
+                "packet_id": "pkt-1",
+                "proposal_id": "prop-2",
+                "decision": "defer"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.Execute",
+      "title": "Accept all unconflicted",
+      "verb": "bulk",
+      "data": {
+        "packet_id": "pkt-1",
+        "action": "accept_unconflicted"
+      }
+    },
+    {
+      "type": "Action.Execute",
+      "title": "Defer all",
+      "verb": "bulk",
+      "data": {
+        "packet_id": "pkt-1",
+        "action": "defer_all"
+      }
+    }
+  ]
+}

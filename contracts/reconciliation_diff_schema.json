@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/schemas/review_packet.json",
+  "title": "ReviewPacket",
+  "description": "Output of the reconciliation engine for one user for one cadence run: a set of proposed diffs against the task graph. Proposals are never applied directly; every board mutation requires a DecisionRecord. This file also defines DecisionRecord (the response contract).",
+  "type": "object",
+  "required": ["packet_id", "user_ref", "generated_at", "cadence_run_id", "board_version", "proposals"],
+  "additionalProperties": false,
+  "properties": {
+    "packet_id": { "type": "string" },
+    "user_ref": { "type": "string", "description": "AAD object id of the reviewing user." },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "cadence_run_id": { "type": "string" },
+    "board_version": {
+      "type": "integer",
+      "description": "Version of the user's task graph the diff was computed against. Optimistic concurrency: if the board has advanced when a decision arrives (manual edit in the meantime), the affected proposals are rebased or invalidated, never blind-applied."
+    },
+    "expires_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Unreviewed packets expire rather than accumulate. Signals from expired packets are re-reconciled in the next run against the then-current board."
+    },
+    "proposals": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Proposal" }
+    }
+  },
+  "$defs": {
+    "Proposal": {
+      "type": "object",
+      "required": ["proposal_id", "op", "rationale", "confidence", "source_signals", "evidence", "payload"],
+      "additionalProperties": false,
+      "properties": {
+        "proposal_id": { "type": "string" },
+        "op": {
+          "enum": [
+            "create_task",
+            "update_status",
+            "update_deadline",
+            "reassign",
+            "add_blocker",
+            "resolve_blocker",
+            "complete_task",
+            "cancel_task",
+            "merge_tasks",
+            "add_subtask"
+          ]
+        },
+        "target_task_id": {
+          "type": ["string", "null"],
+          "description": "Null for create_task. For merge_tasks the targets live in the payload."
+        },
+        "rationale": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "One human-readable sentence shown on the review card, e.g. 'In Tuesday standup you said the drift monitor was deployed to staging.'"
+        },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "source_signals": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "signal_ids from ExtractionBatch(es) that produced this proposal. Full lineage: board change -> proposal -> signals -> evidence."
+        },
+        "evidence": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "object" },
+          "description": "EvidenceRef objects (see extraction_schema.json#/$defs/EvidenceRef), flattened from source signals so the review card renders without a join."
+        },
+        "conflict": {
+          "type": ["object", "null"],
+          "description": "Set when the proposal contradicts board state that is *newer* than the evidence. Conflicted proposals render with a warning and default to reject.",
+          "required": ["type", "detail"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "enum": [
+                "contradicts_manual_edit",
+                "contradicts_prior_decision",
+                "competing_owner",
+                "stale_evidence"
+              ]
+            },
+            "detail": { "type": "string" }
+          }
+        },
+        "payload": {
+          "description": "Op-specific body, discriminated on op.",
+          "oneOf": [
+            { "$ref": "#/$defs/CreateTaskPayload" },
+            { "$ref": "#/$defs/UpdateStatusPayload" },
+            { "$ref": "#/$defs/UpdateDeadlinePayload" },
+            { "$ref": "#/$defs/ReassignPayload" },
+            { "$ref": "#/$defs/BlockerPayload" },
+            { "$ref": "#/$defs/ResolveBlockerPayload" },
+            { "$ref": "#/$defs/ClosePayload" },
+            { "$ref": "#/$defs/MergeTasksPayload" },
+            { "$ref": "#/$defs/AddSubtaskPayload" }
+          ]
+        }
+      }
+    },
+    "CreateTaskPayload": {
+      "type": "object",
+      "required": ["kind", "title", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "create_task" },
+        "title": { "type": "string", "maxLength": 120 },
+        "description": { "type": ["string", "null"] },
+        "status": { "enum": ["proposed", "in_progress", "blocked"] },
+        "owner_ref": { "type": ["string", "null"] },
+        "deadline": { "type": ["string", "null"], "format": "date" },
+        "parent_task_id": { "type": ["string", "null"] },
+        "match_note": {
+          "type": ["string", "null"],
+          "description": "Why reconciliation decided this is NOT an existing task, e.g. 'closest match task_8821 (0.61 similarity) below merge threshold'. Surfaced on drill-down; the top rejection reason for creates is duplication."
+        }
+      }
+    },
+    "UpdateStatusPayload": {
+      "type": "object",
+      "required": ["kind", "from_status", "to_status"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "update_status" },
+        "from_status": { "enum": ["proposed", "in_progress", "blocked", "completed", "cancelled"] },
+        "to_status": { "enum": ["proposed", "in_progress", "blocked", "completed", "cancelled"] }
+      }
+    },
+    "UpdateDeadlinePayload": {
+      "type": "object",
+      "required": ["kind", "to_deadline"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "update_deadline" },
+        "from_deadline": { "type": ["string", "null"], "format": "date" },
+        "to_deadline": { "type": "string", "format": "date" },
+        "raw_text": { "type": ["string", "null"], "description": "The phrase the date was resolved from, shown so the user can catch bad relative-date resolution." }
+      }
+    },
+    "ReassignPayload": {
+      "type": "object",
+      "required": ["kind", "to_owner_ref"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "reassign" },
+        "from_owner_ref": { "type": ["string", "null"] },
+        "to_owner_ref": { "type": "string" },
+        "basis": { "enum": ["explicit_assignment", "self_reference", "inferred"] }
+      }
+    },
+    "BlockerPayload": {
+      "type": "object",
+      "required": ["kind", "description"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "add_blocker" },
+        "description": { "type": "string" },
+        "blocking_party_ref": { "type": ["string", "null"] },
+        "blocking_task_id": {
+          "type": ["string", "null"],
+          "description": "Set when the blocker resolves to another task on the graph — this is what turns blockers into edges instead of strings, enabling cross-user dependency views."
+        }
+      }
+    },
+    "ResolveBlockerPayload": {
+      "type": "object",
+      "required": ["kind", "blocker_id"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "resolve_blocker" },
+        "blocker_id": { "type": "string" }
+      }
+    },
+    "ClosePayload": {
+      "type": "object",
+      "required": ["kind"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "enum": ["complete_task", "cancel_task"] },
+        "completion_note": { "type": ["string", "null"] }
+      }
+    },
+    "MergeTasksPayload": {
+      "type": "object",
+      "required": ["kind", "surviving_task_id", "merged_task_ids", "similarity"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "merge_tasks" },
+        "surviving_task_id": { "type": "string" },
+        "merged_task_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+        "similarity": { "type": "number", "minimum": 0, "maximum": 1 },
+        "judge_rationale": { "type": "string", "description": "The LLM judge's one-line reason the tasks are the same work item." }
+      }
+    },
+    "AddSubtaskPayload": {
+      "type": "object",
+      "required": ["kind", "parent_task_id", "title"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": { "const": "add_subtask" },
+        "parent_task_id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 120 },
+        "description": { "type": ["string", "null"] }
+      }
+    },
+    "DecisionRecord": {
+      "type": "object",
+      "description": "The response contract: one per proposal, written by the review UI. The ONLY path to a board mutation. Rejections with reasons are the eval gold set for tuning extraction and reconciliation.",
+      "required": ["proposal_id", "packet_id", "decision", "decided_by", "decided_at"],
+      "additionalProperties": false,
+      "properties": {
+        "proposal_id": { "type": "string" },
+        "packet_id": { "type": "string" },
+        "decision": { "enum": ["accept", "accept_edited", "reject", "defer"] },
+        "edited_payload": {
+          "type": ["object", "null"],
+          "description": "Required when decision = accept_edited: the payload as corrected by the user. The delta between proposed and edited payloads is itself training signal."
+        },
+        "reject_reason": {
+          "enum": ["not_a_task", "duplicate", "wrong_task_match", "wrong_status", "wrong_owner", "bad_date_resolution", "stale", "other", null]
+        },
+        "reject_note": { "type": ["string", "null"] },
+        "decided_by": { "type": "string", "description": "AAD object id. Must equal packet.user_ref or an authorized delegate." },
+        "decided_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

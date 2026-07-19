@@ -1,0 +1,157 @@
+# Reconciliation matching policy — machine-readable config.
+# Loaded by the reconciliation engine; every constant the engine uses lives here,
+# never in code. Threshold values below are STARTING POINTS for
+# text-embedding-3-large cosine similarity; they must be recalibrated per
+# embedding model and then continuously from DecisionRecords (see MATCHING_POLICY.md §5).
+
+embedding:
+  model: "text-embedding-3-large"
+  signal_text: "title + '\n' + description"   # what gets embedded for a signal
+  task_alias_max: 12                            # task matched against max-sim over alias set
+  alias_source: "accepted signal titles + canonical title + description"
+
+candidate_generation:
+  # Blocking: filters applied BEFORE any embedding comparison.
+  blocking:
+    owner_scope: "owner_candidates intersect task.owner_or_watchers, plus unowned tasks"
+    include_terminal_tasks_days: 14   # completed/cancelled tasks stay matchable this long
+                                      # (prevents re-creating a task that just closed;
+                                      # a match here yields a conflict-flagged reopen, not a create)
+    recency_boost_days: 30            # tasks with activity in this window rank first on ties
+    max_candidates_to_embed: 200
+  top_k_to_judge: 3
+
+thresholds:
+  auto_link: 0.90        # >= : link signal to task directly, no judge
+  judge_floor: 0.62      # [judge_floor, auto_link) : send top-k to LLM judge
+                         # <  judge_floor for ALL candidates : new-task path, record match_note
+  judge_accept_min: 0.75 # judge confidence required to act on a same_task verdict
+  short_title_penalty:
+    max_tokens: 4        # signals whose title is this short...
+    penalty: 0.07        # ...have this subtracted from raw similarity (generic titles over-match)
+  auto_link_guards:
+    never_auto_link_types: ["completion_claim", "cancellation"]  # always judged
+    never_auto_link_cross_owner: true    # owner mismatch forces judge regardless of similarity
+  merge_scan:            # periodic task<->task dedup (same judge, pairwise)
+    cadence_hours: 24
+    pair_floor: 0.80
+    propose_merge_min_judge_conf: 0.85
+
+corroboration:
+  window_days: 7                # uncorroborated strict signals wait this long, then expire
+  independent_source_min: 2     # "independent" = different evidence resource_ids AND
+                                # different speakers/authors
+
+# Per-signal-type op gates.
+# Fields:
+#   min_conf         — extraction confidence floor to consider the signal at all
+#   emits            — op the signal may propose when all gates pass
+#   gates            — additional conditions; ALL must hold
+#   downgrade        — what happens when gates fail (never silently escalate)
+signal_rules:
+
+  task_mention:
+    min_conf: 0.55
+    emits: null                 # a bare mention never proposes an op by itself
+    on_match: "append signal title to task alias set (after packet acceptance)"
+    downgrade: "discard"
+
+  proposal:
+    min_conf: 0.60
+    emits: create_task          # status=proposed
+    gates:
+      - "no candidate >= judge_floor survived judging (else it's a mention of existing work)"
+      - "owner_candidate for the reviewing user exists OR signal came from a channel the user owns tasks in"
+    downgrade: "route to team-level proposals pool, not any individual's packet"
+
+  assignment:
+    min_conf: 0.65
+    emits: reassign             # or sets owner on create/unowned task
+    gates:
+      - "basis == explicit_assignment  -> may propose reassign on owned task"
+      - "basis == self_reference       -> may claim UNOWNED task only; owned task -> conflict(competing_owner)"
+      - "basis == inferred             -> NEVER proposes; annotate owner_candidates only"
+    downgrade: "annotation only"
+
+  status_update:
+    min_conf: 0.60
+    emits: update_status
+    gates:
+      - "state transition is forward or lateral (proposed->in_progress, in_progress->blocked, ...)"
+      - "regressions (completed->in_progress, cancelled->*) allowed only with conflict flag set"
+    downgrade: "hold for corroboration"
+
+  deadline_signal:
+    min_conf: 0.60
+    emits: update_deadline
+    gates:
+      - "deadline.precision != vague"
+      - "resolved date differs from current board deadline"
+      - "if speaker is not the task owner: conflict(competing_owner) unless speaker is explicit assigner"
+    downgrade: "precision==vague -> annotate task with raw_text, propose nothing"
+
+  blocker:
+    min_conf: 0.60
+    emits: add_blocker
+    gates:
+      - "matched task is not terminal"
+    enrichment: "attempt blocking_task_id resolution via same matching pipeline over blocker.description"
+    downgrade: "discard"
+
+  blocker_resolved:
+    min_conf: 0.65
+    emits: resolve_blocker
+    gates:
+      - "judge must match the utterance to a specific open blocker_id on the task"
+    downgrade: "hold for corroboration"
+
+  completion_claim:
+    min_conf: 0.75
+    emits: complete_task
+    gates:
+      - "match is auto_link OR judge same_task with conf >= 0.85 (strictest match bar of any type)"
+      - "speaker is task owner with basis in [self_reference, explicit] -> single signal suffices"
+      - "speaker is NOT owner -> require corroboration (independent_source_min) within window_days"
+      - "task age > 1 day OR task was created from same meeting (blocks 'done' echo on brand-new tasks)"
+    downgrade: "third-party single-source claim -> hold pending corroboration; if window expires, annotate task ('completion reported by X on DATE, unconfirmed') and propose nothing"
+
+  cancellation:
+    min_conf: 0.75
+    emits: cancel_task
+    gates:
+      - "same match bar as completion_claim"
+      - "speaker is owner or explicit assigner; anyone else -> hold for corroboration"
+    downgrade: "hold pending corroboration"
+
+aggregation:
+  # Multiple signals, same task, same packet window:
+  same_op_combine: "noisy_or"        # 1 - prod(1 - conf_i), capped
+  noisy_or_cap: 0.97
+  conflicting_ops: "emit highest-confidence proposal; attach others as competing evidence; set conflict flag if sources are independent"
+
+per_op_confidence_floor:
+  # Final proposal confidence required to appear on a review card at all.
+  create_task: 0.60
+  add_subtask: 0.60
+  update_status: 0.60
+  update_deadline: 0.65
+  reassign: 0.70
+  add_blocker: 0.60
+  resolve_blocker: 0.65
+  complete_task: 0.80
+  cancel_task: 0.80
+  merge_tasks: 0.85
+
+calibration:
+  source: "DecisionRecords"
+  cadence_days: 7
+  method: "threshold sweep on labeled accept/reject outcomes"
+  precision_targets:      # tune thresholds to hit these; recall is secondary because
+    create_task: 0.70     # missed items resurface in later windows, but bad proposals
+    update_status: 0.75   # burn user trust immediately
+    update_deadline: 0.75
+    complete_task: 0.90
+    cancel_task: 0.90
+    merge_tasks: 0.90
+    reassign: 0.85
+  drift_alarm: "weekly acceptance rate for any op drops > 15 points from trailing 4-week mean"
