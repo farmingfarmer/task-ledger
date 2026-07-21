@@ -88,6 +88,12 @@ def index():
                                "dashboard.html")
 
 
+@app.route("/assets/<path:filename>")
+def assets(filename):
+    base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+    return send_from_directory(base, filename)
+
+
 @app.route("/api/me")
 def me():
     v = viewer()
