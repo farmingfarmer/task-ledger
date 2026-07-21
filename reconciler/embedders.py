@@ -72,7 +72,7 @@ class OllamaEmbedder(object):
             req = urllib.request.Request(
                 self.host + "/api/embeddings", data=body,
                 headers={"Content-Type": "application/json"})
-            with urllib.request.urlopen(req, timeout=120) as resp:
+            with urllib.request.urlopen(req, timeout=600) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             out.append(data["embedding"])
         return out

@@ -377,6 +377,16 @@ def test_pg_live():
                         "WHERE task_id = 'task-devocr'")
     conn.close()
 
+    conn = psycopg2.connect(dsn)
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "INSERT INTO signal_pool_events (signal_id, user_ref, "
+                "event, run_id) SELECT DISTINCT signal_id, 'aad-dev', "
+                "'returned', 'test-repool' FROM signal_pool_events "
+                "WHERE user_ref = 'aad-dev'")
+    conn.close()
+
     signals = board_io_pg.load_signals(dsn, "aad-dev")
     tasks, version = board_io_pg.load_board(dsn, "aad-dev")
     ok(len(signals) >= 2 and any(t["task_id"] == "task-devocr"

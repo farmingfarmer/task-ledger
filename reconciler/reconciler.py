@@ -144,7 +144,7 @@ class Reconciler(object):
             if isinstance(outcome, dict):
                 draft.append(outcome)
 
-        proposals = self._aggregate(draft, report)
+        proposals = self._aggregate(draft, report, cadence_run_id)
         packet = {
             "packet_id": _sha(user_ref, cadence_run_id, board_version,
                               *sorted(report["consumed"])),
@@ -511,7 +511,7 @@ class Reconciler(object):
             "payload": payload,
         }
 
-    def _aggregate(self, draft, report):
+    def _aggregate(self, draft, report, run_salt=""):
         floors = self.policy["per_op_confidence_floor"]
         cap = self.policy["aggregation"]["noisy_or_cap"]
         grouped = {}
@@ -545,7 +545,7 @@ class Reconciler(object):
                      "reason": "below_op_floor:{0}".format(p["op"])})
                 continue
             p["confidence"] = round(min(p["confidence"], 1.0), 3)
-            p["proposal_id"] = _sha(p["op"], p["target_task_id"],
+            p["proposal_id"] = _sha(run_salt, p["op"], p["target_task_id"],
                                     *p["source_signals"])
             out.append(p)
         out.sort(key=lambda p: (0 if p["conflict"] else 1, -p["confidence"]))
