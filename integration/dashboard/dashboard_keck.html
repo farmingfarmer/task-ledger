@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Task ledger — Keck Medicine of USC</title>
+<link rel="icon" href="assets/mark.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F5F3F0; --panel:#FFFFFF; --ink:#2A2320; --muted:#6B615C;
+    --line:#E0DAD4; --pine:#2E6E63; --brick:#B3402F; --slate:#7D746E;
+    --quiet:#948B85;
+    --cardinal:#990000; --cardinal-deep:#7A0000;
+    /* Evidence amber: reserved for one meaning only -- "this links to a
+       source". USC gold carries that single meaning; nothing else on
+       the page may use it. Cardinal is brand chrome only. */
+    --evidence:#FFC72C; --evidence-ink:#6B4E00; --evidence-bg:#FFF7DF;
+    --mono:'IBM Plex Mono',monospace; --sans:'Archivo',system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);
+       font-size:14px;line-height:1.45}
+  a{color:inherit}
+  button,select{font:inherit;cursor:pointer}
+  :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+  header :focus-visible{outline-color:#fff}
+  @media (prefers-reduced-motion: reduce){*{transition:none!important}}
+
+  header{padding:16px 28px;display:flex;align-items:center;gap:14px;
+         background:var(--cardinal);color:#fff;flex-wrap:wrap;
+         border-bottom:3px solid var(--evidence)}
+  header img.brandmark{height:30px;width:auto;display:block}
+  header h1{font-weight:800;font-size:19px;letter-spacing:-.01em}
+  header p{color:#EAD6D6;font-size:13px;flex:1}
+  .viewer{display:flex;align-items:center;gap:8px;font-size:13px}
+  .viewer label{color:#EAD6D6}
+  .viewer select{border:1px solid var(--line);border-radius:6px;
+                 background:var(--panel);padding:4px 8px}
+
+  .wrap{display:grid;grid-template-columns:minmax(420px,1.1fr) minmax(380px,1fr);
+        gap:20px;padding:20px 28px;align-items:start}
+  @media (max-width:960px){.wrap{grid-template-columns:1fr}}
+
+  .panel{background:var(--panel);border:1px solid var(--line);
+         border-radius:8px;overflow:hidden;margin-bottom:20px}
+  .panel h2{font-size:12px;font-weight:600;letter-spacing:.08em;
+            text-transform:uppercase;color:var(--muted);
+            padding:12px 16px;border-bottom:1px solid var(--line)}
+
+  .team{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px}
+  .member{border:1px solid var(--line);border-radius:6px;background:var(--bg);
+          padding:8px 12px;text-align:left}
+  .member[aria-pressed="true"]{background:var(--cardinal);color:#fff;
+          border-color:var(--cardinal)}
+  .member .name{font-weight:600;display:block}
+  .member .counts{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .member[aria-pressed="true"] .counts{color:#E8C9C9}
+
+  table{width:100%;border-collapse:collapse}
+  th{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+     color:var(--muted);text-align:left;padding:8px 16px;
+     border-bottom:1px solid var(--line)}
+  td{padding:10px 16px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr.task{cursor:pointer}
+  tr.task:hover td{background:#F6F8FA}
+  tr.task[aria-selected="true"] td{background:#EDF1F5}
+  td .title{font-weight:500}
+  td .tid{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .proj{display:inline-block;border:1px solid var(--line);border-radius:3px;
+        background:var(--bg);color:var(--muted);font-size:11px;
+        padding:0 6px;margin-left:6px;vertical-align:1px}
+  .status{display:inline-block;border-left:3px solid;padding:1px 0 1px 7px;
+          font-size:12px;font-weight:500}
+  .s-in_progress{border-color:var(--pine);color:var(--pine)}
+  .s-blocked{border-color:var(--brick);color:var(--brick)}
+  .s-proposed{border-color:var(--slate);color:var(--slate)}
+  .s-completed,.s-cancelled{border-color:var(--quiet);color:var(--quiet)}
+  .deadline{font-family:var(--mono);font-size:12px}
+  .deadline.overdue{color:var(--brick);font-weight:500}
+  .flag{font-size:11px;color:var(--brick)}
+
+  .dep{padding:10px 16px;border-bottom:1px solid var(--line);font-size:13px}
+  .dep:last-child{border-bottom:none}
+  .dep .who{font-weight:600}
+  .dep .via{font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+  .share-row{padding:10px 16px;border-bottom:1px solid var(--line);
+             font-size:13px;display:flex;gap:8px;align-items:baseline}
+  .share-row:last-child{border-bottom:none}
+  .share-row .lvl{font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+  .drill-head{padding:14px 16px;border-bottom:1px solid var(--line)}
+  .drill-head .t{font-size:16px;font-weight:600}
+  .drill-head .tid{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .level-note{margin:10px 16px 0;padding:8px 12px;border:1px dashed var(--line);
+              border-radius:6px;font-size:12.5px;color:var(--muted)}
+  .rail{padding:6px 0 14px}
+  .ev{display:grid;grid-template-columns:64px 1fr;position:relative}
+  .ev::before{content:"";position:absolute;left:31px;top:0;bottom:0;
+              width:1px;background:var(--line)}
+  .ev:first-child::before{top:18px}
+  .ev:last-child::before{bottom:auto;height:18px}
+  .vno{font-family:var(--mono);font-size:11px;color:var(--muted);
+       text-align:center;padding-top:12px}
+  .vno b{display:inline-block;background:var(--panel);border:1px solid var(--line);
+         border-radius:10px;padding:1px 7px;font-weight:500}
+  .ebody{padding:10px 16px 12px 4px;border-bottom:1px dashed var(--line)}
+  .ev:last-child .ebody{border-bottom:none}
+  .etype{font-weight:600;font-size:13px}
+  .actor{display:inline-block;font-size:10.5px;font-weight:600;
+         letter-spacing:.05em;text-transform:uppercase;border-radius:3px;
+         padding:1px 6px;margin-left:8px;vertical-align:1px}
+  .a-manual_edit{background:#E4E9EE;color:var(--muted)}
+  .a-user_decision{background:#E2EEE9;color:var(--pine)}
+  .a-system{background:#F0F1F3;color:var(--quiet)}
+  .rationale{color:var(--muted);margin-top:3px}
+  .redacted{color:var(--quiet);font-style:italic}
+  .meta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px}
+
+  .trace-btn{margin-top:8px;background:var(--evidence-bg);
+             border:1px solid var(--evidence);color:var(--evidence-ink);
+             border-radius:5px;padding:3px 10px;font-size:12px;font-weight:500}
+  .trace-btn:hover{background:#FFEFC2}
+  .trace{margin:8px 0 2px;border-left:2px solid var(--evidence);
+         padding:8px 0 2px 12px}
+  .sig{margin-bottom:8px}
+  .sig .st{font-size:12.5px}
+  .sig .sm{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .src{display:inline-block;background:var(--evidence-bg);
+       border:1px solid var(--evidence);color:var(--evidence-ink);
+       border-radius:4px;padding:2px 8px;font-family:var(--mono);
+       font-size:11px;margin:4px 6px 0 0}
+
+  .empty{padding:28px 16px;color:var(--muted);text-align:center}
+  .err{padding:14px 16px;color:var(--brick)}
+</style>
+</head>
+<body>
+<header>
+  <img class="brandmark" src="assets/keck-usc-logo.svg"
+       alt="Keck Medicine of USC"
+       onerror="this.style.display='none'">
+  <h1>Task ledger</h1>
+  <p>Confirmed work state. You see the boards and projects shared with you.</p>
+  <div class="viewer">
+    <label for="viewer-sel">Viewing as</label>
+    <select id="viewer-sel" aria-label="Viewing as"></select>
+  </div>
+</header>
+
+<div class="wrap">
+  <div>
+    <section class="panel">
+      <h2>Boards shared with you</h2>
+      <div class="team" id="team"></div>
+    </section>
+
+    <section class="panel">
+      <h2 id="board-title">Board</h2>
+      <table>
+        <thead><tr><th>Task</th><th>Status</th><th>Deadline</th></tr></thead>
+        <tbody id="board"></tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>Waiting on this board</h2>
+      <div id="deps"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Access you have granted</h2>
+      <div id="shares"></div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>History</h2>
+    <div id="drill"><div class="empty">Select a task to see its history and,
+      where you have full-trace access, the sources behind each change.</div></div>
+  </section>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  // Demo viewer switcher. In production the viewer is the signed-in AAD
+  // identity and this list disappears.
+  var VIEWERS = ["alex","priya","vic","mallory"];
+  var state = { viewer: VIEWERS[0], user: null, task: null };
+
+  function get(path){
+    return fetch(path, {headers: {"X-Viewer": state.viewer}}).then(function(r){
+      if(r.status === 403) return r.json().then(function(b){
+        var e = new Error(b.error || "not shared with you");
+        e.forbidden = true; throw e;
+      });
+      if(!r.ok) throw new Error(path + " -> " + r.status);
+      return r.json();
+    });
+  }
+  function el(tag, cls, text){
+    var e = document.createElement(tag);
+    if(cls) e.className = cls;
+    if(text != null) e.textContent = text;
+    return e;
+  }
+  function fail(node, e){
+    node.innerHTML = "";
+    node.appendChild(el("div","err", e.forbidden ? e.message
+      : "Could not load data: " + e.message));
+  }
+
+  var sel = document.getElementById("viewer-sel");
+  VIEWERS.forEach(function(v){
+    var o = el("option", null, v); o.value = v; sel.appendChild(o);
+  });
+  sel.addEventListener("change", function(){
+    state.viewer = sel.value; state.user = null; state.task = null;
+    boot();
+  });
+
+  function boot(){
+    document.getElementById("drill").innerHTML =
+      '<div class="empty">Select a task to see its history.</div>';
+    loadTeam(); loadShares();
+  }
+
+  // ---- boards visible to the viewer ----
+  function loadTeam(){
+    var box = document.getElementById("team");
+    get("/api/team").then(function(rows){
+      box.innerHTML = "";
+      if(!rows.length){
+        box.appendChild(el("div","empty",
+          "Nothing is shared with " + state.viewer +
+          " yet. A board owner or project owner can grant access."));
+        clearBoard(); return;
+      }
+      rows.forEach(function(r){
+        var b = el("button","member");
+        b.setAttribute("aria-pressed", String(r.user_ref === state.user));
+        b.appendChild(el("span","name", r.user_ref));
+        b.appendChild(el("span","counts",
+          r.in_progress + " active \u00b7 " + r.blocked + " blocked" +
+          (r.overdue > 0 ? " \u00b7 " + r.overdue + " overdue" : "")));
+        b.addEventListener("click", function(){ selectUser(r.user_ref); });
+        box.appendChild(b);
+      });
+      var still = rows.some(function(r){ return r.user_ref === state.user; });
+      selectUser(still ? state.user : rows[0].user_ref);
+    }).catch(function(e){ fail(box, e); });
+  }
+
+  function clearBoard(){
+    document.getElementById("board").innerHTML = "";
+    document.getElementById("board-title").textContent = "Board";
+    document.getElementById("deps").innerHTML =
+      '<div class="empty">No board selected.</div>';
+  }
+
+  function selectUser(u){
+    state.user = u; state.task = null;
+    document.querySelectorAll(".member").forEach(function(m){
+      m.setAttribute("aria-pressed",
+        String(m.querySelector(".name").textContent === u));
+    });
+    document.getElementById("board-title").textContent = "Board \u2014 " + u;
+    loadBoard(); loadDeps();
+  }
+
+  // ---- board (Q1, filtered) ----
+  function loadBoard(){
+    var body = document.getElementById("board");
+    get("/api/board/" + encodeURIComponent(state.user)).then(function(rows){
+      body.innerHTML = "";
+      if(!rows.length){
+        var tr = el("tr");
+        var td = el("td","empty","No tasks shared with you on this board.");
+        td.colSpan = 3; tr.appendChild(td); body.appendChild(tr); return;
+      }
+      rows.forEach(function(r){
+        var tr = el("tr","task");
+        tr.tabIndex = 0;
+        tr.setAttribute("aria-selected", String(r.task_id === state.task));
+        var t1 = el("td");
+        var titleLine = el("div","title", r.title);
+        if(r.project_name)
+          titleLine.appendChild(el("span","proj", r.project_name));
+        t1.appendChild(titleLine);
+        t1.appendChild(el("div","tid", r.task_id +
+          (r.subtasks ? " \u00b7 " + r.subtasks + " subtasks" : "")));
+        var t2 = el("td");
+        t2.appendChild(el("span","status s-" + r.status,
+          r.status.replace("_"," ")));
+        if(r.open_blockers)
+          t2.appendChild(el("div","flag",
+            r.open_blockers + " open blocker" + (r.open_blockers>1?"s":"")));
+        var t3 = el("td");
+        t3.appendChild(el("span",
+          "deadline" + (r.overdue ? " overdue" : ""), r.deadline || "\u2014"));
+        if(r.overdue) t3.appendChild(el("div","flag","overdue"));
+        tr.appendChild(t1); tr.appendChild(t2); tr.appendChild(t3);
+        function open(){ state.task = r.task_id; loadBoard(); drill(r); }
+        tr.addEventListener("click", open);
+        tr.addEventListener("keydown", function(ev){
+          if(ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); open(); }
+        });
+        body.appendChild(tr);
+      });
+    }).catch(function(e){ fail(body, e); });
+  }
+
+  // ---- blocked-on (Q4, owner or full-trace board grant) ----
+  function loadDeps(){
+    var box = document.getElementById("deps");
+    get("/api/blocked-on/" + encodeURIComponent(state.user)).then(function(rows){
+      box.innerHTML = "";
+      if(!rows.length){ box.appendChild(el("div","empty",
+        "Nobody is waiting on " + state.user + " right now.")); return; }
+      rows.forEach(function(r){
+        var d = el("div","dep");
+        var line = el("div");
+        line.appendChild(el("span","who", r.blocked_user));
+        line.appendChild(document.createTextNode(
+          " is blocked on \u201c" + (r.my_blocking_title || r.blocker_desc) +
+          "\u201d"));
+        d.appendChild(line);
+        d.appendChild(el("div","via",
+          r.blocked_task + " waits on " + (r.my_blocking_task || "external")));
+        box.appendChild(d);
+      });
+    }).catch(function(e){ fail(box, e); });
+  }
+
+  // ---- grants given (owners see who they've shared with) ----
+  function loadShares(){
+    var box = document.getElementById("shares");
+    get("/api/grants").then(function(rows){
+      box.innerHTML = "";
+      if(!rows.length){ box.appendChild(el("div","empty",
+        "You have not shared anything.")); return; }
+      rows.forEach(function(g){
+        var d = el("div","share-row");
+        d.appendChild(el("span","who", g.grantee_ref));
+        d.appendChild(document.createTextNode(
+          (g.subject_type === "project"
+            ? " can follow project " + g.subject_id
+            : " can see your whole board")));
+        d.appendChild(el("span","lvl", g.level === "full_trace"
+          ? "full trace" : "progress only"));
+        box.appendChild(d);
+      });
+    }).catch(function(e){ fail(box, e); });
+  }
+
+  // ---- drill (Q2 + Q3, level-aware) ----
+  function drill(task){
+    var box = document.getElementById("drill");
+    box.innerHTML = "";
+    var head = el("div","drill-head");
+    head.appendChild(el("div","t", task.title));
+    head.appendChild(el("div","tid", task.task_id +
+      (task.project_name ? " \u00b7 " + task.project_name : "")));
+    box.appendChild(head);
+    get("/api/task/" + encodeURIComponent(task.task_id) + "/history")
+    .then(function(res){
+      if(res.access_level === "progress"){
+        box.appendChild(el("div","level-note",
+          "Shared at progress level: you can follow what changed and when. " +
+          "Discussion detail and sources stay with the team."));
+      }
+      var rail = el("div","rail");
+      res.events.forEach(function(ev){ rail.appendChild(eventRow(ev)); });
+      box.appendChild(rail);
+    }).catch(function(e){ fail(box, e); });
+  }
+
+  var ACTOR_LABEL = { manual_edit: "typed by hand",
+                      user_decision: "confirmed review",
+                      system: "system" };
+
+  function eventRow(ev){
+    var row = el("div","ev");
+    var vno = el("div","vno");
+    vno.appendChild(el("b", null, "v" + ev.board_version));
+    row.appendChild(vno);
+
+    var body = el("div","ebody");
+    var line = el("div");
+    line.appendChild(el("span","etype", describe(ev)));
+    line.appendChild(el("span","actor a-" + ev.actor_type,
+      ACTOR_LABEL[ev.actor_type] || ev.actor_type));
+    body.appendChild(line);
+    if(ev.rationale){
+      var isRedacted = ev.rationale.indexOf("[shared at progress") === 0;
+      body.appendChild(el("div",
+        "rationale" + (isRedacted ? " redacted" : ""),
+        isRedacted ? "Detail hidden at this access level" : ev.rationale));
+    }
+    var meta = (ev.occurred_at || "").slice(0,16).replace("T"," ");
+    if(ev.decided_by) meta += " \u00b7 decided by " + ev.decided_by;
+    if(ev.confidence != null)
+      meta += " \u00b7 " + Math.round(ev.confidence*100) + "% confidence";
+    body.appendChild(el("div","meta", meta));
+
+    if(ev.has_provenance){
+      var btn = el("button","trace-btn","Trace to source");
+      var holder = el("div");
+      btn.addEventListener("click", function(){
+        if(holder.firstChild){ holder.innerHTML=""; btn.textContent="Trace to source"; return; }
+        btn.textContent = "Hide sources";
+        get("/api/event/" + ev.event_id + "/provenance").then(function(rows){
+          holder.appendChild(traceBlock(rows));
+        }).catch(function(e){
+          holder.appendChild(el("div","err", e.message));
+        });
+      });
+      body.appendChild(btn); body.appendChild(holder);
+    }
+    row.appendChild(body);
+    return row;
+  }
+
+  function traceBlock(rows){
+    var t = el("div","trace");
+    if(!rows.length){ t.appendChild(el("div","sm","No linked sources.")); return t; }
+    var bySignal = {};
+    rows.forEach(function(r){
+      (bySignal[r.signal_id] = bySignal[r.signal_id] || []).push(r);
+    });
+    Object.keys(bySignal).forEach(function(sid){
+      var group = bySignal[sid], first = group[0];
+      var s = el("div","sig");
+      s.appendChild(el("div","st",
+        first.signal_type.replace("_"," ") + ": \u201c" +
+        first.signal_title + "\u201d"));
+      s.appendChild(el("div","sm", sid + " \u00b7 extracted at " +
+        Math.round(first.signal_confidence*100) + "% confidence"));
+      group.forEach(function(r){
+        var chip = el("a","src",
+          r.source_type.replace("_"," ") + " \u00b7 " + r.resource_id);
+        chip.href = "#";
+        chip.title = "Opens the original message under your own permissions" +
+          (r.content_hash ? " \u00b7 integrity hash " + r.content_hash : "");
+        chip.addEventListener("click", function(e){ e.preventDefault(); });
+        s.appendChild(chip);
+      });
+      t.appendChild(s);
+    });
+    return t;
+  }
+
+  function describe(ev){
+    var p = ev.payload || {};
+    switch(ev.event_type){
+      case "created": return "Created \u2014 " + (p.status || "proposed");
+      case "status_changed": return "Status \u2192 " + p.to_status;
+      case "deadline_changed": return "Deadline \u2192 " + p.to_deadline;
+      case "reassigned": return "Owner \u2192 " + p.to_owner_ref;
+      case "blocker_added":
+        return p.description && p.description.indexOf("[shared") === 0
+          ? "Blocked" : "Blocked \u2014 " + (p.description || "");
+      case "blocker_resolved": return "Blocker cleared";
+      case "completed": return "Completed";
+      case "cancelled": return "Cancelled";
+      case "reopened": return "Reopened";
+      case "merged_into": return "Merged into " + p.surviving_task_id;
+      case "alias_added":
+        return p.alias && p.alias.indexOf("[shared") === 0
+          ? "Reference recorded" : "Also known as \u201c" + p.alias + "\u201d";
+      case "project_assigned": return "Moved to project " + p.project_id;
+      default: return ev.event_type.replace("_"," ");
+    }
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
