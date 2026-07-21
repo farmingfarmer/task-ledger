@@ -1,0 +1,36 @@
+{
+  "job": {
+    "source_type": "meeting_transcript",
+    "source_ref": "meeting-standup-2026-07-20",
+    "window_start": "2026-07-20T16:00:00Z",
+    "window_end": "2026-07-20T16:15:00Z"
+  },
+  "directory": {
+    "Alex": "aad-alex",
+    "Priya": "aad-priya",
+    "Dev": "aad-dev"
+  },
+  "items": [
+    {"resource_id": "utt-001", "author_name": "Alex", "author_ref": "aad-alex",
+     "timestamp": "2026-07-20T16:00:12Z",
+     "text": "Morning all. Quick round: I got the drift monitor deployed to staging yesterday, watching it for a couple days before prod."},
+    {"resource_id": "utt-002", "author_name": "Priya", "author_ref": "aad-priya",
+     "timestamp": "2026-07-20T16:01:05Z",
+     "text": "Nice. The IAM role for Fargate is still stuck with the cloud team, so the prod deploy is blocked on that. I pinged them again this morning."},
+    {"resource_id": "utt-003", "author_name": "Dev", "author_ref": "aad-dev",
+     "timestamp": "2026-07-20T16:02:00Z",
+     "text": "I finished the intake OCR crash fix, it shipped in last night's release. Closing that one out."},
+    {"resource_id": "utt-004", "author_name": "Alex", "author_ref": "aad-alex",
+     "timestamp": "2026-07-20T16:02:41Z",
+     "text": "Great. Dev, can you take the retraining pipeline alerting next? Would be good to have it wired up by end of next week."},
+    {"resource_id": "utt-005", "author_name": "Dev", "author_ref": "aad-dev",
+     "timestamp": "2026-07-20T16:03:02Z",
+     "text": "Sure, I'll pick that up."},
+    {"resource_id": "utt-006", "author_name": "Priya", "author_ref": "aad-priya",
+     "timestamp": "2026-07-20T16:03:30Z",
+     "text": "Also just floating this: at some point we should probably rebuild the feature store docs, they're pretty stale. Not urgent."},
+    {"resource_id": "utt-007", "author_name": "Alex", "author_ref": "aad-alex",
+     "timestamp": "2026-07-20T16:04:10Z",
+     "text": "Agreed, let's park that for now. Anything else? Okay, same time Wednesday."}
+  ]
+}

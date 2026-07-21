@@ -1,0 +1,61 @@
+# Extraction Worker: Communication Window -> Signals
+
+Implements the extraction stage specified in `CONTRACTS.md` / `extraction_schema.json`. Files: `extraction_prompts.py` (the prompt), `extraction_worker.py` (the pipeline), `signal_store_pg.py` (Postgres persistence + pooling), `run_local.py` + `sample_transcript.json` (local iteration against Ollama or Azure OpenAI), `test_extraction.py` (21 checks, including live-database idempotency).
+
+## 1. Shape
+
+```
+job (from WindowBatcher / transcript poll)
+  -> fetcher (Graph in prod; injected)         content items, never stored
+  -> build_messages                            numbered items + window end date
+  -> LLM (Ollama / Azure OpenAI; injected)     one call per window
+  -> parse + salvage                           per-signal validation
+  -> name resolution                           display names -> person refs
+  -> evidence assembly                         citations -> resource ids + sha256
+  -> deterministic ids                         batch_id / signal_id content hashes
+  -> jsonschema.validate                       against extraction_schema.json
+  -> signal_store_pg.write_batch               idempotent insert + pooling
+```
+
+Everything external is injected (fetcher, LLM, clock), so the whole pipeline tests offline with a fake model and runs identically against `mistral-small3.1` on a laptop or a GPT deployment in Azure — the batch records which (`extractor.model` + `prompt_version`), which is what makes cross-model comparison a SQL query later.
+
+## 2. Prompt design decisions
+
+**Citations are the contract.** The window is presented as numbered items and every signal must cite the item numbers supporting it. The worker converts citations into EvidenceRefs — Graph resource id plus a sha256 of the item text at extraction time — and a signal with no valid citations is dropped, full stop. This is what makes "Trace to source" on the dashboard real rather than decorative: the model cannot emit an unanchored claim that survives.
+
+**Negative guidance gets equal billing.** Extractors fail by over-firing, so the prompt spends as many words on what is *not* a signal — opinions, uncommitted questions, hypotheticals, reminiscing about long-finished work, meeting meta-talk — as on the type definitions, and closes with "if you would hedge the title with maybe, do not emit it." The sample transcript's item 6 ("we should probably rebuild the docs... not urgent") exists precisely to exercise the proposal/noise boundary during prompt iteration.
+
+**The closed sets downstream depends on are defined inline.** Attribution basis (explicit_assignment / self_reference / inferred, with examples and "when in doubt, inferred"), status values, deadline precision. `completion_claim` gets its own conservative framing ("almost done is a status_update") because the matching policy treats completions as the highest-blast-radius signal.
+
+**Dates resolve against a given anchor.** The prompt supplies the window end date; the model resolves "Friday" and "end of next sprint" against it or returns null — "never guess a date" is in the output rules, and the worker enforces it anyway (below).
+
+## 3. Worker policies
+
+**Salvage, don't sink.** Each signal validates independently; malformed ones drop with a recorded reason (`bad_type`, `missing_title`, `no_valid_evidence`, `missing_confidence`, `not_an_object`, `duplicate`) while good neighbors survive. A fully unparseable response yields a schema-valid *empty* batch plus a report entry — never an exception into the queue runtime. The report is the tuning channel: drop-reason frequencies tell you exactly which prompt rule the model is failing.
+
+**Hallucination guards are worker-side, not prompt-side hopes.** Non-ISO dates are nulled (raw phrase kept — the review card shows the human the phrase either way). Owner names that don't resolve through the injected directory are dropped entirely, because the schema forbids display names and a guessed AAD id is worse than no attribution. Unknown basis values demote to `inferred`, never promote. Confidence clamps to [0,1].
+
+**Determinism end to end.** `batch_id = sha(source_ref, window, prompt_version)`; `signal_id = sha(batch_id, type, primary evidence, title)`. The suite proves identical ids across re-runs even when one response arrives fenced and the other bare — which is what makes crash-recovery replays and A/B prompt comparisons safe downstream.
+
+**Validation is a gate, not a log line.** The assembled batch must pass `extraction_schema.json` before the worker returns it; the schema is located automatically in both the repo layout (`../contracts/`) and flat layouts.
+
+## 4. Persistence and pooling
+
+`write_batch` inserts batch -> signals -> evidence -> pool events in one transaction, `ON CONFLICT DO NOTHING` on the content-hash keys; pool events are written only for *newly inserted* signals, so replaying a window never double-pools (asserted against the live database). Pooling policy: a signal pools to every resolved owner candidate; a signal with no resolvable owner pools to the window's participants — unattributed work spoken in a conversation still belongs on someone in that conversation's review card, and the human review sorts out whose. Content never persists: items are fetched, hashed, cited, and discarded.
+
+## 5. Running it locally
+
+On the Mac against Ollama (worth iterating here before spending Azure tokens):
+
+```zsh
+cd extraction
+python3 run_local.py --transcript sample_transcript.json --model mistral-small3.1
+```
+
+Batch to stdout, salvage report to stderr. Add `--write-db "host=localhost port=5433 dbname=taskintel user=postgres"` to persist into the portable Postgres and watch the signals appear in `v_unconsumed_signals`. Azure: set `AZURE_OPENAI_ENDPOINT/KEY/DEPLOYMENT` and pass `--backend azure`. The transcript file format (job + directory + items) is the fixture format for building an eval set: accumulate real-ish transcripts with expected signals, and the salvage report plus schema validation give pass/fail for free.
+
+The expected read on the sample transcript, for calibrating any model you point at it: a status_update (Alex, drift monitor), a blocker (Priya, IAM role), a completion_claim (Dev, OCR fix, self-reference), an assignment (Dev, alerting, explicit_assignment, deadline "end of next week" resolving to 2026-07-31), and a proposal (feature store docs, unowned) — with item 7's meeting talk producing nothing.
+
+## 6. What this unlocks
+
+With extraction real, the remaining unbuilt stage is the **reconciler**: take `v_unconsumed_signals` + the board, apply `matching_policy.yaml` with real embeddings and the judge prompts, emit ReviewPackets. Once that exists, the full loop — transcript in, card out, decision in, dashboard fact with provenance — runs end to end on one machine with no cloud dependencies.
