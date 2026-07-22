@@ -1,0 +1,235 @@
+"""Task Ledger cadence tick.
+
+What one tick does, in order:
+  1. INBOX    every *.json in TL_INBOX (run_local transcript format: job +
+              directory + items) is extracted via Ollama and written to the
+              signal store, then moved to TL_INBOX/processed/. If Ollama is
+              unreachable, inbox files are left untouched for the next tick
+              -- extraction needs a model; nothing is lost by waiting.
+  2. RECONCILE  the user's pool against their board. Ollama up: real
+              embeddings + judge. Ollama down: offline TokenEmbedder and no
+              judge -- auto-links and gates still run, judge-band and
+              closure signals hold. write_packet supersedes any open packet
+              (storage-layer semantics) and skips empty packets.
+  3. NOTIFY   if any undecided proposals exist for the user (new packet or
+              a still-open one), raise a macOS notification pointing at the
+              review CLI. Zero pending -> zero noise.
+
+Everything is logged with timestamps to stdout (launchd redirects to the
+log file). Exit code 0 unless the tick itself failed; a down Ollama or an
+empty day is normal operation, not failure.
+
+Configuration (environment, set in the launchd plist or a shell):
+  DB_DSN            required
+  TL_USER           required (e.g. aad-dev)
+  TL_REPO           repo root (default: two levels up from this file)
+  TL_INBOX          transcript inbox (default ~/task-ledger-inbox)
+  TL_EMBED_MODEL    default nomic-embed-text
+  TL_JUDGE_MODEL    default mistral-small3.1
+  TL_EXTRACT_MODEL  default mistral-small3.1
+  OLLAMA_HOST_URL   default http://localhost:11434
+  TL_NO_NOTIFY      set to 1 to suppress the popup (tests, headless)
+
+Python 3.8 compatible. Requires psycopg2, pyyaml, jsonschema.
+"""
+
+import datetime
+import glob
+import json
+import os
+import shutil
+import subprocess
+import sys
+import urllib.request
+
+
+def log(msg):
+    ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print("[{0}] {1}".format(ts, msg))
+    sys.stdout.flush()
+
+
+def repo_root():
+    return os.environ.get(
+        "TL_REPO",
+        os.path.normpath(os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..")))
+
+
+def wire_paths():
+    root = repo_root()
+    for sub in ("extraction", "reconciler", "policy"):
+        p = os.path.join(root, sub)
+        if p not in sys.path:
+            sys.path.insert(0, p)
+
+
+def ollama_up(host, timeout=3):
+    try:
+        with urllib.request.urlopen(host + "/api/tags", timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+
+def ollama_chat(model, host):
+    def call(messages):
+        body = json.dumps({"model": model, "messages": messages,
+                           "stream": False,
+                           "options": {"temperature": 0.0}}).encode("utf-8")
+        req = urllib.request.Request(
+            host + "/api/chat", data=body,
+            headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=600) as resp:
+            return json.loads(resp.read().decode("utf-8"))["message"]["content"]
+    return call
+
+
+def notify(title, text):
+    if os.environ.get("TL_NO_NOTIFY") == "1":
+        log("notify suppressed: {0} -- {1}".format(title, text))
+        return
+    if sys.platform != "darwin":
+        log("notify (non-darwin): {0} -- {1}".format(title, text))
+        return
+    script = 'display notification "{0}" with title "{1}" sound name "Glass"'\
+        .format(text.replace('"', "'"), title.replace('"', "'"))
+    subprocess.run(["osascript", "-e", script], check=False)
+
+
+# ------------------------------------------------------------------- stages
+
+def process_inbox(dsn, inbox, host, extract_model, llm_factory):
+    import extraction_worker
+    import signal_store_pg
+
+    files = sorted(glob.glob(os.path.join(inbox, "*.json")))
+    if not files:
+        log("inbox: empty")
+        return 0
+    if not ollama_up(host):
+        log("inbox: {0} file(s) waiting but Ollama unreachable; "
+            "leaving for next tick".format(len(files)))
+        return 0
+    processed_dir = os.path.join(inbox, "processed")
+    os.makedirs(processed_dir, exist_ok=True)
+    total = 0
+    for path in files:
+        try:
+            with open(path) as f:
+                spec = json.load(f)
+            worker = extraction_worker.ExtractionWorker(
+                fetcher=lambda job, items=spec["items"]: items,
+                llm=llm_factory(extract_model, host),
+                directory=spec["directory"],
+                model_name="ollama:{0}".format(extract_model))
+            batch, report = worker.run_job(spec["job"])
+            fallback = sorted(set(spec["directory"].values()))
+            result = signal_store_pg.write_batch(dsn, batch, fallback)
+            log("inbox: {0} -> {1} signals kept ({2} dropped), "
+                "{3} inserted".format(
+                    os.path.basename(path), report["kept"],
+                    len(report["dropped"]), result["signals_inserted"]))
+            total += result["signals_inserted"]
+            shutil.move(path, os.path.join(processed_dir,
+                                           os.path.basename(path)))
+        except Exception as e:
+            log("inbox: FAILED {0}: {1} -- left in place".format(
+                os.path.basename(path), e))
+    return total
+
+
+def run_reconcile(dsn, user, host, embed_model, judge_model):
+    import board_io_pg
+    import embedders
+    import reconciler as rec_mod
+
+    signals = board_io_pg.load_signals(dsn, user)
+    tasks, version = board_io_pg.load_board(dsn, user)
+    log("reconcile: {0} pooled signals, {1} matchable tasks, board v{2}"
+        .format(len(signals), len(tasks), version))
+
+    if ollama_up(host):
+        embed = embedders.OllamaEmbedder(embed_model, host)
+        judge = ollama_chat(judge_model, host)
+        mode = "ollama"
+    else:
+        embed = embedders.TokenEmbedder()
+        judge = None
+        mode = "offline (holds judge-band)"
+    log("reconcile: mode={0}".format(mode))
+
+    run_id = "cadence-{0}".format(
+        datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    rec = rec_mod.Reconciler(embed=embed, judge_llm=judge)
+    packet, report = rec.reconcile(user, signals, tasks, version, run_id)
+    result = board_io_pg.write_packet(dsn, packet, report["consumed"],
+                                     report["annotations"], run_id)
+    log("reconcile: {0} proposals, {1} consumed, {2} held, "
+        "superseded {3}, {4} signals returned".format(
+            result["proposals"], len(report["consumed"]),
+            len(report["held"]), len(result["superseded"]),
+            result["returned_signals"]))
+    return result
+
+
+def pending_count(dsn, user):
+    import psycopg2
+    conn = psycopg2.connect(dsn)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                WITH latest AS (
+                  SELECT DISTINCT ON (packet_id) packet_id, state
+                  FROM packet_state_events
+                  ORDER BY packet_id, event_id DESC)
+                SELECT count(p.proposal_id)
+                FROM review_packets rp
+                JOIN latest l USING (packet_id)
+                JOIN proposals p USING (packet_id)
+                LEFT JOIN decisions d ON d.proposal_id = p.proposal_id
+                WHERE rp.user_ref = %s
+                  AND l.state IN ('draft','delivered','partially_decided')
+                  AND d.decision_id IS NULL""", (user,))
+            return cur.fetchone()[0]
+    finally:
+        conn.close()
+
+
+def main():
+    dsn = os.environ.get("DB_DSN")
+    user = os.environ.get("TL_USER")
+    if not dsn or not user:
+        log("FATAL: DB_DSN and TL_USER are required")
+        return 2
+    host = os.environ.get("OLLAMA_HOST_URL", "http://localhost:11434")
+    inbox = os.path.expanduser(
+        os.environ.get("TL_INBOX", "~/task-ledger-inbox"))
+    os.makedirs(inbox, exist_ok=True)
+
+    wire_paths()
+    log("tick start: user={0} inbox={1}".format(user, inbox))
+    try:
+        process_inbox(dsn, inbox, host,
+                      os.environ.get("TL_EXTRACT_MODEL", "mistral-small3.1"),
+                      ollama_chat)
+        run_reconcile(dsn, user, host,
+                      os.environ.get("TL_EMBED_MODEL", "nomic-embed-text"),
+                      os.environ.get("TL_JUDGE_MODEL", "mistral-small3.1"))
+        n = pending_count(dsn, user)
+        if n > 0:
+            notify("Task Ledger",
+                   "{0} proposal{1} awaiting your review".format(
+                       n, "" if n == 1 else "s"))
+            log("pending: {0} -> notified".format(n))
+        else:
+            log("pending: 0 -> silent")
+        log("tick done")
+        return 0
+    except Exception as e:
+        log("tick FAILED: {0!r}".format(e))
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
