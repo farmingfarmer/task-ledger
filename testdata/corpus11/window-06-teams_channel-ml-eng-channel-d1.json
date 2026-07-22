@@ -1,0 +1,76 @@
+{
+ "job": {
+  "source_type": "teams_channel",
+  "source_ref": "teams_channel-ml-eng-channel-d1",
+  "window_start": "2026-07-21T10:30:00Z",
+  "window_end": "2026-07-21T12:00:00Z"
+ },
+ "directory": {
+  "Alexander Marunycz": "aad-alex",
+  "Alex": "aad-alex",
+  "Alexander": "aad-alex",
+  "AM": "aad-alex",
+  "Priya Raman": "aad-priya",
+  "Priya": "aad-priya",
+  "P": "aad-priya",
+  "Dev Patel": "aad-dev",
+  "Dev": "aad-dev",
+  "Mallory Chen": "aad-mallory",
+  "Mallory": "aad-mallory",
+  "Mal": "aad-mallory",
+  "Victor Ruiz": "aad-vic",
+  "Vic": "aad-vic",
+  "Victor": "aad-vic"
+ },
+ "items": [
+  {
+   "resource_id": "teams-d1-001",
+   "author_name": "Priya Raman",
+   "author_ref": "aad-priya",
+   "timestamp": "2026-07-21T10:39:00Z",
+   "text": "good news, the iam role is no longer blocked, cloud team came through"
+  },
+  {
+   "resource_id": "teams-d1-002",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-21T10:48:00Z",
+   "text": "can we move teh 1:1 to thursday? dentist"
+  },
+  {
+   "resource_id": "teams-d1-003",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-21T10:57:00Z",
+   "text": "i think mallory chen finished teh model card yesterday? board still shows it open"
+  },
+  {
+   "resource_id": "teams-d1-004",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-21T11:06:00Z",
+   "text": "anyone want thai for lunch? going at noon"
+  },
+  {
+   "resource_id": "teams-d1-005",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-21T11:15:00Z",
+   "text": "related: this overlaps with the model card a bit"
+  },
+  {
+   "resource_id": "teams-d1-006",
+   "author_name": "Alexander Marunycz",
+   "author_ref": "aad-alex",
+   "timestamp": "2026-07-21T11:24:00Z",
+   "text": "reminder: benefits enrollment closes friday"
+  },
+  {
+   "resource_id": "teams-d1-007",
+   "author_name": "Priya Raman",
+   "author_ref": "aad-priya",
+   "timestamp": "2026-07-21T11:33:00Z",
+   "text": "hah yeah that thread on the data eng forum was wild"
+  }
+ ]
+}

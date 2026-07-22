@@ -96,6 +96,9 @@ def score_window(golden, signals):
             if ov >= 0.5 and match_type(g, s["type"]) and ov > best:
                 best, best_i = ov, i
         if best_i is None:
+            res.setdefault("missed", []).append(
+                {"type": g.get("type") or "/".join(g.get("type_any", [])),
+                 "title": g["title_core"]})
             continue
         used.add(best_i)
         res["recovered"] += 1
@@ -139,6 +142,8 @@ def score_window(golden, signals):
         if any(overlap(t, s["title"]) >= 0.5 for t in all_titles):
             continue   # duplicate sighting or family-mismatch: not counted
         res["fabrications"] += 1
+        res.setdefault("fabrication_titles", []).append(
+            {"type": s["type"], "title": s["title"]})
     return res
 
 

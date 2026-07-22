@@ -1,0 +1,55 @@
+{
+ "job": {
+  "source_type": "email_thread",
+  "source_ref": "email-thread-d2",
+  "window_start": "2026-07-22T15:00:00Z",
+  "window_end": "2026-07-22T16:00:00Z"
+ },
+ "directory": {
+  "Alexander Marunycz": "aad-alex",
+  "Alex": "aad-alex",
+  "Alexander": "aad-alex",
+  "AM": "aad-alex",
+  "Priya Raman": "aad-priya",
+  "Priya": "aad-priya",
+  "P": "aad-priya",
+  "Dev Patel": "aad-dev",
+  "Dev": "aad-dev",
+  "Mallory Chen": "aad-mallory",
+  "Mallory": "aad-mallory",
+  "Mal": "aad-mallory",
+  "Victor Ruiz": "aad-vic",
+  "Vic": "aad-vic",
+  "Victor": "aad-vic"
+ },
+ "items": [
+  {
+   "resource_id": "email-d2-001",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-22T15:06:00Z",
+   "text": "Hi team,\n\nmaking decent progress on the OCR fix, midway through\n\n> On an earlier note re: yesterday's sync, see thread below.\n\nVictor Ruiz\nData Science | Keck Medicine of USC"
+  },
+  {
+   "resource_id": "email-d2-002",
+   "author_name": "Alexander Marunycz",
+   "author_ref": "aad-alex",
+   "timestamp": "2026-07-22T15:12:00Z",
+   "text": "Hi team,\n\nmaking decent progress on the Readmission model feature drift monitor, midway through\n\nAlexander Marunycz\nData Science | Keck Medicine of USC"
+  },
+  {
+   "resource_id": "email-d2-003",
+   "author_name": "Dev Patel",
+   "author_ref": "aad-dev",
+   "timestamp": "2026-07-22T15:18:00Z",
+   "text": "Hi team,\n\nwe should really rebuild the model card at some point, it keeps biting us\n\n> On an earlier note re: yesterday's sync, see thread below.\n\nDev Patel\nData Science | Keck Medicine of USC"
+  },
+  {
+   "resource_id": "email-d2-004",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-22T15:24:00Z",
+   "text": "did anyone else's vpn drop around 10?"
+  }
+ ]
+}

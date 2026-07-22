@@ -1,7 +1,7 @@
 {
  "window-01-meeting_transcript-standup-d0.json": {
   "golden": 3,
-  "recovered": 2,
+  "recovered": 3,
   "attr_checked": 2,
   "attr_ok": 2,
   "vague_checked": 0,
@@ -9,12 +9,12 @@
   "trap_hits": 0,
   "trap_details": [],
   "fabrications": 0,
-  "extracted": 2,
+  "extracted": 3,
   "dropped": 0
  },
  "window-02-teams_channel-ml-eng-channel-d0.json": {
   "golden": 3,
-  "recovered": 1,
+  "recovered": 3,
   "attr_checked": 1,
   "attr_ok": 1,
   "vague_checked": 0,
@@ -22,7 +22,7 @@
   "trap_hits": 0,
   "trap_details": [],
   "fabrications": 0,
-  "extracted": 1,
+  "extracted": 3,
   "dropped": 0
  },
  "window-03-teams_chat-dm-d0.json": {
@@ -46,22 +46,22 @@
  },
  "window-04-email-thread-d0.json": {
   "golden": 3,
-  "recovered": 2,
-  "attr_checked": 1,
-  "attr_ok": 1,
+  "recovered": 3,
+  "attr_checked": 2,
+  "attr_ok": 2,
   "vague_checked": 0,
   "vague_ok": 0,
   "trap_hits": 0,
   "trap_details": [],
-  "fabrications": 1,
-  "extracted": 4,
+  "fabrications": 0,
+  "extracted": 5,
   "dropped": 0
  },
  "window-05-meeting_transcript-standup-d1.json": {
   "golden": 3,
-  "recovered": 2,
-  "attr_checked": 1,
-  "attr_ok": 0,
+  "recovered": 3,
+  "attr_checked": 2,
+  "attr_ok": 2,
   "vague_checked": 0,
   "vague_ok": 0,
   "trap_hits": 0,
@@ -111,28 +111,34 @@
  },
  "window-09-meeting_transcript-standup-d2.json": {
   "golden": 2,
-  "recovered": 1,
+  "recovered": 2,
   "attr_checked": 1,
   "attr_ok": 1,
   "vague_checked": 0,
   "vague_ok": 0,
   "trap_hits": 0,
   "trap_details": [],
-  "fabrications": 1,
+  "fabrications": 0,
   "extracted": 3,
   "dropped": 0
  },
  "window-10-teams_channel-ml-eng-channel-d2.json": {
   "golden": 3,
   "recovered": 2,
-  "attr_checked": 2,
+  "attr_checked": 1,
   "attr_ok": 0,
   "vague_checked": 0,
   "vague_ok": 0,
   "trap_hits": 0,
   "trap_details": [],
   "fabrications": 0,
-  "extracted": 2,
+  "extracted": 3,
+  "missed": [
+   {
+    "type": "blocker",
+    "title": "OCR fix"
+   }
+  ],
   "dropped": 0
  },
  "window-11-teams_chat-dm-d2.json": {
@@ -145,20 +151,20 @@
   "trap_hits": 0,
   "trap_details": [],
   "fabrications": 0,
-  "extracted": 3,
+  "extracted": 5,
   "dropped": 0
  },
  "window-12-email-thread-d2.json": {
   "golden": 3,
-  "recovered": 2,
-  "attr_checked": 1,
-  "attr_ok": 0,
+  "recovered": 3,
+  "attr_checked": 2,
+  "attr_ok": 2,
   "vague_checked": 1,
   "vague_ok": 1,
   "trap_hits": 0,
   "trap_details": [],
   "fabrications": 0,
-  "extracted": 3,
+  "extracted": 4,
   "dropped": 0
  }
 }

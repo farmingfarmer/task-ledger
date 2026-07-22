@@ -1,0 +1,55 @@
+{
+ "job": {
+  "source_type": "teams_chat",
+  "source_ref": "teams_chat-dm-d0",
+  "window_start": "2026-07-20T13:00:00Z",
+  "window_end": "2026-07-20T13:20:00Z"
+ },
+ "directory": {
+  "Alexander Marunycz": "aad-alex",
+  "Alex": "aad-alex",
+  "Alexander": "aad-alex",
+  "AM": "aad-alex",
+  "Priya Raman": "aad-priya",
+  "Priya": "aad-priya",
+  "P": "aad-priya",
+  "Dev Patel": "aad-dev",
+  "Dev": "aad-dev",
+  "Mallory Chen": "aad-mallory",
+  "Mallory": "aad-mallory",
+  "Mal": "aad-mallory",
+  "Victor Ruiz": "aad-vic",
+  "Vic": "aad-vic",
+  "Victor": "aad-vic"
+ },
+ "items": [
+  {
+   "resource_id": "teams-d0-001",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-20T13:02:00Z",
+   "text": "would be good to land teh retraining pipeline alerting sometime soon"
+  },
+  {
+   "resource_id": "teams-d0-002",
+   "author_name": "Alexander Marunycz",
+   "author_ref": "aad-alex",
+   "timestamp": "2026-07-20T13:04:00Z",
+   "text": "making decent progress on teh etl memory, midway through"
+  },
+  {
+   "resource_id": "teams-d0-003",
+   "author_name": "Alexander Marunycz",
+   "author_ref": "aad-alex",
+   "timestamp": "2026-07-20T13:06:00Z",
+   "text": "the fargate iam role for prod deploy is blocked -- waiting on devs team for the review"
+  },
+  {
+   "resource_id": "teams-d0-004",
+   "author_name": "Dev Patel",
+   "author_ref": "aad-dev",
+   "timestamp": "2026-07-20T13:08:00Z",
+   "text": "can we move the 1:1 to thursday? dentist"
+  }
+ ]
+}

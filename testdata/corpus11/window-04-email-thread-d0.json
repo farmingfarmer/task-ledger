@@ -1,0 +1,55 @@
+{
+ "job": {
+  "source_type": "email_thread",
+  "source_ref": "email-thread-d0",
+  "window_start": "2026-07-20T15:00:00Z",
+  "window_end": "2026-07-20T16:00:00Z"
+ },
+ "directory": {
+  "Alexander Marunycz": "aad-alex",
+  "Alex": "aad-alex",
+  "Alexander": "aad-alex",
+  "AM": "aad-alex",
+  "Priya Raman": "aad-priya",
+  "Priya": "aad-priya",
+  "P": "aad-priya",
+  "Dev Patel": "aad-dev",
+  "Dev": "aad-dev",
+  "Mallory Chen": "aad-mallory",
+  "Mallory": "aad-mallory",
+  "Mal": "aad-mallory",
+  "Victor Ruiz": "aad-vic",
+  "Vic": "aad-vic",
+  "Victor": "aad-vic"
+ },
+ "items": [
+  {
+   "resource_id": "email-d0-001",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-20T15:06:00Z",
+   "text": "Hi team,\n\ndecision from planning: we are NOT doing the Model card for compliance review this quarter, park it\n\n> On an earlier note re: yesterday's sync, see thread below.\n\nVictor Ruiz\nData Science | Keck Medicine of USC"
+  },
+  {
+   "resource_id": "email-d0-002",
+   "author_name": "Priya Raman",
+   "author_ref": "aad-priya",
+   "timestamp": "2026-07-20T15:12:00Z",
+   "text": "Hi team,\n\nquick update on the sepsis dashboard: stuck at the moment, more later\n\nPriya Raman\nData Science | Keck Medicine of USC"
+  },
+  {
+   "resource_id": "email-d0-003",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-20T15:18:00Z",
+   "text": "Hi team,\n\nwe should really put time into the Feature store documentation refresh at some point, it keeps biting us\n\nMallory Chen\nData Science | Keck Medicine of USC"
+  },
+  {
+   "resource_id": "email-d0-004",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-20T15:24:00Z",
+   "text": "anyone want thai for lunch? going at noon"
+  }
+ ]
+}

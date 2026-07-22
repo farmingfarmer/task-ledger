@@ -131,7 +131,7 @@ def test_golden():
     ok(len(calls) == 1, "one LLM call per window")
     ok(report["kept"] == 5 and not report["dropped"],
        "all five signals kept despite prose-wrapped response")
-    ok(batch["extractor"]["prompt_version"] == "extract-v1.0"
+    ok(batch["extractor"]["prompt_version"] == extraction_worker.PROMPT_VERSION
        and batch["window"]["source_ref"] == SPEC["job"]["source_ref"],
        "batch metadata populated")
 
@@ -174,11 +174,11 @@ def test_salvage():
     mixed = MALFORMED + [GOLDEN[0]]
     w, _ = make_worker(mixed)
     batch, report = w.run_job(SPEC["job"])
-    ok(report["kept"] == 2 and len(batch["signals"]) == 2,
-       "two salvageable signals survive malformed neighbors")
+    ok(report["kept"] == 1 and len(batch["signals"]) == 1,
+       "one good signal survives six malformed neighbors")
     reasons = {d["reason"].split(":")[0] for d in report["dropped"]}
     ok(reasons == {"bad_type", "missing_title", "no_valid_evidence",
-                   "not_an_object"},
+                   "missing_confidence", "not_an_object"},
        "every drop reason recorded for prompt tuning")
 
     w2, _ = make_worker("this is not json at all")

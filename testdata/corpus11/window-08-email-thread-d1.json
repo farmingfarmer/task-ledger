@@ -1,0 +1,55 @@
+{
+ "job": {
+  "source_type": "email_thread",
+  "source_ref": "email-thread-d1",
+  "window_start": "2026-07-21T15:00:00Z",
+  "window_end": "2026-07-21T16:00:00Z"
+ },
+ "directory": {
+  "Alexander Marunycz": "aad-alex",
+  "Alex": "aad-alex",
+  "Alexander": "aad-alex",
+  "AM": "aad-alex",
+  "Priya Raman": "aad-priya",
+  "Priya": "aad-priya",
+  "P": "aad-priya",
+  "Dev Patel": "aad-dev",
+  "Dev": "aad-dev",
+  "Mallory Chen": "aad-mallory",
+  "Mallory": "aad-mallory",
+  "Mal": "aad-mallory",
+  "Victor Ruiz": "aad-vic",
+  "Vic": "aad-vic",
+  "Victor": "aad-vic"
+ },
+ "items": [
+  {
+   "resource_id": "email-d1-001",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-21T15:06:00Z",
+   "text": "Hi team,\n\nrelated: this overlaps with the ETL memory a bit\n\nMallory Chen\nData Science | Keck Medicine of USC"
+  },
+  {
+   "resource_id": "email-d1-002",
+   "author_name": "Alexander Marunycz",
+   "author_ref": "aad-alex",
+   "timestamp": "2026-07-21T15:12:00Z",
+   "text": "Hi team,\n\nfinally closed out the Sepsis dashboard latency, went out in last night's release\n\nAlexander Marunycz\nData Science | Keck Medicine of USC"
+  },
+  {
+   "resource_id": "email-d1-003",
+   "author_name": "Alexander Marunycz",
+   "author_ref": "aad-alex",
+   "timestamp": "2026-07-21T15:18:00Z",
+   "text": "Hi team,\n\nrelated: this overlaps with the Readmission model feature drift monitor a bit\n\n> On an earlier note re: yesterday's sync, see thread below.\n\nAlexander Marunycz\nData Science | Keck Medicine of USC"
+  },
+  {
+   "resource_id": "email-d1-004",
+   "author_name": "Dev Patel",
+   "author_ref": "aad-dev",
+   "timestamp": "2026-07-21T15:24:00Z",
+   "text": "did anyone else's vpn drop around 10?"
+  }
+ ]
+}

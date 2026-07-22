@@ -1,0 +1,381 @@
+{
+ "window-01-meeting_transcript-standup-d0.json": {
+  "signals": [
+   {
+    "type_any": [
+     "task_mention",
+     "status_update",
+     "proposal"
+    ],
+    "title_core": "ETL memory",
+    "mention_only": true,
+    "evidence_hint": "meeti-d0-002"
+   },
+   {
+    "type": "completion_claim",
+    "title_core": "Retraining pipeline alerting",
+    "owner_ref": "aad-priya",
+    "basis": "inferred",
+    "third_party": true,
+    "evidence_hint": "meeti-d0-004"
+   },
+   {
+    "type_any": [
+     "task_mention",
+     "status_update",
+     "proposal"
+    ],
+    "title_core": "IAM role",
+    "mention_only": true,
+    "evidence_hint": "meeti-d0-005"
+   }
+  ],
+  "traps": [],
+  "distractor_items": null
+ },
+ "window-02-teams_channel-ml-eng-channel-d0.json": {
+  "signals": [
+   {
+    "type": "assignment",
+    "title_core": "ETL memory",
+    "owner_ref": "aad-mallory",
+    "basis": "explicit_assignment",
+    "deadline_precision": "day",
+    "evidence_hint": "teams-d0-001"
+   },
+   {
+    "type": "completion_claim",
+    "title_core": "feature store docs",
+    "owner_ref": "aad-alex",
+    "basis": "inferred",
+    "third_party": true,
+    "evidence_hint": "teams-d0-003"
+   },
+   {
+    "type": "status_update",
+    "title_core": "Model card for compliance review",
+    "owner_ref": "aad-mallory",
+    "basis": "self_reference",
+    "status": "in_progress",
+    "evidence_hint": "teams-d0-004"
+   }
+  ],
+  "traps": [],
+  "distractor_items": null
+ },
+ "window-03-teams_chat-dm-d0.json": {
+  "signals": [
+   {
+    "type_any": [
+     "deadline_signal",
+     "proposal",
+     "status_update",
+     "task_mention"
+    ],
+    "title_core": "Retraining pipeline alerting",
+    "deadline_precision": "vague",
+    "evidence_hint": "teams-d0-001"
+   },
+   {
+    "type": "status_update",
+    "title_core": "ETL memory",
+    "owner_ref": "aad-alex",
+    "basis": "self_reference",
+    "status": "in_progress",
+    "evidence_hint": "teams-d0-002"
+   },
+   {
+    "type": "blocker",
+    "title_core": "Fargate IAM role for prod deploy",
+    "owner_ref": "aad-alex",
+    "evidence_hint": "teams-d0-003"
+   }
+  ],
+  "traps": [],
+  "distractor_items": null
+ },
+ "window-04-email-thread-d0.json": {
+  "signals": [
+   {
+    "type": "status_update",
+    "title_core": "sepsis dashboard",
+    "owner_ref": "aad-priya",
+    "basis": "self_reference",
+    "status": "blocked",
+    "evidence_hint": "email-d0-002"
+   },
+   {
+    "type": "proposal",
+    "title_core": "Feature store documentation refresh",
+    "evidence_hint": "email-d0-003"
+   }
+  ],
+  "traps": [
+   {
+    "trap": "extracted_parked_work",
+    "title_core": "Model card for compliance review",
+    "acceptable": [
+     "cancellation"
+    ],
+    "evidence_hint": "email-d0-001"
+   }
+  ],
+  "distractor_items": null
+ },
+ "window-05-meeting_transcript-standup-d1.json": {
+  "signals": [
+   {
+    "type_any": [
+     "task_mention",
+     "status_update",
+     "proposal"
+    ],
+    "title_core": "Retraining pipeline alerting",
+    "mention_only": true,
+    "evidence_hint": "meeti-d1-002"
+   },
+   {
+    "type_any": [
+     "task_mention",
+     "status_update",
+     "proposal"
+    ],
+    "title_core": "Nightly ETL memory ceiling",
+    "mention_only": true,
+    "evidence_hint": "meeti-d1-003"
+   },
+   {
+    "type": "blocker",
+    "title_core": "Fargate IAM role for prod deploy",
+    "owner_ref": "aad-vic",
+    "evidence_hint": "meeti-d1-004"
+   }
+  ],
+  "traps": [],
+  "distractor_items": null
+ },
+ "window-06-teams_channel-ml-eng-channel-d1.json": {
+  "signals": [
+   {
+    "type": "completion_claim",
+    "title_core": "model card",
+    "owner_ref": "aad-mallory",
+    "basis": "inferred",
+    "third_party": true,
+    "evidence_hint": "teams-d1-003"
+   },
+   {
+    "type_any": [
+     "task_mention",
+     "status_update",
+     "proposal"
+    ],
+    "title_core": "model card",
+    "mention_only": true,
+    "evidence_hint": "teams-d1-005"
+   }
+  ],
+  "traps": [
+   {
+    "trap": "extracted_blocker_from_unblock",
+    "title_core": "IAM role",
+    "acceptable": [
+     "blocker_resolved",
+     "status_update"
+    ],
+    "evidence_hint": "teams-d1-001"
+   }
+  ],
+  "distractor_items": null
+ },
+ "window-07-teams_chat-dm-d1.json": {
+  "signals": [
+   {
+    "type_any": [
+     "deadline_signal",
+     "proposal",
+     "status_update",
+     "task_mention"
+    ],
+    "title_core": "alerting",
+    "deadline_precision": "vague",
+    "evidence_hint": "teams-d1-001"
+   },
+   {
+    "type": "blocker",
+    "title_core": "Model card for compliance review",
+    "owner_ref": "aad-mallory",
+    "evidence_hint": "teams-d1-002"
+   },
+   {
+    "type": "status_update",
+    "title_core": "sepsis dashboard",
+    "owner_ref": "aad-dev",
+    "basis": "self_reference",
+    "status": "in_progress",
+    "evidence_hint": "teams-d1-003"
+   }
+  ],
+  "traps": [],
+  "distractor_items": null
+ },
+ "window-08-email-thread-d1.json": {
+  "signals": [
+   {
+    "type_any": [
+     "task_mention",
+     "status_update",
+     "proposal"
+    ],
+    "title_core": "ETL memory",
+    "mention_only": true,
+    "evidence_hint": "email-d1-001"
+   },
+   {
+    "type": "completion_claim",
+    "title_core": "Sepsis dashboard latency",
+    "owner_ref": "aad-alex",
+    "basis": "self_reference",
+    "evidence_hint": "email-d1-002"
+   },
+   {
+    "type_any": [
+     "task_mention",
+     "status_update",
+     "proposal"
+    ],
+    "title_core": "Readmission model feature drift monitor",
+    "mention_only": true,
+    "evidence_hint": "email-d1-003"
+   }
+  ],
+  "traps": [],
+  "distractor_items": null
+ },
+ "window-09-meeting_transcript-standup-d2.json": {
+  "signals": [
+   {
+    "type_any": [
+     "task_mention",
+     "status_update",
+     "proposal"
+    ],
+    "title_core": "drift monitor",
+    "mention_only": true,
+    "evidence_hint": "meeti-d2-003"
+   },
+   {
+    "type": "completion_claim",
+    "title_core": "Fargate IAM role for prod deploy",
+    "owner_ref": "aad-mallory",
+    "basis": "inferred",
+    "third_party": true,
+    "evidence_hint": "meeti-d2-005"
+   },
+   {
+    "type": "completion_claim",
+    "title_core": "alerting",
+    "owner_ref": "aad-priya",
+    "basis": "self_reference",
+    "evidence_hint": "meeti-d2-006"
+   }
+  ],
+  "traps": [],
+  "distractor_items": null
+ },
+ "window-10-teams_channel-ml-eng-channel-d2.json": {
+  "signals": [
+   {
+    "type_any": [
+     "task_mention",
+     "status_update",
+     "proposal"
+    ],
+    "title_core": "Retraining pipeline alerting",
+    "mention_only": true,
+    "evidence_hint": "teams-d2-001"
+   },
+   {
+    "type_any": [
+     "task_mention",
+     "status_update",
+     "proposal"
+    ],
+    "title_core": "OCR fix",
+    "mention_only": true,
+    "evidence_hint": "teams-d2-003"
+   },
+   {
+    "type": "completion_claim",
+    "title_core": "Model card for compliance review",
+    "owner_ref": "aad-vic",
+    "basis": "inferred",
+    "third_party": true,
+    "evidence_hint": "teams-d2-005"
+   }
+  ],
+  "traps": [],
+  "distractor_items": null
+ },
+ "window-11-teams_chat-dm-d2.json": {
+  "signals": [
+   {
+    "type_any": [
+     "task_mention",
+     "status_update",
+     "proposal"
+    ],
+    "title_core": "Fargate IAM role for prod deploy",
+    "mention_only": true,
+    "evidence_hint": "teams-d2-001"
+   },
+   {
+    "type_any": [
+     "deadline_signal",
+     "proposal",
+     "status_update",
+     "task_mention"
+    ],
+    "title_core": "model card",
+    "deadline_precision": "vague",
+    "evidence_hint": "teams-d2-002"
+   },
+   {
+    "type": "completion_claim",
+    "title_core": "feature store docs",
+    "owner_ref": "aad-mallory",
+    "basis": "self_reference",
+    "evidence_hint": "teams-d2-003"
+   }
+  ],
+  "traps": [],
+  "distractor_items": null
+ },
+ "window-12-email-thread-d2.json": {
+  "signals": [
+   {
+    "type": "status_update",
+    "title_core": "OCR fix",
+    "owner_ref": "aad-vic",
+    "basis": "self_reference",
+    "status": "in_progress",
+    "evidence_hint": "email-d2-001"
+   },
+   {
+    "type": "status_update",
+    "title_core": "Readmission model feature drift monitor",
+    "owner_ref": "aad-alex",
+    "basis": "self_reference",
+    "status": "in_progress",
+    "evidence_hint": "email-d2-002"
+   },
+   {
+    "type": "proposal",
+    "title_core": "model card",
+    "evidence_hint": "email-d2-003"
+   }
+  ],
+  "traps": [],
+  "distractor_items": null
+ }
+}

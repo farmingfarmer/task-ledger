@@ -1,0 +1,55 @@
+{
+ "job": {
+  "source_type": "teams_chat",
+  "source_ref": "teams_chat-dm-d2",
+  "window_start": "2026-07-22T13:00:00Z",
+  "window_end": "2026-07-22T13:20:00Z"
+ },
+ "directory": {
+  "Alexander Marunycz": "aad-alex",
+  "Alex": "aad-alex",
+  "Alexander": "aad-alex",
+  "AM": "aad-alex",
+  "Priya Raman": "aad-priya",
+  "Priya": "aad-priya",
+  "P": "aad-priya",
+  "Dev Patel": "aad-dev",
+  "Dev": "aad-dev",
+  "Mallory Chen": "aad-mallory",
+  "Mallory": "aad-mallory",
+  "Mal": "aad-mallory",
+  "Victor Ruiz": "aad-vic",
+  "Vic": "aad-vic",
+  "Victor": "aad-vic"
+ },
+ "items": [
+  {
+   "resource_id": "teams-d2-001",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-22T13:02:00Z",
+   "text": "related: this overlaps with the fargate iam role for prod deploy a bit"
+  },
+  {
+   "resource_id": "teams-d2-002",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-22T13:04:00Z",
+   "text": "would be good to land teh model card before teh audit"
+  },
+  {
+   "resource_id": "teams-d2-003",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-22T13:06:00Z",
+   "text": "feature store docs is done, shipped it this morning"
+  },
+  {
+   "resource_id": "teams-d2-004",
+   "author_name": "Priya Raman",
+   "author_ref": "aad-priya",
+   "timestamp": "2026-07-22T13:08:00Z",
+   "text": "the espresso machine on 4 is fixed, you're welcome everyone"
+  }
+ ]
+}

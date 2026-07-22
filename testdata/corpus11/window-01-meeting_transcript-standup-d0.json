@@ -1,0 +1,69 @@
+{
+ "job": {
+  "source_type": "meeting_transcript",
+  "source_ref": "meeting_transcript-standup-d0",
+  "window_start": "2026-07-20T09:00:00Z",
+  "window_end": "2026-07-20T09:15:00Z"
+ },
+ "directory": {
+  "Alexander Marunycz": "aad-alex",
+  "Alex": "aad-alex",
+  "Alexander": "aad-alex",
+  "AM": "aad-alex",
+  "Priya Raman": "aad-priya",
+  "Priya": "aad-priya",
+  "P": "aad-priya",
+  "Dev Patel": "aad-dev",
+  "Dev": "aad-dev",
+  "Mallory Chen": "aad-mallory",
+  "Mallory": "aad-mallory",
+  "Mal": "aad-mallory",
+  "Victor Ruiz": "aad-vic",
+  "Vic": "aad-vic",
+  "Victor": "aad-vic"
+ },
+ "items": [
+  {
+   "resource_id": "meeti-d0-001",
+   "author_name": "Priya Raman",
+   "author_ref": "aad-priya",
+   "timestamp": "2026-07-20T09:01:30Z",
+   "text": "morning everyone, quick round, keep it tight"
+  },
+  {
+   "resource_id": "meeti-d0-002",
+   "author_name": "Priya Raman",
+   "author_ref": "aad-priya",
+   "timestamp": "2026-07-20T09:03:00Z",
+   "text": "uh, related: this overlaps with the ETL memory a bit"
+  },
+  {
+   "resource_id": "meeti-d0-003",
+   "author_name": "Priya Raman",
+   "author_ref": "aad-priya",
+   "timestamp": "2026-07-20T09:04:30Z",
+   "text": "we can take that offline"
+  },
+  {
+   "resource_id": "meeti-d0-004",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-20T09:06:00Z",
+   "text": "right, um, i think P finished the Retraining pipeline alerting yesterday? board still shows it open"
+  },
+  {
+   "resource_id": "meeti-d0-005",
+   "author_name": "Dev Patel",
+   "author_ref": "aad-dev",
+   "timestamp": "2026-07-20T09:07:30Z",
+   "text": "uh, related: this overlaps with the IAM role a bit"
+  },
+  {
+   "resource_id": "meeti-d0-006",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-20T09:09:00Z",
+   "text": "hah yeah that thread on the data eng forum was wild"
+  }
+ ]
+}

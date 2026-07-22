@@ -1,0 +1,62 @@
+{
+ "job": {
+  "source_type": "meeting_transcript",
+  "source_ref": "meeting_transcript-standup-d1",
+  "window_start": "2026-07-21T09:00:00Z",
+  "window_end": "2026-07-21T09:15:00Z"
+ },
+ "directory": {
+  "Alexander Marunycz": "aad-alex",
+  "Alex": "aad-alex",
+  "Alexander": "aad-alex",
+  "AM": "aad-alex",
+  "Priya Raman": "aad-priya",
+  "Priya": "aad-priya",
+  "P": "aad-priya",
+  "Dev Patel": "aad-dev",
+  "Dev": "aad-dev",
+  "Mallory Chen": "aad-mallory",
+  "Mallory": "aad-mallory",
+  "Mal": "aad-mallory",
+  "Victor Ruiz": "aad-vic",
+  "Vic": "aad-vic",
+  "Victor": "aad-vic"
+ },
+ "items": [
+  {
+   "resource_id": "meeti-d1-001",
+   "author_name": "Dev Patel",
+   "author_ref": "aad-dev",
+   "timestamp": "2026-07-21T09:01:30Z",
+   "text": "morning everyone, quick round, keep it tight"
+  },
+  {
+   "resource_id": "meeti-d1-002",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-21T09:03:00Z",
+   "text": "okay -- related: this overlaps with the Retraining pipeline alerting a bit"
+  },
+  {
+   "resource_id": "meeti-d1-003",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-21T09:04:30Z",
+   "text": "yeah so related: this overlaps with the Nightly ETL memory ceiling a bit"
+  },
+  {
+   "resource_id": "meeti-d1-004",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-21T09:06:00Z",
+   "text": "right, um, the Fargate IAM role for prod deploy is blocked -- waiting on AM's team for the review"
+  },
+  {
+   "resource_id": "meeti-d1-005",
+   "author_name": "Dev Patel",
+   "author_ref": "aad-dev",
+   "timestamp": "2026-07-21T09:07:30Z",
+   "text": "the espresso machine on 4 is fixed, you're welcome everyone"
+  }
+ ]
+}

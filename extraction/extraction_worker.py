@@ -33,7 +33,7 @@ import jsonschema
 
 import extraction_prompts
 
-PROMPT_VERSION = "extract-v1.0"
+PROMPT_VERSION = "extract-v1.1"
 
 VALID_TYPES = {
     "task_mention", "assignment", "status_update", "completion_claim",
@@ -176,7 +176,7 @@ class ExtractionWorker(object):
 
         conf = _num(sig.get("confidence"))
         if conf is None:
-            conf = 0.6
+            return None, "missing_confidence"
         conf = max(0.0, min(1.0, conf))
 
         cited = sig.get("evidence_items") or []

@@ -1,0 +1,83 @@
+{
+ "job": {
+  "source_type": "teams_channel",
+  "source_ref": "teams_channel-ml-eng-channel-d2",
+  "window_start": "2026-07-22T10:30:00Z",
+  "window_end": "2026-07-22T12:00:00Z"
+ },
+ "directory": {
+  "Alexander Marunycz": "aad-alex",
+  "Alex": "aad-alex",
+  "Alexander": "aad-alex",
+  "AM": "aad-alex",
+  "Priya Raman": "aad-priya",
+  "Priya": "aad-priya",
+  "P": "aad-priya",
+  "Dev Patel": "aad-dev",
+  "Dev": "aad-dev",
+  "Mallory Chen": "aad-mallory",
+  "Mallory": "aad-mallory",
+  "Mal": "aad-mallory",
+  "Victor Ruiz": "aad-vic",
+  "Vic": "aad-vic",
+  "Victor": "aad-vic"
+ },
+ "items": [
+  {
+   "resource_id": "teams-d2-001",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-22T10:39:00Z",
+   "text": "related: this overlaps with the retraining pipeline alerting a bit"
+  },
+  {
+   "resource_id": "teams-d2-002",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-22T10:48:00Z",
+   "text": "the espresso machine on 4 is fixed, you're welcome everyone"
+  },
+  {
+   "resource_id": "teams-d2-003",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-22T10:57:00Z",
+   "text": "related: this overlaps with the ocr fix a bit"
+  },
+  {
+   "resource_id": "teams-d2-004",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-22T11:06:00Z",
+   "text": "did anyone else's vpn drop around 10?"
+  },
+  {
+   "resource_id": "teams-d2-005",
+   "author_name": "Dev Patel",
+   "author_ref": "aad-dev",
+   "timestamp": "2026-07-22T11:15:00Z",
+   "text": "i think vic finished teh model card for compliance review yesterday? board still shows it open"
+  },
+  {
+   "resource_id": "teams-d2-006",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-22T11:24:00Z",
+   "text": "did anyone else's vpn drop around 10?"
+  },
+  {
+   "resource_id": "teams-d2-007",
+   "author_name": "Alexander Marunycz",
+   "author_ref": "aad-alex",
+   "timestamp": "2026-07-22T11:33:00Z",
+   "text": "reminder: benefits enrollment closes friday"
+  },
+  {
+   "resource_id": "teams-d2-008",
+   "author_name": "Dev Patel",
+   "author_ref": "aad-dev",
+   "timestamp": "2026-07-22T11:42:00Z",
+   "text": "did anyone else's vpn drop around 10?"
+  }
+ ]
+}

@@ -58,8 +58,31 @@ NEGATIVE_GUIDANCE = """Do NOT emit signals for:
 - meta-conversation about the meeting itself (scheduling the next call,
   minute-taking)
 - pleasantries, greetings, or acknowledgments
-One real signal beats three speculative ones. If you would hedge the title
-with "maybe" or "possibly", do not emit it."""
+- administrative, HR, facilities, or social announcements, EVEN WHEN they
+  contain concrete dates. "benefits enrollment closes friday" is not a
+  deadline_signal -- there is no work item. A date only matters if it is
+  attached to actual work someone will do.
+
+NEGATIONS AND REVERSALS -- read the direction of the statement:
+- "we are NOT doing X" / "park X" / "X is descoped" -> this is a
+  cancellation signal (or nothing), never a proposal or assignment for X.
+- "X is no longer blocked" / "unblocked" -> blocker_resolved or a
+  status_update, NEVER a blocker.
+- "the deadline on X is dropped/removed" -> NOT a deadline_signal.
+  deadline_signal means a date was set or changed TO something. A removed
+  deadline with no new date is at most a status_update; if unsure, emit
+  nothing for it.
+
+DO emit (commonly missed):
+- passing references to known work ("this overlaps with the OCR fix",
+  "same area as the drift monitor") -> task_mention. Sightings matter even
+  with nothing new to say; report every distinct task referenced.
+- hedged secondhand reports ("i think Dev finished the docs refresh?") ->
+  emit the completion_claim with LOWER confidence and basis "inferred".
+  Hedging affects confidence, not existence. Only suppress when you cannot
+  tell which task is meant at all.
+One real signal beats three speculative ones, but a hedged sighting of
+real work is a real signal."""
 
 OUTPUT_SPEC = """Respond with ONLY a JSON array (no markdown fences, no commentary). Each
 element:

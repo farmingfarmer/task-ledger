@@ -1,0 +1,76 @@
+{
+ "job": {
+  "source_type": "meeting_transcript",
+  "source_ref": "meeting_transcript-standup-d2",
+  "window_start": "2026-07-22T09:00:00Z",
+  "window_end": "2026-07-22T09:15:00Z"
+ },
+ "directory": {
+  "Alexander Marunycz": "aad-alex",
+  "Alex": "aad-alex",
+  "Alexander": "aad-alex",
+  "AM": "aad-alex",
+  "Priya Raman": "aad-priya",
+  "Priya": "aad-priya",
+  "P": "aad-priya",
+  "Dev Patel": "aad-dev",
+  "Dev": "aad-dev",
+  "Mallory Chen": "aad-mallory",
+  "Mallory": "aad-mallory",
+  "Mal": "aad-mallory",
+  "Victor Ruiz": "aad-vic",
+  "Vic": "aad-vic",
+  "Victor": "aad-vic"
+ },
+ "items": [
+  {
+   "resource_id": "meeti-d2-001",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-22T09:01:30Z",
+   "text": "morning everyone, quick round, keep it tight"
+  },
+  {
+   "resource_id": "meeti-d2-002",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-22T09:03:00Z",
+   "text": "wait, which one is that?"
+  },
+  {
+   "resource_id": "meeti-d2-003",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-22T09:04:30Z",
+   "text": "yeah so related: this overlaps with the drift monitor a bit"
+  },
+  {
+   "resource_id": "meeti-d2-004",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-22T09:06:00Z",
+   "text": "sorry, one sec --"
+  },
+  {
+   "resource_id": "meeti-d2-005",
+   "author_name": "Alexander Marunycz",
+   "author_ref": "aad-alex",
+   "timestamp": "2026-07-22T09:07:30Z",
+   "text": "okay -- i think Mal finished the Fargate IAM role for prod deploy yesterday? board still shows it open"
+  },
+  {
+   "resource_id": "meeti-d2-006",
+   "author_name": "Priya Raman",
+   "author_ref": "aad-priya",
+   "timestamp": "2026-07-22T09:09:00Z",
+   "text": "finally closed out the alerting, went out in last night's release"
+  },
+  {
+   "resource_id": "meeti-d2-007",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-22T09:10:30Z",
+   "text": "did anyone else's vpn drop around 10?"
+  }
+ ]
+}
