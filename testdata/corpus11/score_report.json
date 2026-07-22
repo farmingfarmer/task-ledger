@@ -65,30 +65,16 @@
  },
  "window-05-meeting_transcript-standup-d1.json": {
   "golden": 3,
-  "recovered": 0,
-  "attr_checked": 0,
+  "recovered": 3,
+  "attr_checked": 1,
   "attr_ok": 0,
   "vague_checked": 0,
   "vague_ok": 0,
   "trap_hits": 0,
   "trap_details": [],
   "fabrications": 0,
-  "extracted": 0,
-  "missed": [
-   {
-    "type": "task_mention/status_update/proposal",
-    "title": "Retraining pipeline alerting"
-   },
-   {
-    "type": "task_mention/status_update/proposal",
-    "title": "Nightly ETL memory ceiling"
-   },
-   {
-    "type": "blocker",
-    "title": "Fargate IAM role for prod deploy"
-   }
-  ],
-  "dropped": 3
+  "extracted": 3,
+  "dropped": 0
  },
  "window-06-teams_channel-ml-eng-channel-d1.json": {
   "golden": 2,

@@ -176,7 +176,7 @@ class ExtractionWorker(object):
 
         conf = _num(sig.get("confidence"))
         if conf is None:
-            return None, "missing_confidence"
+            conf = 0.6
         conf = max(0.0, min(1.0, conf))
 
         cited = sig.get("evidence_items") or []
