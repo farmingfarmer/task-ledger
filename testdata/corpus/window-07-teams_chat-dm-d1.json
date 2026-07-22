@@ -1,0 +1,55 @@
+{
+ "job": {
+  "source_type": "teams_chat",
+  "source_ref": "teams_chat-dm-d1",
+  "window_start": "2026-07-21T13:00:00Z",
+  "window_end": "2026-07-21T13:20:00Z"
+ },
+ "directory": {
+  "Alexander Marunycz": "aad-alex",
+  "Alex": "aad-alex",
+  "Alexander": "aad-alex",
+  "AM": "aad-alex",
+  "Priya Raman": "aad-priya",
+  "Priya": "aad-priya",
+  "P": "aad-priya",
+  "Dev Patel": "aad-dev",
+  "Dev": "aad-dev",
+  "Mallory Chen": "aad-mallory",
+  "Mallory": "aad-mallory",
+  "Mal": "aad-mallory",
+  "Victor Ruiz": "aad-vic",
+  "Vic": "aad-vic",
+  "Victor": "aad-vic"
+ },
+ "items": [
+  {
+   "resource_id": "teams-d1-001",
+   "author_name": "Priya Raman",
+   "author_ref": "aad-priya",
+   "timestamp": "2026-07-21T13:02:00Z",
+   "text": "good news, the drift monitor is no longer blocked, cloud team came through"
+  },
+  {
+   "resource_id": "teams-d1-002",
+   "author_name": "Alexander Marunycz",
+   "author_ref": "aad-alex",
+   "timestamp": "2026-07-21T13:04:00Z",
+   "text": "related: this overlaps with teh readmission model feature drift monitor a bit"
+  },
+  {
+   "resource_id": "teams-d1-003",
+   "author_name": "Priya Raman",
+   "author_ref": "aad-priya",
+   "timestamp": "2026-07-21T13:06:00Z",
+   "text": "would be good to land the etl memory when you get a chance"
+  },
+  {
+   "resource_id": "teams-d1-004",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-21T13:08:00Z",
+   "text": "great demo yesterday Alex, seriously nice work"
+  }
+ ]
+}

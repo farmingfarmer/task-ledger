@@ -1,0 +1,62 @@
+{
+ "job": {
+  "source_type": "email_thread",
+  "source_ref": "email-thread-d0",
+  "window_start": "2026-07-20T15:00:00Z",
+  "window_end": "2026-07-20T16:00:00Z"
+ },
+ "directory": {
+  "Alexander Marunycz": "aad-alex",
+  "Alex": "aad-alex",
+  "Alexander": "aad-alex",
+  "AM": "aad-alex",
+  "Priya Raman": "aad-priya",
+  "Priya": "aad-priya",
+  "P": "aad-priya",
+  "Dev Patel": "aad-dev",
+  "Dev": "aad-dev",
+  "Mallory Chen": "aad-mallory",
+  "Mallory": "aad-mallory",
+  "Mal": "aad-mallory",
+  "Victor Ruiz": "aad-vic",
+  "Vic": "aad-vic",
+  "Victor": "aad-vic"
+ },
+ "items": [
+  {
+   "resource_id": "email-d0-001",
+   "author_name": "Dev Patel",
+   "author_ref": "aad-dev",
+   "timestamp": "2026-07-20T15:06:00Z",
+   "text": "Hi team,\n\nthe Readmission model feature drift monitor is blocked -- waiting on Victor Ruiz's team for the review\n\nDev Patel\nData Science | Keck Medicine of USC"
+  },
+  {
+   "resource_id": "email-d0-002",
+   "author_name": "Priya Raman",
+   "author_ref": "aad-priya",
+   "timestamp": "2026-07-20T15:12:00Z",
+   "text": "Hi team,\n\ni think Alexander Marunycz finished the feature store docs yesterday? board still shows it open\n\nPriya Raman\nData Science | Keck Medicine of USC"
+  },
+  {
+   "resource_id": "email-d0-003",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-20T15:18:00Z",
+   "text": "Hi team,\n\nwe should really rebuild the IAM role at some point, it keeps biting us\n\nVictor Ruiz\nData Science | Keck Medicine of USC"
+  },
+  {
+   "resource_id": "email-d0-004",
+   "author_name": "Priya Raman",
+   "author_ref": "aad-priya",
+   "timestamp": "2026-07-20T15:24:00Z",
+   "text": "reminder: benefits enrollment closes friday"
+  },
+  {
+   "resource_id": "email-d0-005",
+   "author_name": "Alexander Marunycz",
+   "author_ref": "aad-alex",
+   "timestamp": "2026-07-20T15:30:00Z",
+   "text": "hah yeah that thread on the data eng forum was wild"
+  }
+ ]
+}

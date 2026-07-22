@@ -1,0 +1,62 @@
+{
+ "job": {
+  "source_type": "teams_chat",
+  "source_ref": "teams_chat-dm-d0",
+  "window_start": "2026-07-20T13:00:00Z",
+  "window_end": "2026-07-20T13:20:00Z"
+ },
+ "directory": {
+  "Alexander Marunycz": "aad-alex",
+  "Alex": "aad-alex",
+  "Alexander": "aad-alex",
+  "AM": "aad-alex",
+  "Priya Raman": "aad-priya",
+  "Priya": "aad-priya",
+  "P": "aad-priya",
+  "Dev Patel": "aad-dev",
+  "Dev": "aad-dev",
+  "Mallory Chen": "aad-mallory",
+  "Mallory": "aad-mallory",
+  "Mal": "aad-mallory",
+  "Victor Ruiz": "aad-vic",
+  "Vic": "aad-vic",
+  "Victor": "aad-vic"
+ },
+ "items": [
+  {
+   "resource_id": "teams-d0-001",
+   "author_name": "Dev Patel",
+   "author_ref": "aad-dev",
+   "timestamp": "2026-07-20T13:02:00Z",
+   "text": "would be good to land teh drift monitor before teh audit"
+  },
+  {
+   "resource_id": "teams-d0-002",
+   "author_name": "Priya Raman",
+   "author_ref": "aad-priya",
+   "timestamp": "2026-07-20T13:04:00Z",
+   "text": "related: this overlaps with teh etl memory a bit"
+  },
+  {
+   "resource_id": "teams-d0-003",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-20T13:06:00Z",
+   "text": "fyi the deadline on the retraining pipeline alerting is dropped, no date for now"
+  },
+  {
+   "resource_id": "teams-d0-004",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-20T13:08:00Z",
+   "text": "the espresso machine on 4 is fixed, you're welcome everyone"
+  },
+  {
+   "resource_id": "teams-d0-005",
+   "author_name": "Alexander Marunycz",
+   "author_ref": "aad-alex",
+   "timestamp": "2026-07-20T13:10:00Z",
+   "text": "great demo yesterday Alex, seriously nice work"
+  }
+ ]
+}

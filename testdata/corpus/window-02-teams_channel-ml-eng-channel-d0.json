@@ -1,0 +1,62 @@
+{
+ "job": {
+  "source_type": "teams_channel",
+  "source_ref": "teams_channel-ml-eng-channel-d0",
+  "window_start": "2026-07-20T10:30:00Z",
+  "window_end": "2026-07-20T12:00:00Z"
+ },
+ "directory": {
+  "Alexander Marunycz": "aad-alex",
+  "Alex": "aad-alex",
+  "Alexander": "aad-alex",
+  "AM": "aad-alex",
+  "Priya Raman": "aad-priya",
+  "Priya": "aad-priya",
+  "P": "aad-priya",
+  "Dev Patel": "aad-dev",
+  "Dev": "aad-dev",
+  "Mallory Chen": "aad-mallory",
+  "Mallory": "aad-mallory",
+  "Mal": "aad-mallory",
+  "Victor Ruiz": "aad-vic",
+  "Vic": "aad-vic",
+  "Victor": "aad-vic"
+ },
+ "items": [
+  {
+   "resource_id": "teams-d0-001",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-20T10:39:00Z",
+   "text": "related: this overlaps with teh alerting a bit"
+  },
+  {
+   "resource_id": "teams-d0-002",
+   "author_name": "Alexander Marunycz",
+   "author_ref": "aad-alex",
+   "timestamp": "2026-07-20T10:48:00Z",
+   "text": "related: this overlaps with the iam role a bit"
+  },
+  {
+   "resource_id": "teams-d0-003",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-20T10:57:00Z",
+   "text": "p, can you take teh nightly etl memory ceiling -- can you have it end of month?"
+  },
+  {
+   "resource_id": "teams-d0-004",
+   "author_name": "Victor Ruiz",
+   "author_ref": "aad-vic",
+   "timestamp": "2026-07-20T11:06:00Z",
+   "text": "great demo yesterday victor, seriously nice work"
+  },
+  {
+   "resource_id": "teams-d0-005",
+   "author_name": "Mallory Chen",
+   "author_ref": "aad-mallory",
+   "timestamp": "2026-07-20T11:15:00Z",
+   "text": "hah yeah that thread on the data eng forum was wild"
+  }
+ ]
+}
