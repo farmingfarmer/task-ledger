@@ -89,14 +89,66 @@ def load_board(dsn, user_ref):
         conn.close()
 
 
+def supersede_open_packets(cur, user_ref, run_id, exclude_packet_id=None):
+    """Mark every open packet for the user superseded and return the signals
+    of their undecided proposals to the pool -- the orchestrator's supersede
+    semantics, enforced at the storage layer so every writer inherits them.
+    Returns (superseded_packet_ids, returned_signal_count)."""
+    cur.execute("""
+        WITH latest AS (
+          SELECT DISTINCT ON (packet_id) packet_id, state
+          FROM packet_state_events ORDER BY packet_id, event_id DESC)
+        SELECT rp.packet_id FROM review_packets rp
+        JOIN latest l USING (packet_id)
+        WHERE rp.user_ref = %s
+          AND l.state IN ('draft','delivered','partially_decided')
+          AND rp.packet_id <> COALESCE(%s, '')""",
+        (user_ref, exclude_packet_id))
+    stale = [r[0] for r in cur.fetchall()]
+    returned = 0
+    for pid in stale:
+        cur.execute("""
+            INSERT INTO signal_pool_events (signal_id, user_ref, event,
+                                            run_id)
+            SELECT DISTINCT ps.signal_id, %s, 'returned', %s
+            FROM proposals p
+            JOIN proposal_signals ps USING (proposal_id)
+            LEFT JOIN decisions d ON d.proposal_id = p.proposal_id
+            WHERE p.packet_id = %s AND d.decision_id IS NULL""",
+            (user_ref, run_id, pid))
+        returned += cur.rowcount
+        cur.execute("INSERT INTO packet_state_events (packet_id, state) "
+                    "VALUES (%s, 'superseded')", (pid,))
+    return stale, returned
+
+
 def write_packet(dsn, packet, consumed_signal_ids, annotations,
                  run_id, expires_hours=48):
-    """Persists the packet and its side effects atomically. Returns counts."""
+    """Persists the packet and its side effects atomically. Supersedes any
+    open packets for the user first (their undecided signals rejoin the
+    pool). Packets with zero proposals are NOT inserted -- silence is the
+    output -- but the supersede still runs, matching the orchestrator's
+    tick order. Returns counts."""
     conn = psycopg2.connect(dsn)
-    out = {"proposals": 0, "taken": 0, "aliases": 0}
+    out = {"proposals": 0, "taken": 0, "aliases": 0,
+           "superseded": [], "returned_signals": 0}
     try:
         with conn:
             with conn.cursor() as cur:
+                stale, returned = supersede_open_packets(
+                    cur, packet["user_ref"], run_id,
+                    exclude_packet_id=packet["packet_id"])
+                out["superseded"] = stale
+                out["returned_signals"] = returned
+                if not packet["proposals"]:
+                    for sid in consumed_signal_ids:
+                        cur.execute("""
+                            INSERT INTO signal_pool_events
+                              (signal_id, user_ref, event, run_id)
+                            VALUES (%s,%s,'taken',%s)""",
+                            (sid, packet["user_ref"], run_id))
+                        out["taken"] += 1
+                    return out
                 cur.execute("""
                     INSERT INTO review_packets
                       (packet_id, user_ref, cadence_run_id, board_version,
