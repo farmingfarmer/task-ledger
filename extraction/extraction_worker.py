@@ -174,6 +174,23 @@ class ExtractionWorker(object):
             return None, "missing_title"
         title = title[:120]
 
+        # Deterministic guard: deadline_signal means a date was SET or
+        # CHANGED TO something. Removal language ("the deadline is
+        # dropped") repeatedly extracts as deadline_signal despite prompt
+        # guidance (measured: 3/3 at temperature 0 on mistral-small3.1),
+        # so the guard lives in code, where it fails safe: a removed
+        # deadline warranted at most a status note.
+        if stype == "deadline_signal":
+            probe = " ".join([title, sig.get("description") or "",
+                              ((sig.get("deadline") or {}) or {})
+                              .get("raw_text") or ""]).lower()
+            if "deadline" in probe and any(
+                    w in probe for w in ("remove", "dropped", "drop the",
+                                         "no longer", "cancelled",
+                                         "canceled", "lifted", "scrapped",
+                                         "no date")):
+                return None, "deadline_removal_language"
+
         conf = _num(sig.get("confidence"))
         if conf is None:
             conf = 0.6

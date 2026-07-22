@@ -32,17 +32,11 @@
   "attr_ok": 0,
   "vague_checked": 1,
   "vague_ok": 1,
-  "trap_hits": 1,
-  "trap_details": [
-   {
-    "trap": "extracted_deadline_from_removal",
-    "extracted_as": "deadline_signal",
-    "title": "remove the deadline for the retraining pipeline alerting"
-   }
-  ],
+  "trap_hits": 0,
+  "trap_details": [],
   "fabrications": 0,
-  "extracted": 3,
-  "dropped": 0
+  "extracted": 2,
+  "dropped": 1
  },
  "window-04-email-thread-d0.json": {
   "golden": 3,
