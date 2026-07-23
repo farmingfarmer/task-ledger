@@ -1,0 +1,5 @@
+# Task Ledger runtime + test dependencies (Python 3.8+)
+psycopg2-binary>=2.9
+jsonschema>=4.0
+pyyaml>=6.0
+flask>=2.0
