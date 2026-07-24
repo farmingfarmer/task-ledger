@@ -92,6 +92,16 @@ def check_schema(conn):
         report("PASS", "pipeline state",
                "{0} pooled signals, {1} open packet(s), {2} tasks".format(
                    pool, open_packets, tasks))
+        cur.execute("""
+            SELECT user_ref, signal_type, count(*)
+            FROM v_unconsumed_signals GROUP BY 1, 2 ORDER BY 1, 2""")
+        rows = cur.fetchall()
+        if rows:
+            detail = "; ".join("{0}:{1} x{2}".format(u, t, c)
+                               for u, t, c in rows[:8])
+            report("PASS", "pool detail", detail)
+        cur.execute("SHOW server_version")
+        report("PASS", "postgres " + cur.fetchone()[0])
         if tasks == 0 and pool == 0:
             report("WARN", "board is empty",
                    "python3 scripts/demo_offline.py seeds a walkthrough")

@@ -250,6 +250,25 @@ def test_pg_store():
             WHERE user_ref = 'aad-dev' AND batch_id = %s""",
             (batch["batch_id"],))
         n = cur.fetchone()[0]
+        if n < 2:
+            cur.execute("SELECT count(*) FROM signals WHERE batch_id=%s",
+                        (batch["batch_id"],))
+            print("  DIAG signals rows for batch:", cur.fetchone()[0])
+            cur.execute("""
+                SELECT signal_id, user_ref, event FROM signal_pool_events
+                WHERE signal_id IN (SELECT signal_id FROM signals
+                                    WHERE batch_id=%s)
+                ORDER BY event_id""", (batch["batch_id"],))
+            rows = cur.fetchall()
+            print("  DIAG pool events ({0}):".format(len(rows)))
+            for r_ in rows:
+                print("    ", r_[0][:12], r_[1], r_[2])
+            cur.execute("""
+                SELECT user_ref, signal_type FROM v_unconsumed_signals
+                WHERE batch_id=%s""", (batch["batch_id"],))
+            print("  DIAG view rows:", cur.fetchall())
+            cur.execute("SHOW server_version")
+            print("  DIAG server_version:", cur.fetchone()[0])
     conn.close()
     ok(n >= 2, "dev's pool holds his assignment + completion signals")
 
