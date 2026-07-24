@@ -245,9 +245,18 @@ def test_pg_store():
     import psycopg2
     conn = psycopg2.connect(dsn)
     with conn.cursor() as cur:
+        # The invariant extraction owns: dev's signals from this batch
+        # were POOLED. Whether they are currently unconsumed is the
+        # business of whatever reconciled after us -- a prior reconciler
+        # suite run legitimately takes them (found the hard way on a
+        # fresh Windows port, where strict suite ordering exposed the
+        # stateful assumption).
         cur.execute("""
-            SELECT count(*) FROM v_unconsumed_signals
-            WHERE user_ref = 'aad-dev' AND batch_id = %s""",
+            SELECT count(DISTINCT e.signal_id)
+            FROM signal_pool_events e
+            JOIN signals s USING (signal_id)
+            WHERE e.user_ref = 'aad-dev' AND e.event = 'pooled'
+              AND s.batch_id = %s""",
             (batch["batch_id"],))
         n = cur.fetchone()[0]
         if n < 2:
@@ -270,7 +279,7 @@ def test_pg_store():
             cur.execute("SHOW server_version")
             print("  DIAG server_version:", cur.fetchone()[0])
     conn.close()
-    ok(n >= 2, "dev's pool holds his assignment + completion signals")
+    ok(n >= 2, "dev's assignment + completion signals were pooled (later consumption is legitimate)")
 
 
 if __name__ == "__main__":
