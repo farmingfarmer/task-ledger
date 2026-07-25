@@ -399,7 +399,13 @@ def test_pg_live():
                        "confidence": 0.95,
                        "deciding_factor": "identical OCR crash fix"}] * 5)
     r = reconciler.Reconciler(embed=embedders.TokenEmbedder(), judge_llm=j)
-    run_id = "test-live-run"
+    # Per-invocation run id: a constant here made reruns byte-identical
+    # replays (packet_id and salted proposal_ids identical), so
+    # write_packet correctly returned zeros and the test misread its own
+    # idempotency as failure -- exposed by a pristine Windows database
+    # whose board_version never advanced between runs.
+    import time
+    run_id = "test-live-{0}".format(int(time.time()))
     packet, rep = r.reconcile("aad-dev", signals, tasks, version, run_id)
     ops = sorted(p["op"] for p in packet["proposals"])
     ok("complete_task" in ops and "create_task" in ops,
