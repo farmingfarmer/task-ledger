@@ -421,6 +421,495 @@ ATLAS = {
     ],
 }
 
+
+# ------------------------------------------------------- plain-english layer
+
+NARRATIVE = {
+    "pipeline": {
+        "capture": ["Listen where work is actually discussed",
+                    "Teams, chat, and email arrive as pointers, not copies, "
+                    "and get cut into tidy conversation windows"],
+        "extract": ["Read each window once and pull out task claims",
+                    "a local AI names who owns what, citing the exact "
+                    "message for every claim; anything it cannot back up "
+                    "is deleted on the spot"],
+        "pool": ["Let claims wait their turn",
+                 "each person's claims sit in a pool until the evidence is "
+                 "sufficient, so nothing is lost and nothing is rushed"],
+        "reconcile": ["Match claims against the live board",
+                      "obvious matches link automatically, gray areas go "
+                      "to an AI judge, and risky changes are held rather "
+                      "than guessed"],
+        "review": ["Ask a human before anything changes",
+                   "every proposed change is accepted or rejected by a "
+                   "person, and that decision is recorded forever"],
+        "board": ["Show facts that carry their own receipts",
+                  "the board displays only confirmed items, each "
+                  "traceable to the message that produced it"],
+        "proving": ["Grade the AI on synthetic messy days",
+                    "a generator fakes realistic workplace chatter with "
+                    "traps, and a scorer measures exactly how well "
+                    "extraction holds up"],
+        "cadence": ["Run itself every weekday at 4:45",
+                    "new material is processed on schedule; you are "
+                    "pinged only when something needs a decision, and a "
+                    "down AI means wait, never fail"],
+    },
+    "domains": {
+        "capture": {
+            "plain": "This is the front door. The system never watches a "
+                     "raw stream: it receives notifications that a "
+                     "message exists, groups nearby messages into a "
+                     "conversation window, and hands the window on.",
+            "steps": [
+                ["Subscriptions tell us a message exists",
+                 "Microsoft sends a pointer, never the content -- content "
+                 "is fetched only when needed, under the app's own "
+                 "credentials"],
+                ["Nearby messages become one window",
+                 "a burst of chat is one conversation; processing it "
+                 "together keeps context and costs one AI call instead "
+                 "of twenty"],
+                ["Quiet closes the window",
+                 "sixty to one-eighty seconds of silence means the burst "
+                 "ended; a thirty-minute cap bounds even endless threads"],
+                ["A drop folder does the same job locally",
+                 "before Microsoft wiring, transcripts dropped in a "
+                 "folder ride the identical path -- same format, same "
+                 "everything downstream"],
+            ],
+        },
+        "extract": {
+            "plain": "One AI call per window turns conversation into "
+                     "typed claims: assignments, status, blockers, "
+                     "completions. Every claim must cite its message, and "
+                     "code -- not the AI -- gets the last word on what "
+                     "survives.",
+            "steps": [
+                ["The AI reads numbered messages and answers in a strict "
+                 "format", "numbering makes citations checkable; the "
+                 "format makes bad answers detectable"],
+                ["Good claims are salvaged from bad answers",
+                 "one malformed claim never sinks the batch; each is "
+                 "kept or dropped individually, with the reason recorded"],
+                ["Uncheckable claims are deleted",
+                 "a claim citing a message that does not exist, or "
+                 "naming a person we do not know, dies here -- measured "
+                 "result: zero fabrications on two synthetic corpora"],
+                ["Known AI blind spots are handled in code",
+                 "the model kept reading 'the deadline is dropped' as a "
+                 "new deadline (three out of three tries), so a "
+                 "deterministic guard deletes that pattern with a "
+                 "recorded reason"],
+            ],
+        },
+        "pool": {
+            "plain": "Claims do not act; they wait. The pool is an "
+                     "append-only ledger per person -- pooled, taken, "
+                     "returned -- so any moment's truth is just the "
+                     "latest entry, and history is never rewritten.",
+            "steps": [
+                ["Every claim is written once, idempotently",
+                 "re-processing the same window inserts zero rows, so "
+                 "double-ingestion is structurally impossible"],
+                ["Claims wait for sufficient evidence",
+                 "a completion nobody corroborated simply stays pooled; "
+                 "corroboration arriving next week meets it there"],
+                ["The ledger never forgets",
+                 "when the Windows port failed mysteriously, the "
+                 "pooled-returned-taken trail diagnosed it in one read -- "
+                 "the audit design debugging itself"],
+            ],
+        },
+        "reconcile": {
+            "plain": "Claims meet the board. Similarity places each "
+                     "claim; trust is proportional to blast radius -- "
+                     "the riskier the change, the more proof demanded -- "
+                     "and everything uncertain is held, never guessed.",
+            "steps": [
+                ["Similarity sorts claims into three bands",
+                 "near-identical links automatically, clearly-new "
+                 "creates, and the gray zone goes to an AI judge that "
+                 "must name its deciding factor"],
+                ["Completions face the strictest gate",
+                 "closing work wrongly is the worst error, so owner "
+                 "self-claims pass alone but anyone else needs an "
+                 "independent second source"],
+                ["A confused judge causes delay, not damage",
+                 "malformed judge answers count as 'no match', which "
+                 "means held -- the failure mode is patience"],
+                ["Each run supersedes the last",
+                 "at most one open review packet per person, enforced in "
+                 "storage; its first sweep retired four stale packets "
+                 "including two invisible kinds of debris"],
+            ],
+        },
+        "review": {
+            "plain": "The human gate. Nothing -- literally no path in "
+                     "the code -- changes the board without a person's "
+                     "recorded decision. Reviews re-check the board at "
+                     "decision time, because packets age.",
+            "steps": [
+                ["Proposals arrive as cards or a terminal session",
+                 "Teams card and local CLI write identical decision "
+                 "records; the interface is cosmetic, the record is not"],
+                ["Accepting re-validates against the board as it is NOW",
+                 "if the target moved since the packet was built, the "
+                 "accept is blocked and the reason recorded -- the first "
+                 "real session hit exactly this"],
+                ["Rejections teach",
+                 "reject reasons accumulate into the tuning data for "
+                 "matching thresholds -- the system improves by being "
+                 "used"],
+                ["Unanswered is recoverable",
+                 "expired packets return their claims to the pool; "
+                 "silence loses nothing"],
+            ],
+        },
+        "board": {
+            "plain": "The payoff surface. A read-only dashboard shows "
+                     "each person's confirmed work, and every fact "
+                     "carries a receipt: click through to the exact "
+                     "message that produced it.",
+            "steps": [
+                ["The API physically cannot write",
+                 "read-only database sessions mean even a bug cannot "
+                 "mutate the board from here"],
+                ["Viewers see by grant",
+                 "colleagues see progress; auditors with full-trace see "
+                 "rationale, decider, and provenance -- redaction is "
+                 "field-by-field"],
+                ["Every fact traces to source",
+                 "board event to decision to proposal to claim to "
+                 "message hash -- the gold 'Trace to source' walk is the "
+                 "whole thesis in one click"],
+            ],
+        },
+        "proving": {
+            "plain": "How we know the numbers. A seeded generator fakes "
+                     "messy workdays -- traps included -- and a scorer "
+                     "grades the real extraction against known answers. "
+                     "The harness itself is proven honest first.",
+            "steps": [
+                ["Fake days include guaranteed hard cases",
+                 "negation traps, secondhand completions, vague "
+                 "deadlines, and name variants are never left to "
+                 "chance"],
+                ["The scorer cannot be gamed",
+                 "a cheating AI scores 100%, an empty one scores 0% -- "
+                 "whatever the real model scores between those poles is "
+                 "real"],
+                ["Failures become named fixes",
+                 "every miss and fabrication is printed with its text; "
+                 "prompt version 1.1 was built directly from that list "
+                 "and re-measured on an unseen day: 94% recall, zero "
+                 "traps, zero fabrications"],
+            ],
+        },
+        "cadence": {
+            "plain": "The system runs itself. A scheduler fires one tick "
+                     "every weekday afternoon; silence is a valid "
+                     "outcome, and a down AI degrades the tick instead "
+                     "of failing it.",
+            "steps": [
+                ["One tick: ingest, reconcile, maybe notify",
+                 "you hear from the system only when proposals await -- "
+                 "zero pending, zero noise"],
+                ["A down AI means wait, never fail",
+                 "inbox files stay put, matching falls back to offline "
+                 "mode, uncertain items hold for a better day, and the "
+                 "tick still exits cleanly"],
+                ["Unattended weeks cannot rot",
+                 "the supersede rule means packets never stack up no "
+                 "matter how long nobody looks"],
+            ],
+        },
+    },
+    "walkthroughs": {
+        "integration/ingestion/graph_ingestion.py::SubscriptionManager.renew_due": [
+            ["Check each subscription's expiry clock",
+             "Microsoft subscriptions die every few days by design"],
+            ["Renew any past half-life",
+             "renewing early means one missed run never becomes a "
+             "silent gap in listening"],
+        ],
+        "integration/ingestion/graph_ingestion.py::SubscriptionManager.transcript_poll_plan": [
+            ["Notice which meetings have ended",
+             "transcripts are not pushed like messages; they must be "
+             "asked for"],
+            ["Schedule a bounded series of polite checks",
+             "transcripts appear minutes after a meeting; a capped poll "
+             "plan catches them without hammering the API"],
+        ],
+        "integration/ingestion/graph_ingestion.py::WindowBatcher.add": [
+            ["File the new message pointer under its conversation",
+             "only the pointer -- content is never queued"],
+            ["Open a window if none exists, else extend it",
+             "a burst of replies becomes one shared window instead of "
+             "many fragments"],
+        ],
+        "integration/ingestion/graph_ingestion.py::WindowBatcher.flush_due": [
+            ["Find windows that have gone quiet or grown old",
+             "quiet means the burst ended; the age cap bounds endless "
+             "threads"],
+            ["Turn each into one extraction job",
+             "one job equals one AI call -- this line is the system's "
+             "entire cost model"],
+        ],
+        "cadence/cadence_tick.py::process_inbox": [
+            ["Look for transcript files in the drop folder",
+             "the manual input path -- drop a file, the system ingests "
+             "it at 4:45"],
+            ["If the AI is down, leave everything untouched",
+             "extraction loses nothing by waiting a day"],
+            ["Extract, store, and archive each file",
+             "processed files move aside so nothing runs twice"],
+        ],
+        "extraction/extraction_prompts.py::build_messages": [
+            ["Number every message and name every speaker",
+             "numbered items make the AI's citations checkable by code"],
+            ["State what counts and what must be ignored",
+             "the ignore-list is battle scars: announcement dates, "
+             "negation reversals, and hedge-handling each earned their "
+             "line from a measured failure"],
+        ],
+        "extraction/extraction_worker.py::ExtractionWorker.run_job": [
+            ["Send one window to the AI, get typed claims back",
+             "one call per window, deterministic ids from content "
+             "hashes"],
+            ["Run every claim through the guard gauntlet",
+             "the AI proposes; code disposes"],
+            ["Emit a schema-valid batch no matter what",
+             "even a fully garbled AI answer yields a clean empty "
+             "batch, not a crash"],
+        ],
+        "extraction/extraction_worker.py::ExtractionWorker._build_signal": [
+            ["Validate one claim field by field",
+             "type, title, citations, dates -- each checked against "
+             "what is actually in the window"],
+            ["Default missing confidence instead of dropping",
+             "small AIs often omit it; dropping cost five of five "
+             "claims on the first live run"],
+            ["Delete deadline-removal language in code",
+             "the AI misread 'deadline is dropped' three of three "
+             "times at temperature zero, so code took over"],
+        ],
+        "extraction/extraction_worker.py::ExtractionWorker._resolve_owners": [
+            ["Match spoken names to known people",
+             "Alexander, Alex, and AM must all land on the same "
+             "person"],
+            ["Drop unknowns, demote shaky claims",
+             "ownership drives approvals downstream, so it fails "
+             "conservative"],
+        ],
+        "extraction/signal_store_pg.py::write_batch": [
+            ["Insert the batch under content-hash identity",
+             "the same window re-processed inserts zero rows -- ever"],
+            ["Pool each claim to the people it concerns",
+             "owner candidates first, window participants as "
+             "fallback"],
+        ],
+        "reconciler/board_io_pg.py::load_signals": [
+            ["Read each person's waiting claims",
+             "one view answers 'what awaits' -- the latest ledger "
+             "entry per claim wins"],
+        ],
+        "reconciler/board_io_pg.py::load_board": [
+            ["Load the matchable board with its aliases and ages",
+             "task age matters: a seconds-old task held its own 'done' "
+             "echo in live testing, exactly as designed"],
+        ],
+        "reconciler/reconciler.py::Reconciler._match": [
+            ["Compare each claim to every open task",
+             "text similarity places the claim on a confidence scale"],
+            ["Route by band: link, judge, or new",
+             "certainty links, ambiguity gets judged, novelty creates"],
+            ["Force the judge for anything dangerous",
+             "completions and cross-person claims never auto-link "
+             "regardless of score"],
+        ],
+        "policy/judge_prompts.py::build_signal_judge_messages": [
+            ["Show the judge the claim and its top candidates",
+             "a narrow question gets a reliable answer from a small "
+             "model"],
+            ["Demand a deciding factor in the verdict",
+             "the stated reason is what a human audits to decide "
+             "whether to trust local judging at all"],
+        ],
+        "policy/judge_prompts.py::parse_judge_response": [
+            ["Parse the verdict strictly",
+             "anything malformed becomes 'no match'"],
+            ["Make confusion mean delay",
+             "a held claim waits for a better day; a wrong merge would "
+             "corrupt the board"],
+        ],
+        "reconciler/reconciler.py::Reconciler._gate_closure": [
+            ["Ask who is claiming the completion",
+             "the owner saying 'done' and a bystander saying 'I think "
+             "it's done' are different evidence"],
+            ["Demand a second independent source for hearsay",
+             "two mentions in one thread is one source; the check is "
+             "on distinct origins"],
+            ["Hold whatever fails",
+             "held claims stay pooled -- a fix added after the live "
+             "loop nearly swallowed a real completion"],
+        ],
+        "reconciler/reconciler.py::Reconciler._gate_assignment": [
+            ["Walk the attribution ladder",
+             "explicit assignment reassigns; self-claims on owned work "
+             "raise a conflict; inferred never proposes"],
+            ["Prefer a flagged conflict over a silent guess",
+             "competing owners is information for the human, not a "
+             "coin flip for the code"],
+        ],
+        "reconciler/reconciler.py::Reconciler._aggregate": [
+            ["Combine same-change proposals",
+             "three status hints merge into one proposal with pooled "
+             "confidence"],
+            ["Stamp identity with the run",
+             "unsalted proposal ids once collided across packets and "
+             "silently wrote nothing -- the salt is the scar"],
+        ],
+        "reconciler/board_io_pg.py::supersede_open_packets": [
+            ["Retire every open packet for this person",
+             "at most one review awaits anyone, ever"],
+            ["Return undecided claims to the pool",
+             "superseded is not lost; the claims queue for the next "
+             "round"],
+        ],
+        "reconciler/board_io_pg.py::write_packet": [
+            ["Do everything in one transaction",
+             "supersede, insert, mark claims taken -- all or nothing"],
+            ["Write nothing for an empty round",
+             "silence is a valid output, not an error"],
+        ],
+        "reconciler/embedders.py::OllamaEmbedder": [
+            ["Turn text into vectors with a local model",
+             "similarity math needs numbers; nothing leaves the "
+             "machine"],
+            ["Wait generously for cold starts",
+             "a two-minute timeout once killed a run while another "
+             "project held the AI queue; ten minutes fixed it"],
+        ],
+        "reconciler/embedders.py::TokenEmbedder": [
+            ["Fall back to plain word-overlap vectors",
+             "no AI required -- the offline mode and the reason tests "
+             "can stage exact similarities on purpose"],
+        ],
+        "review_loop/orchestrator.py::Orchestrator.apply_decision": [
+            ["Re-check the target before applying",
+             "the board may have moved since the packet was built"],
+            ["Apply through the one blessed function",
+             "every change is an event with a decision attached"],
+            ["Record invalidation instead of forcing",
+             "a stale accept is written down as stale -- honesty over "
+             "convenience"],
+        ],
+        "review_loop/orchestrator.py::Orchestrator.expire_sweep": [
+            ["Find packets past their deadline",
+             "unanswered reviews should not linger as zombies"],
+            ["Return their claims to the pool",
+             "expiry recycles; it never discards"],
+        ],
+        "review_loop/review_card.py::build_review_card": [
+            ["Render proposals as a Teams card",
+             "evidence quotes, rationale, and buttons -- decisions "
+             "where the conversation already lives"],
+            ["Paginate before the size limit",
+             "eight proposals per card keeps every card deliverable"],
+        ],
+        "review_loop/review_card.py::_assert_size": [
+            ["Refuse to build an oversized card",
+             "a card that cannot deliver is a review that never "
+             "happens; failing at build time is the honest failure"],
+        ],
+        "cli/review.py::still_valid": [
+            ["Check the proposal against the board right now",
+             "terminal states, merged-away tasks, and vanished targets "
+             "all block an accept"],
+        ],
+        "cli/review.py::apply_accept": [
+            ["Map the accepted change to exactly one board event",
+             "the CLI never touches the board tables directly -- no "
+             "surface does"],
+        ],
+        "integration/dashboard/dashboard_api.py::board": [
+            ["Serve each person's board read-only",
+             "the database session physically cannot write"],
+            ["Filter through the visibility choke point",
+             "one function decides what any viewer may see; every "
+             "query goes through it"],
+        ],
+        "integration/dashboard/dashboard_api.py::blocked_on": [
+            ["Show who waits on whom, owner-only",
+             "your dependency map is your business, not your "
+             "stakeholders'"],
+        ],
+        "integration/dashboard/dashboard_api.py::provenance": [
+            ["Walk a fact back to its source",
+             "board event, decision, proposal, claim, message hash -- "
+             "the full receipt"],
+            ["Refuse below full-trace clearance",
+             "provenance is a grant, not a default"],
+        ],
+        "integration/dashboard/dashboard_api.py::_redact_event": [
+            ["Blank the sensitive fields for progress viewers",
+             "they see that things happened, not why or on whose "
+             "word -- field-level, not row-level"],
+        ],
+        "testdata/synthesize.py::build_events": [
+            ["Roll a day of workplace events",
+             "assignments, updates, blockers, completions across a "
+             "cast with name variants"],
+            ["Force the hard cases every day",
+             "traps, hearsay completions, and vague deadlines are "
+             "guaranteed, never left to dice"],
+        ],
+        "testdata/synthesize.py::render": [
+            ["Voice each event in its channel's register",
+             "meeting filler, chat typos, email signatures -- the mess "
+             "is the test"],
+            ["Attach the answer key as it renders",
+             "every window ships with its golden labels for scoring"],
+        ],
+        "testdata/score_extraction.py::score_window": [
+            ["Match extracted claims to the answer key",
+             "lenient on wording, strict on what feeds decisions: "
+             "types, owners, dates"],
+            ["Count traps and fabrications separately",
+             "the failure kinds that erode trust get their own "
+             "ledger lines"],
+        ],
+        "testdata/score_extraction.py::match_type": [
+            ["Accept defensible readings, reject trap readings",
+             "completion-read-as-status is forgivable; parked work "
+             "revived is not -- the scorer grades meaning"],
+        ],
+        "cadence/cadence_tick.py::main": [
+            ["Run the whole afternoon ritual",
+             "ingest, reconcile, count pending, maybe notify"],
+            ["Exit cleanly on empty days and down AIs",
+             "degraded is not failure; the log is the contract"],
+        ],
+        "cadence/cadence_tick.py::run_reconcile": [
+            ["Use the real AI when reachable, offline math when not",
+             "offline mode still links the obvious and holds the "
+             "uncertain"],
+        ],
+        "cadence/cadence_tick.py::ollama_up": [
+            ["Probe the AI for three seconds",
+             "one cheap check decides the tick's whole posture -- "
+             "learned when a busy AI queue looked identical to a dead "
+             "one"],
+        ],
+        "cadence/cadence_tick.py::notify": [
+            ["Pop a notification only when reviews await",
+             "zero pending means zero noise; tests and other "
+             "platforms log instead"],
+        ],
+    },
+}
+
 # ---------------------------------------------------------- code extraction
 
 
@@ -458,7 +947,22 @@ def _find(scope, parts):
 def hydrate(atlas):
     errors = []
     n_components = 0
+    walks = dict(NARRATIVE["walkthroughs"])
     for dom in atlas["domains"]:
+        nd = NARRATIVE["domains"].get(dom["id"])
+        nl1 = NARRATIVE["pipeline"].get(dom["id"])
+        if not nd or not nd.get("plain") or not nd.get("steps"):
+            errors.append("NARRATIVE DRIFT: no plain-English entry for "
+                          "domain `{0}` -- update NARRATIVE"
+                          .format(dom["id"]))
+        else:
+            dom["plain"] = nd["plain"]
+            dom["steps"] = nd["steps"]
+        if not nl1:
+            errors.append("NARRATIVE DRIFT: no pipeline line for domain "
+                          "`{0}` -- update NARRATIVE".format(dom["id"]))
+        else:
+            dom["l1"] = nl1
         for mod in dom["modules"]:
             for comp in mod["components"]:
                 rel = comp.get("file", mod["file"])
@@ -476,7 +980,18 @@ def hydrate(atlas):
                                       comp["symbol"], rel))
                     continue
                 comp["code"] = code
+                wkey = comp.get("file", mod["file"]) + "::" + comp["symbol"]
+                walk = walks.pop(wkey, None)
+                if walk is None:
+                    errors.append("NARRATIVE DRIFT: no plain-English "
+                                  "walkthrough for `{0}` -- update "
+                                  "NARRATIVE".format(wkey))
+                else:
+                    comp["walk"] = walk
                 n_components += 1
+    for stale in sorted(walks):
+        errors.append("NARRATIVE DRIFT: walkthrough for `{0}` points at "
+                      "no component -- remove or fix it".format(stale))
     if errors:
         for e in errors:
             print(e, file=sys.stderr)
@@ -491,7 +1006,7 @@ CSS = """
 Consolas,monospace}
 *{box-sizing:border-box;margin:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--mono);
-font-size:14px;line-height:1.5;padding:0 0 48px}
+font-size:15.5px;line-height:1.55;padding:0 0 48px}
 header{display:flex;align-items:baseline;gap:14px;padding:18px 28px;
 border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
 header .mark{font-weight:800;letter-spacing:-.01em;font-size:17px}
@@ -539,6 +1054,34 @@ border-radius:50%;flex:none}
 .codebox .blurb{padding:12px 14px;border-bottom:1px solid var(--line);
 font-size:13px;color:var(--ink);max-width:90ch}
 .codebox pre{padding:14px;overflow-x:auto;font-size:12.5px;line-height:1.55}
+.plainwrap{background:var(--panel);border:1px solid var(--line);
+border-radius:6px;box-shadow:0 1px 2px rgba(23,34,44,.06),
+0 4px 14px rgba(23,34,44,.05);padding:16px 18px;margin:18px 0 6px;
+max-width:1100px}
+.plainhead{font-size:12px;letter-spacing:.08em;color:var(--dim);
+font-weight:700;margin-bottom:10px}
+.step{display:flex;gap:10px;margin:8px 0;align-items:baseline}
+.stepchip{flex:none;width:22px;height:22px;border-radius:6px;
+background:var(--sc,#888);color:#fff;font-weight:700;font-size:12.5px;
+display:flex;align-items:center;justify-content:center;
+box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 1px 2px rgba(0,0,0,.18);
+transform:translateY(3px)}
+.stepact{font-weight:700}
+.stepwhy{color:var(--dim)}
+.card,.codebox{border-radius:6px;
+box-shadow:0 1px 2px rgba(23,34,44,.05),0 5px 16px rgba(23,34,44,.06)}
+.card{transition:transform .16s,box-shadow .16s}
+.card:hover{transform:translateY(-2px);
+box-shadow:0 3px 6px rgba(23,34,44,.08),0 10px 24px rgba(23,34,44,.09)}
+.card:active{transform:translateY(0)}
+.chip{border-radius:5px;
+box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 1px 2px rgba(23,34,44,.07);
+transition:transform .16s}
+.chip:hover{transform:translateY(-1px)}
+.chip:active{transform:translateY(0);
+box-shadow:inset 0 1px 3px rgba(0,0,0,.12)}
+.chip.active{box-shadow:inset 0 1px 3px rgba(0,0,0,.28)}
+@media (prefers-reduced-motion:reduce){.card,.chip{transition:none}}
 .tok-c{color:#2F7D32;font-style:italic}
 .tok-s{color:#9C4A38}
 .tok-k{color:#3E5C76;font-weight:700}
@@ -570,6 +1113,39 @@ function highlight(code){
     return e.replace(kw,'<span class="tok-k">$1</span>');
   }).join('');
 }
+function stepRow(parent,color,num,act,why){
+  var row=el('div','step');
+  var chip=el('span','stepchip',String(num));
+  chip.style.setProperty('--sc',color);
+  row.appendChild(chip);
+  var body=el('span',null,'');
+  var a=el('span','stepact',act);
+  var w=el('span','stepwhy',' \u2014 '+why);
+  body.appendChild(a);body.appendChild(w);row.appendChild(body);
+  parent.appendChild(row);
+}
+function narHub(box){
+  var wrap=el('div','plainwrap');
+  wrap.appendChild(el('div','plainhead','THE PIPELINE IN PLAIN ENGLISH'));
+  var stages=DATA.domains.filter(function(d){return d.kind==='stage';});
+  var rails=DATA.domains.filter(function(d){return d.kind==='rail';});
+  var n=0,i,d;
+  for(i=0;i<stages.length;i++){d=stages[i];n++;
+    stepRow(wrap,d.color,n,d.l1[0],d.l1[1]);}
+  for(i=0;i<rails.length;i++){d=rails[i];n++;
+    stepRow(wrap,d.color,n,d.l1[0]+' (runs alongside every step)',
+            d.l1[1]);}
+  box.appendChild(wrap);
+}
+function narDomain(box,dom){
+  var wrap=el('div','plainwrap');
+  wrap.appendChild(el('div','plainhead',
+    'WHAT HAPPENS HERE, STEP BY STEP'));
+  wrap.appendChild(el('div','stepwhy',dom.plain));
+  for(var i=0;i<dom.steps.length;i++){
+    stepRow(wrap,dom.color,i+1,dom.steps[i][0],dom.steps[i][1]);}
+  box.appendChild(wrap);
+}
 function crumbs(){
   var c=document.getElementById('crumbs');c.innerHTML='';
   var a=el('a',null,'atlas');a.onclick=showHub;c.appendChild(a);
@@ -592,6 +1168,7 @@ function showDomain(dom){state.domain=dom;state.module=null;
   sw.style.borderBottom='3px solid '+dom.color;h.appendChild(sw);
   head.appendChild(h);head.appendChild(el('p',null,dom.blurb));
   box.appendChild(head);
+  narDomain(box,dom);
   var W=Math.min(document.body.clientWidth-56,1200);
   var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
   svg.setAttribute('width',W);svg.setAttribute('height',46);
@@ -638,6 +1215,13 @@ function loadCode(dom,mod,comp){
   var sym=el('b',null,comp.symbol);
   head.appendChild(path);head.appendChild(sym);cb.appendChild(head);
   cb.appendChild(el('div','blurb',comp.blurb));
+  if(comp.walk){
+    var pw=el('div','plainwrap');pw.style.margin='10px 14px';
+    pw.appendChild(el('div','plainhead','PLAIN ENGLISH WALKTHROUGH'));
+    for(var wi=0;wi<comp.walk.length;wi++){
+      stepRow(pw,dom.color,wi+1,comp.walk[wi][0],comp.walk[wi][1]);}
+    cb.appendChild(pw);
+  }
   var pre=el('pre');pre.innerHTML=highlight(comp.code);cb.appendChild(pre);}
 function buildHub(){
   var box=document.getElementById('layer-hub');
@@ -723,6 +1307,7 @@ function buildHub(){
     g.addEventListener('click',function(){showDomain(dom);});
   });
   box.appendChild(svg);
+  narHub(box);
 }
 buildHub();showHub();
 """
@@ -763,7 +1348,7 @@ def build():
         m = re.search(r'PROMPT_VERSION = "([^"]+)"', f.read())
         if m:
             stamp = m.group(1)
-    stamp += " \u00b7 built {0}".format(
+    stamp = "atlas v2 \u00b7 " + stamp + " \u00b7 built {0}".format(
         datetime.date.today().isoformat())
 
     data = json.dumps(ATLAS).replace("</", "<\\/")
@@ -785,18 +1370,31 @@ def build():
     assert m, "self-check: embedded JSON block missing"
     parsed = json.loads(m.group(1).replace("<\\/", "</"))
     n = 0
+    l1 = l2 = l3 = 0
     for dom in parsed["domains"]:
+        assert dom.get("plain") and dom.get("steps") and dom.get("l1"), \
+            "self-check: domain {0} missing narrative".format(dom["id"])
+        l1 += 1
+        l2 += len(dom["steps"])
         for mod in dom["modules"]:
             for comp in mod["components"]:
                 assert comp.get("code"), \
                     "self-check: {0} carries no code".format(comp["symbol"])
+                assert comp.get("walk"), \
+                    "self-check: {0} carries no walkthrough".format(
+                        comp["symbol"])
+                l3 += len(comp["walk"])
                 n += 1
     for marker in ("function showModule", "function showDomain",
                    "function buildHub", "function loadCode",
-                   "codebox.id='codebox'", "prefers-reduced-motion"):
+                   "codebox.id='codebox'", "prefers-reduced-motion",
+                   "PLAIN ENGLISH WALKTHROUGH", "THE PIPELINE IN PLAIN",
+                   "atlas v2", "function narHub", "function narDomain"):
         assert marker in page, "self-check: missing " + marker
-    print("self-check passed: {0} components all carry live code; "
-          "interactive markers present".format(n))
+    print("self-check passed: {0} components all carry live code + "
+          "walkthroughs; markers present".format(n))
+    print("narrative totals: L1 pipeline lines {0}, L2 domain steps {1}, "
+          "L3 walkthrough steps {2}".format(l1, l2, l3))
 
 
 if __name__ == "__main__":
