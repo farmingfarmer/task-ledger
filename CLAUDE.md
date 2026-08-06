@@ -8,13 +8,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Rebuild `scripts/build_system_map.py` after code changes.** It fails loudly on atlas/narrative drift (it `ast`-extracts the real source of every mapped symbol). When adding a component, update the `NARRATIVE` dict too — a component without a narrative walkthrough, or a walkthrough pointing at no component, is a hard build failure.
 - **Never modify board tables except through `apply_task_event`.** No direct writes to `tasks_current`, `task_events`, `task_blockers`, or `task_aliases`.
 - **Never commit corpus files, inbox JSONs, or DB contents** — these hold real colleague data.
+- **This repository stays private. It is policy, not a current state — never make it public**, and never assume it is safe to publish because it looks like ordinary code. It processes real colleague communications.
+- **Live-derived strings are forbidden**: real task titles, people's names, and quotes from real messages must not appear in code, comments, test fixtures, docstrings, or commit messages. Describe the *shape* of a real example ("a vague restatement and a specific description of the same work") and keep the measurement; invent fixture data. This applies to commit messages too — history is the hardest place to clean up.
+- **`run_tests.sh` mutates boards** (seeds tasks, re-pools signals, accepts proposals through `apply_task_event`). Always `export DB_DSN` pointing at a **scratch database** before running it. Never point it at `taskintel`, which holds real ledger data.
+- **Verify a claimed bug before fixing it.** Diagnoses in task briefs may be transcribed from screen photos and can carry OCR errors — a reported `$DB_QSN` typo turned out to be `$DB_DSN`, correct in every file. Grep for the exact symbol, string, or file first; if it does not exist, say so and fix the real defect rather than inventing a matching one.
 
 ## Commands
 
 ```zsh
+export DB_DSN="host=localhost port=5432 dbname=taskintel_scratch user=$(whoami)"   # NEVER taskintel
 ./run_tests.sh                  # every suite + system-map build (run_tests.bat on Windows)
 python3 scripts/doctor.py       # preflight: env, deps, DB, schema, pipeline state
 ```
+
+A scratch database is one `createdb` plus `storage/schema.sql` and `access/access_control.sql` (see the setup block below); the suites build their own fixtures from empty.
 
 Suites must be run **from their own directory** (they `sys.path.insert(0, ".")` and open fixture files relatively):
 
