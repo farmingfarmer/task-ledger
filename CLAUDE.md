@@ -1,0 +1,100 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project rules (non-negotiable)
+
+- **Python 3.8 compatible** — no walrus operator, no `match` statements. `py_compile` everything you touch.
+- **Rebuild `scripts/build_system_map.py` after code changes.** It fails loudly on atlas/narrative drift (it `ast`-extracts the real source of every mapped symbol). When adding a component, update the `NARRATIVE` dict too — a component without a narrative walkthrough, or a walkthrough pointing at no component, is a hard build failure.
+- **Never modify board tables except through `apply_task_event`.** No direct writes to `tasks_current`, `task_events`, `task_blockers`, or `task_aliases`.
+- **Never commit corpus files, inbox JSONs, or DB contents** — these hold real colleague data.
+
+## Commands
+
+```zsh
+./run_tests.sh                  # every suite + system-map build (run_tests.bat on Windows)
+python3 scripts/doctor.py       # preflight: env, deps, DB, schema, pipeline state
+```
+
+Suites must be run **from their own directory** (they `sys.path.insert(0, ".")` and open fixture files relatively):
+
+```zsh
+cd extraction        && python3 test_extraction.py     # worker, salvage, guards, pg store
+cd reconciler        && python3 test_reconciler.py     # bands, gates, aggregation, live packet
+cd reconciler        && python3 test_supersede.py      # supersede/return semantics, own fixture user
+cd cli               && python3 test_review.py         # review CLI over the live pending packet
+cd integration/tests && python3 test_integration.py    # graph ingestion + bot host (not in run_tests)
+cd integration/tenant && python3 test_tenant.py        # webhook host, offline (not in run_tests)
+```
+
+DB-backed sections **self-skip** when `DB_DSN` is unset or Postgres is unreachable — a "skipped" line is not a pass. The suites are ordered: `test_extraction` writes signals that `test_reconciler`'s live section consumes, which leaves the packet `test_review` decides on. Running one alone against a pristine DB may skip its live half.
+
+Database setup and the live loop:
+
+```zsh
+createdb taskintel
+psql -d taskintel -f storage/schema.sql          # then storage/validate_storage.sql to assert
+psql -d taskintel -f access/access_control.sql   # then access/validate_access.sql
+export DB_DSN="host=localhost port=5432 dbname=taskintel user=$(whoami)"
+
+python3 scripts/demo_offline.py                  # seed a reviewable state, no Ollama needed
+python3 extraction/run_local.py --transcript extraction/sample_transcript.json --model mistral-small3.1 --write-db
+python3 reconciler/run_reconcile.py --user aad-dev --dsn "$DB_DSN" --embed-model nomic-embed-text --judge-model mistral-small3.1 --write
+python3 cli/review.py --as aad-dev --dsn "$DB_DSN"
+python3 integration/dashboard/dashboard_api.py   # http://127.0.0.1:8090 (on Windows browse the literal IP; bare hostnames get https-upgraded)
+```
+
+Extraction quality (requires Ollama; `--llm-fake` for harness testing):
+
+```zsh
+cd testdata && python3 score_extraction.py --corpus corpus/ --model mistral-small3.1 [--limit 4]
+```
+
+Doc generators (self-checking, regenerate rather than hand-edit their output):
+
+```zsh
+python3 scripts/build_system_map.py   # -> docs/system_map.html   (fails on symbol/narrative drift)
+python3 scripts/build_presenter.py    # -> docs/presenter_companion.html (asserts 8 domains, deep-node/FAQ counts, ES5-only JS)
+python3 scripts/copilot_ingest.py paste.txt --out ~/task-ledger-inbox [--dry-run]
+```
+
+## Architecture
+
+Communication in → typed signals → proposals → **human decision** → provenance-backed board fact. Two invariants generate almost every design choice; violating either is a design bug, not a style issue:
+
+1. **No board mutation without a human `DecisionRecord`.** Extraction and reconciliation produce *proposals only*. `apply_task_event()` (storage/schema.sql) is the single write path; a `CHECK` requires `decision_id` whenever `actor_type='user_decision'`, so an AI-originated change cannot masquerade as human-typed.
+2. **Evidence is pointers plus hashes, never copied content.** `evidence_refs` stores Graph resource ids, spans, and sha256 hashes. No message text lives in this database; the UI resolves ids at render time under the *viewer's* M365 permissions.
+
+### Stage map
+
+| dir | role |
+|---|---|
+| `contracts/` | the shared language: extraction + reconciliation-diff JSON schemas (`CONTRACTS.md` explains why signals and proposals are separate types) |
+| `extraction/` | one LLM call per window → typed signals with attribution ladder, hash-anchored evidence. Salvage rescues good signals from malformed JSON; deterministic code guards delete what the prompt cannot be trusted on |
+| `reconciler/` | signals + board → `ReviewPacket`. Embed vs task alias sets, bands (auto-link / LLM judge / new-task), per-signal-type op gates, noisy-OR aggregation. **Never writes the board** |
+| `policy/` | `matching_policy.yaml` — every threshold, gate, and corroboration rule the reconciler uses. Constants belong here, never in code |
+| `review_loop/` | packet lifecycle state machine (`draft → delivered → partially_decided → closed`, plus expired/superseded) and Adaptive Card builder; transport/storage injected |
+| `cli/` | `review.py` — the local human loop (accept / edit-accept / reject-with-reason / defer) |
+| `storage/` | append-only schema + `apply_task_event` + `rebuild_board` + named query paths Q1–Q9 |
+| `access/` | `visible_tasks(viewer)` — the single authorization function every task-reading query joins through |
+| `integration/` | Graph ingestion & windowing, bot host, viewer-aware dashboard API + UI, `tenant/` (Graph auth, webhook host, mail subscription) |
+| `cadence/` | weekday tick: inbox → extract → reconcile → notify (launchd; Task Scheduler on Windows) |
+| `testdata/` | seeded synthetic messy-comms generator + scorer against golden labels |
+| `deploy/windows/` | no-admin port: portable Postgres on port 5433, batch wrappers |
+
+### Cross-cutting mechanics worth knowing before editing
+
+- **Append-only is enforced, not conventional.** Ten tables carry a `forbid_mutation()` trigger that raises on UPDATE/DELETE. The three mutable tables are projections of `task_events`; `validate_storage.sql` snapshots them, runs `rebuild_board()`, and diffs — write-through logic and rebuild logic drifting apart is the failure this catches. Any change to `apply_task_event` must be mirrored in `rebuild_board`.
+- **The signal pool is events, not flags.** `signal_pool_events` (`pooled`/`taken`/`returned`) with `v_unconsumed_signals` as a latest-event-wins view. Signals failing a corroboration gate are *held* (never consumed), so a later window can corroborate them.
+- **Supersede, don't replay.** A new packet supersedes any open one; undecided proposals are not copied forward — their signals return to the pool and re-reconcile against the current board.
+- **Deterministic content-hash ids** (`batch_id`, `signal_id`, proposal ids) make re-processing a window an upsert-shaped no-op. Tests and demo scripts rely on this idempotency; anything that makes ids run-dependent breaks re-runs.
+- **Degraded mode is normal operation.** Ollama down means inbox files *wait* and the reconciler falls back to `TokenEmbedder` with no judge — auto-links and gates still run, judge-band and closure signals hold. Neither is a failure exit.
+- **Access levels redact communication-derived content, not task data.** `progress` hides rationales, decider identity, confidence, blocker wording, aliases, and all provenance; `full_trace` opens the rail. Owners are always full_trace on their own tasks. Never read `tasks_current` for another user without going through `visible_tasks`; the dashboard API session is `READ ONLY` by design.
+
+### Conventions
+
+- Module docstrings are the real design docs — read the top of a file before changing it; each stage dir also has an uppercase `.md` (`EXTRACTION.md`, `MATCHING_POLICY.md`, `STORAGE.md`, `ACCESS_CONTROL.md`, `REVIEW_LOOP.md`, `INTEGRATION.md`, `CADENCE.md`, `TESTDATA.md`, `WINDOWS_PORT.md`).
+- Reconciler and orchestrator cores take plain dicts so they stay storage-agnostic; Postgres adapters live in `*_pg.py`.
+- Generated HTML is single-file, dependency-free, **ES5 only** (no arrow functions, no template literals) — the presenter build asserts this.
+- `.gitattributes` pins line endings (`.py/.sh/.sql` LF, `.bat/.ps1` CRLF) so the Windows port survives autocrlf. Keep new files consistent with it.
+- Code must run on macOS and Windows unchanged; paths via `os.path.join`, no shell-isms in Python.
