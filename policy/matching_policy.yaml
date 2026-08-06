@@ -129,6 +129,36 @@ aggregation:
   noisy_or_cap: 0.97
   conflicting_ops: "emit highest-confidence proposal; attach others as competing evidence; set conflict flag if sources are independent"
 
+  packet_local_create_dedup:
+    # Same new work, described twice in one packet window — a vague
+    # restatement and a specific description, both proposed on the first live
+    # run. Creates carry no target_task_id, so the exact-payload aggregation
+    # key can never join them: dedup on title similarity BEFORE aggregation,
+    # or the human answers the same card twice.
+    #
+    # Bands, not a single floor. Measured on nomic-embed-text, that live pair
+    # scored 0.805 while "deploy drift monitor to staging" vs "...to
+    # production" — genuinely different work — scores 0.887. Similarity alone
+    # cannot separate them, so the gray band goes to the same merge judge the
+    # periodic task<->task scan uses, and merges only on same_task.
+    auto_merge: 0.93          # >= : near-verbatim restatement; merge, no judge
+    judge_floor: 0.78         # [judge_floor, auto_merge): ask the merge judge
+    judge_accept_min: 0.85    # same bar as merge_scan; below it, keep both
+    no_judge_behavior: "keep both proposals"   # offline ticks fail OPEN: two
+                                               # cards is noise, a wrong merge
+                                               # hides work the human never sees
+    survivor: "highest-confidence proposal; absorbs the other's evidence, signal lineage, and any field it left empty"
+
+cross_board_duplicate_check:
+  # Creates from UNOWNED signals (an unassigned "someone should do this")
+  # are checked against every board, not just the reviewing user's:
+  # the work is often already on a colleague's board. The match is appended to
+  # the rationale and nothing else — never an auto-reject, never a suppressed
+  # proposal. The reviewer is the one who knows whether it is the same work.
+  title_similarity: 0.80
+  applies_to: "create_task proposals whose payload owner_ref is null"
+  action: "append 'similar task exists on <ref>'s board' to the rationale"
+
 per_op_confidence_floor:
   # Final proposal confidence required to appear on a review card at all.
   create_task: 0.60

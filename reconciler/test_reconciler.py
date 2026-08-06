@@ -243,6 +243,127 @@ def test_create_and_subtask():
        "judge subtask_of verdict becomes add_subtask under the parent")
 
 
+def test_packet_local_create_dedup():
+    print("packet-local create dedup")
+    # Empty board: every proposal signal becomes a create, which is the
+    # shape the first live run produced -- one piece of work on one card
+    # twice, as a vague restatement and a specific description.
+    def prop(sid, title, conf, rid, **kw):
+        return sig(signal_id=sid, signal_type="proposal", title=title,
+                   confidence=conf, rid=rid, **kw)
+
+    r = make()
+    a = prop("sig-a", "Deploy drift monitor staging", 0.8, "utt-a")
+    b = prop("sig-b", "Staging deploy of the drift monitor", 0.7, "utt-b")
+    packet, rep = r.reconcile("aad-alex", [a, b], [], 1, "run-t")
+    ok(len(packet["proposals"]) == 1
+       and packet["proposals"][0]["payload"]["title"]
+       == "Deploy drift monitor staging",
+       "near-verbatim creates merge into the higher-confidence proposal")
+    p = packet["proposals"][0]
+    ok(p["source_signals"] == ["sig-a", "sig-b"] and len(p["evidence"]) == 2
+       and abs(p["confidence"] - 0.94) < 1e-6,
+       "merged create pools evidence, lineage, and noisy-OR confidence")
+    ok(rep["judge_calls"] == 0 and len(rep["merged"]) == 1
+       and "merged" in p["rationale"],
+       "auto band needs no judge; the merge is reported and visible")
+
+    # Gray band: similarity alone cannot decide, so the merge judge does.
+    gray = [prop("sig-c", "Deploy drift monitor staging environment", 0.8,
+                 "utt-c"),
+            prop("sig-d", "Deploy drift monitor staging", 0.7, "utt-d")]
+    same = judge_script([{"verdict": "same_task",
+                          "matched_task_id": "pending-kept",
+                          "confidence": 0.9,
+                          "deciding_factor": "same staging deploy"}])
+    packet2, rep2 = make(same).reconcile("aad-alex", copy.deepcopy(gray), [],
+                                         1, "run-t")
+    ok(len(packet2["proposals"]) == 1 and rep2["judge_calls"] == 1,
+       "gray band merges only on a same_task verdict from the merge judge")
+
+    distinct = judge_script([{"verdict": "distinct", "matched_task_id": None,
+                              "confidence": 0.9,
+                              "deciding_factor": "staging is not production"}])
+    packet3, _ = make(distinct).reconcile("aad-alex", copy.deepcopy(gray), [],
+                                          1, "run-t")
+    ok(len(packet3["proposals"]) == 2,
+       "judge verdict distinct keeps both creates on the card")
+
+    packet4, rep4 = make().reconcile("aad-alex", copy.deepcopy(gray), [], 1,
+                                     "run-t")
+    ok(len(packet4["proposals"]) == 2 and rep4["judge_calls"] == 0,
+       "no judge (offline tick) fails open: gray-band creates both survive")
+
+    far = [prop("sig-e", "Rebuild feature store documentation", 0.8, "utt-e"),
+           prop("sig-f", "Provision Fargate IAM role", 0.8, "utt-f")]
+    packet5, rep5 = make(judge_script([])).reconcile("aad-alex", far, [], 1,
+                                                     "run-t")
+    ok(len(packet5["proposals"]) == 2 and rep5["judge_calls"] == 0,
+       "unrelated creates never reach the judge, never merge")
+
+    # An ownerless create is invisible on every board; a twin that names an
+    # owner contributes it rather than losing it in the merge.
+    ownerless = prop("sig-g", "Build the ingest replay harness", 0.9, "utt-g")
+    owned = sig(signal_id="sig-h", signal_type="assignment",
+                title="Ingest replay harness build", confidence=0.7,
+                rid="utt-h",
+                owner_candidates=[{"person_ref": "aad-dev", "confidence": 0.9,
+                                   "basis": "explicit_assignment"}])
+    packet6, _ = make().reconcile("aad-alex", [ownerless, owned], [], 1,
+                                  "run-t")
+    ok(len(packet6["proposals"]) == 1
+       and packet6["proposals"][0]["payload"]["owner_ref"] == "aad-dev",
+       "survivor inherits the owner its twin carried")
+
+
+def test_cross_board_duplicate_annotation():
+    print("cross-board duplicate annotation")
+    r = make()
+    unowned = sig(signal_id="sig-cb", signal_type="proposal",
+                  title="Rebuild feature store documentation", confidence=0.8)
+    others = [task(task_id="task-priya-1",
+                   title="Feature store documentation rebuild",
+                   user_ref="aad-priya", owner_ref="aad-priya")]
+    packet, rep = r.reconcile("aad-alex", [unowned], [], 1, "run-t",
+                              all_tasks=others)
+    p = packet["proposals"][0]
+    ok(len(packet["proposals"]) == 1 and p["op"] == "create_task",
+       "cross-board match annotates only: the create still stands")
+    ok("similar task exists on aad-priya's board" in p["rationale"]
+       and len(p["rationale"]) <= 200,
+       "rationale names the other board, within the schema's 200 chars")
+    ok(any(a["kind"] == "cross_board_duplicate"
+           and a["task_id"] == "task-priya-1" for a in rep["annotations"]),
+       "the finding is recorded as an annotation with the matched task")
+
+    far = [task(task_id="task-priya-2", title="Provision Fargate IAM role",
+                user_ref="aad-priya", owner_ref="aad-priya")]
+    packet2, rep2 = r.reconcile("aad-alex", [copy.deepcopy(unowned)], [], 1,
+                                "run-t", all_tasks=far)
+    ok("similar task" not in packet2["proposals"][0]["rationale"]
+       and not [a for a in rep2["annotations"]
+                if a["kind"] == "cross_board_duplicate"],
+       "unrelated work on another board raises no note")
+
+    owned = sig(signal_id="sig-cb2", signal_type="assignment",
+                title="Rebuild feature store documentation", confidence=0.8,
+                owner_candidates=[{"person_ref": "aad-alex",
+                                   "confidence": 0.9,
+                                   "basis": "explicit_assignment"}])
+    packet3, _ = r.reconcile("aad-alex", [owned], [], 1, "run-t",
+                             all_tasks=others)
+    ok("similar task" not in packet3["proposals"][0]["rationale"],
+       "creates that already name an owner are not cross-board checked")
+
+    mine = [task(task_id="task-mine", title="Feature store documentation "
+                 "rebuild", user_ref="aad-alex", owner_ref="aad-alex")]
+    packet4, _ = r.reconcile("aad-alex", [copy.deepcopy(unowned)], mine, 1,
+                             "run-t", all_tasks=mine)
+    ok(all("similar task" not in p["rationale"]
+           for p in packet4["proposals"]),
+       "the reviewer's own board is matching territory, not a duplicate note")
+
+
 def test_deadline_and_blockers():
     print("deadline + blocker gates")
     r = make()
@@ -431,6 +552,8 @@ if __name__ == "__main__":
     test_closure_gates()
     test_assignment_ladder()
     test_create_and_subtask()
+    test_packet_local_create_dedup()
+    test_cross_board_duplicate_annotation()
     test_deadline_and_blockers()
     test_floors_and_mentions()
     test_cross_owner_guard()

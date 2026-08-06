@@ -412,9 +412,10 @@ ATLAS = {
                                "way when a shared Ollama queue looked "
                                "identical to a hung server."},
                      {"symbol": "notify",
-                      "blurb": "macOS notification only when pending > 0; "
-                               "suppressed in tests; logs on other "
-                               "platforms. Zero pending, zero noise."},
+                      "blurb": "Notifies only when pending > 0: osascript "
+                               "on macOS, the no-admin PowerShell toast on "
+                               "Windows, the log elsewhere. Suppressed in "
+                               "tests. Zero pending, zero noise."},
                  ]},
             ],
         },
@@ -904,8 +905,11 @@ NARRATIVE = {
         ],
         "cadence/cadence_tick.py::notify": [
             ["Pop a notification only when reviews await",
-             "zero pending means zero noise; tests and other "
-             "platforms log instead"],
+             "zero pending means zero noise; tests stay silent"],
+            ["Use whatever the machine actually has",
+             "a Mac pops an alert, a locked-down Windows laptop pops its "
+             "own toast, and anything else writes the line to the log -- "
+             "a notification that cannot be shown never fails the tick"],
         ],
     },
 }

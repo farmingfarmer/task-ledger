@@ -3,6 +3,9 @@
 load_signals(dsn, user_ref)      v_unconsumed_signals rows -> reconciler shape
 load_board(dsn, user_ref)        matchable tasks (Q9 alias sets + blockers,
                                  deadline, age) + current board_version
+load_all_boards(dsn)             every board's tasks (titles + ownership):
+                                 blocker-edge resolution and cross-board
+                                 duplicate annotation
 write_packet(dsn, packet, ...)   review_packets + proposals + proposal_signals
                                  + packet_state_events('draft'), marks
                                  consumed signals 'taken', applies alias
@@ -85,6 +88,30 @@ def load_board(dsn, user_ref):
             row = cur.fetchone()
             version = row["version"] if row else 0
             return tasks, version
+    finally:
+        conn.close()
+
+
+def load_all_boards(dsn):
+    """Every board's matchable tasks, for the reconciler's all_tasks: it
+    resolves blocker edges to other people's tasks (cross-user edges are
+    first-class -- see Q4) and annotates unowned creates that duplicate
+    work someone else already carries.
+
+    Titles and ownership only. Same freshness window as load_board, so a
+    task that closed last quarter neither annotates nor attracts an edge.
+    If this ever runs multi-tenant, scope it through visible_tasks(viewer)
+    -- the reconciler consumes whatever list it is handed."""
+    conn = psycopg2.connect(dsn)
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT t.task_id, t.title, t.user_ref, t.owner_ref, t.status
+                FROM tasks_current t
+                WHERE t.merged_into IS NULL
+                  AND (t.status NOT IN ('completed','cancelled')
+                       OR t.updated_at > now() - interval '14 days')""")
+            return [dict(r) for r in cur.fetchall()]
     finally:
         conn.close()
 

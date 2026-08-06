@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """Seed a complete, reviewable walkthrough state -- no Ollama required.
 
-    export DB_DSN="..."        # or set on Windows
-    python3 scripts/demo_offline.py
+    export DB_DSN="..."             # zsh/bash
+    set DB_DSN=...                  # cmd.exe
+    python3 scripts/demo_offline.py     (python on Windows)
 
 Pushes the canonical standup transcript through the REAL extraction worker
 (with a canned model response, so the salvage/guard/attribution machinery
 all runs), pools the signals, reconciles OFFLINE (TokenEmbedder, no judge
 -- closures hold, exactly as a degraded day would), and writes a review
-packet. Then walk it:
-
-    python3 cli/review.py --as aad-dev --dsn "$DB_DSN"
-    python3 integration/dashboard/dashboard_api.py   # view as aad-dev
+packet. It then prints the walkthrough commands for THIS platform's shell
+(cli/review.py, then the dashboard at 127.0.0.1:8090 as aad-dev).
 
 Idempotent: content-hash ids make re-runs no-ops; supersede keeps at most
 one open packet. Safe for scratch or demo databases; it does create tasks
@@ -71,11 +70,29 @@ CANNED = {"signals": [
 ]}
 
 
+def hints(user):
+    """The walkthrough commands in the shell of the machine running them.
+    cmd.exe has no $VAR and no python3 on PATH, and the Windows port's
+    Postgres listens on 5433 -- a copy-paste line that fails is worse than
+    no line at all."""
+    if sys.platform == "win32":
+        return ("set DB_DSN=host=localhost port=5433 dbname=taskintel "
+                "user=%USERNAME%",
+                '  python cli\\review.py --as {0} --dsn "%DB_DSN%"'.format(
+                    user),
+                "  python integration\\dashboard\\dashboard_api.py")
+    return ('export DB_DSN="host=localhost port=5432 dbname=taskintel '
+            'user=$(whoami)"',
+            '  python3 cli/review.py --as {0} --dsn "$DB_DSN"'.format(user),
+            "  python3 integration/dashboard/dashboard_api.py")
+
+
 def main():
     dsn = os.environ.get("DB_DSN")
     if not dsn:
         print("set DB_DSN first (scripts/doctor.py will tell you the "
-              "right shape for this machine)")
+              "right shape for this machine):")
+        print("  " + hints("aad-dev")[0])
         sys.exit(2)
 
     spec = json.load(open(os.path.join(ROOT, "extraction",
@@ -99,7 +116,8 @@ def main():
                              judge_llm=None)
     run_id = "demo-{0}".format(
         datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
-    packet, rep = rec.reconcile(user, signals, tasks, version, run_id)
+    packet, rep = rec.reconcile(user, signals, tasks, version, run_id,
+                                all_tasks=board_io_pg.load_all_boards(dsn))
     result = board_io_pg.write_packet(dsn, packet, rep["consumed"],
                                      rep["annotations"], run_id)
     print("reconcile (offline): {0} proposals written, {1} held "
@@ -109,9 +127,10 @@ def main():
               len(result["superseded"])))
     print()
     print("walkthrough ready for user {0}:".format(user))
-    print('  python3 cli/review.py --as {0} --dsn "$DB_DSN"'.format(user))
-    print("  python3 integration/dashboard/dashboard_api.py"
-          "   ->  http://127.0.0.1:8090  (view as {0})".format(user))
+    _, review_cmd, dash_cmd = hints(user)
+    print(review_cmd)
+    print("{0}   ->  http://127.0.0.1:8090  (view as {1})".format(
+        dash_cmd, user))
 
 
 if __name__ == "__main__":

@@ -12,6 +12,9 @@ decision, and commits it through the SAME paths the bot host uses:
     invalidated_reason and NOT applied -- mirroring the orchestrator
   - board mutations go exclusively through apply_task_event(); the CLI never
     touches tasks_current
+  - creates must name an owner: plain accept refuses an ownerless create
+    and edit-accept insists on one, because a task with no owner_ref is
+    invisible on every board (a first-live-run casualty)
   - defers return source signals to the pool for re-reconciliation
   - packet lifecycle events recorded: draft -> delivered on open,
     partially_decided on first decision, closed when nothing remains
@@ -60,6 +63,32 @@ OP_EVENT = {
 
 def now():
     return datetime.datetime.now(datetime.timezone.utc)
+
+
+def dsn_hint():
+    """A DSN example in the shell that will actually run it. cmd.exe knows
+    %VAR%, not $VAR; the Windows port lives on port 5433 under %USERNAME%
+    (deploy/windows/setup_windows.bat). A hint that pastes wrong is worse
+    than no hint."""
+    if sys.platform == "win32":
+        return ('set DB_DSN=host=localhost port=5433 dbname=taskintel '
+                'user=%USERNAME%\n'
+                '  python review.py --as <user> --dsn "%DB_DSN%"')
+    return ('export DB_DSN="host=localhost port=5432 dbname=taskintel '
+            'user=$(whoami)"\n'
+            '  python3 review.py --as <user> --dsn "$DB_DSN"')
+
+
+def needs_owner(prop):
+    """True for a create the board cannot show anyone.
+
+    apply_task_event files a created event under the accepting user, but
+    every board view keys off owner_ref: a create accepted with none lands
+    as a task that appears on nobody's board and surfaces in no rollup.
+    The first live run produced exactly that, so plain accept refuses it
+    and edit-accept insists on an owner."""
+    return (prop["op"] == "create_task"
+            and not (prop["payload"] or {}).get("owner_ref"))
 
 
 # ------------------------------------------------------------------ queries
@@ -220,6 +249,23 @@ def render(prop, evidence, idx, total):
     return "\n".join(lines)
 
 
+def prompt_owner(current, inp, out):
+    """Edit-accept of a create ends with an owner. Enter keeps the current
+    one when there is one; an empty answer with none re-asks. Returns the
+    ref, or None at EOF -- a closed stdin quits rather than loops."""
+    while True:
+        out.write("  owner ref [{0}]: ".format(current or "required"))
+        out.flush()
+        line = inp.readline()
+        if not line:
+            return None
+        val = line.strip() or (current or "")
+        if val:
+            return val
+        out.write("  an owner is required: a task with none is invisible "
+                  "on every board\n")
+
+
 def prompt_decision(prop, inp, out):
     editable = prop["op"] in ("create_task", "add_subtask",
                               "update_deadline", "update_status")
@@ -233,6 +279,11 @@ def prompt_decision(prop, inp, out):
             return ("q", None, None)
         c = line.strip().lower()
         if c == "a":
+            if needs_owner(prop):
+                out.write("  this create names no owner, and a task with "
+                          "none is invisible on every board.\n"
+                          "  use [e]dit-accept to name one.\n")
+                continue
             return ("accept", None, None)
         if c == "d":
             return ("defer", None, None)
@@ -263,6 +314,11 @@ def prompt_decision(prop, inp, out):
                 d = inp.readline().strip()
                 if d:
                     payload["deadline"] = d
+                if prop["op"] == "create_task":
+                    owner = prompt_owner(payload.get("owner_ref"), inp, out)
+                    if owner is None:
+                        return ("q", None, None)
+                    payload["owner_ref"] = owner
             elif prop["op"] == "update_deadline":
                 out.write("  deadline YYYY-MM-DD [{0}]: ".format(
                     payload.get("to_deadline")))
@@ -321,6 +377,15 @@ def run_session(dsn, user, list_only=False, bulk_unconflicted=False,
                 valid, why = still_valid(prop)
 
                 if bulk_unconflicted:
+                    if needs_owner(prop):
+                        # Same refusal as the interactive path: the bulk
+                        # sweep is a plain accept with no human at the
+                        # prompt, so it must not create ownerless tasks.
+                        out.write("  needs an owner, left pending: {0}\n"
+                                  .format((prop["payload"] or {})
+                                          .get("title")))
+                        stats["skipped"] += 1
+                        continue
                     if prop["conflict_type"] or not valid:
                         stats["skipped"] += 1
                         continue
@@ -420,13 +485,23 @@ def _post_decision(cur, packet, first):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--as", dest="user", required=True)
-    ap.add_argument("--dsn", required=True)
+    ap.add_argument("--dsn", required=True,
+                    help="postgres DSN for the ledger database")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--accept-unconflicted", action="store_true")
     args = ap.parse_args()
-    run_session(args.dsn, args.user, list_only=args.list,
-                bulk_unconflicted=args.accept_unconflicted)
+    try:
+        run_session(args.dsn, args.user, list_only=args.list,
+                    bulk_unconflicted=args.accept_unconflicted)
+    except psycopg2.OperationalError as e:
+        sys.stderr.write(
+            "cannot reach the database: {0}\n"
+            "  start it (scripts/doctor.py diagnoses the whole stack), "
+            "or point --dsn at it:\n  {1}\n".format(
+                str(e).strip(), dsn_hint()))
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

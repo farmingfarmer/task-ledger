@@ -16,6 +16,10 @@ Implements matching_policy.yaml end to end:
   HOLD    signals that fail a corroboration gate are NOT consumed -- they
           stay pooled so a later window can corroborate them (the
           orchestrator's signal-return semantics, applied at birth).
+  DEDUP   creates carry no target task, so aggregation's payload key cannot
+          join two descriptions of the same new work. Packet-local create
+          dedup runs first: near-verbatim titles merge outright, the gray
+          band asks the merge judge, and with no judge both survive.
   AGGREGATE  same-op proposals on the same target combine noisy-OR (capped);
           per-op confidence floors from the policy drop the residue.
   EMIT    ReviewPacket with deterministic proposal ids, per-proposal
@@ -75,6 +79,8 @@ DEFAULT_SCHEMA_PATH_CANDIDATES = [
     os.path.join("..", "reconciliation_diff_schema.json"),
 ]
 
+CREATE_OPS = ("create_task", "add_subtask")
+
 FORWARD = {
     ("proposed", "in_progress"), ("proposed", "blocked"),
     ("proposed", "cancelled"), ("in_progress", "blocked"),
@@ -95,6 +101,14 @@ def _sha(*parts):
 def _clip(text, n=200):
     text = text or ""
     return text if len(text) <= n else text[:n - 1] + "\u2026"
+
+
+def _append_note(rationale, note, n=200):
+    """Append a note to a rationale within the schema's 200-char cap,
+    clipping the SENTENCE rather than the note -- the note is the part the
+    reviewer cannot reconstruct from the card."""
+    base = _clip(rationale or "", max(n - len(note) - 1, 0))
+    return (base + " " + note).strip()[:n]
 
 
 class Reconciler(object):
@@ -123,12 +137,14 @@ class Reconciler(object):
            tasks: this user's matchable board:
              {task_id, title, status, owner_ref, deadline, aliases: [...],
               age_days, open_blockers: [{blocker_id, description}]}
-           all_tasks: superset for blocking-edge resolution (defaults tasks).
+           all_tasks: every board's tasks -- blocking-edge resolution and
+             cross-board duplicate annotation (defaults to tasks, which
+             makes both checks a no-op rather than wrong).
            Returns (packet, report). report: consumed/held signal ids,
-           annotations, drop log."""
+           annotations, merges, drop log."""
         all_tasks = all_tasks if all_tasks is not None else tasks
         report = {"consumed": [], "held": [], "dropped": [],
-                  "annotations": [], "judge_calls": 0}
+                  "annotations": [], "merged": [], "judge_calls": 0}
         draft = []   # gate outputs before aggregation
 
         task_vecs = self._embed_alias_sets(tasks)
@@ -144,7 +160,9 @@ class Reconciler(object):
             if isinstance(outcome, dict):
                 draft.append(outcome)
 
+        draft = self._dedupe_creates(draft, report)
         proposals = self._aggregate(draft, report, cadence_run_id)
+        self._annotate_cross_board(proposals, tasks, all_tasks, report)
         packet = {
             "packet_id": _sha(user_ref, cadence_run_id, board_version,
                               *sorted(report["consumed"])),
@@ -511,6 +529,122 @@ class Reconciler(object):
             "payload": payload,
         }
 
+    def _annotate_cross_board(self, proposals, tasks, all_tasks, report):
+        """Annotate unowned creates that look like work already on someone
+        else's board.
+
+        An unassigned "someone should do this" reaches a packet as a
+        create with no owner, and the reviewer has no way to know a
+        colleague is already carrying it. So unowned creates are matched
+        against every board, not just this one, and the finding is appended
+        to the rationale. Annotation ONLY: the proposal still stands, is
+        never auto-rejected, and is never suppressed -- similar titles are
+        evidence, and only the human knows whether it is the same work.
+
+        Note for a future multi-tenant deployment: this states that another
+        board holds a similar task, which the access layer would otherwise
+        keep private (ACCESS_CONTROL.md's no-count-leakage rule). Scoping
+        it is one query -- feed all_tasks from visible_tasks(viewer)
+        instead of load_all_boards()."""
+        cfg = self.policy.get("cross_board_duplicate_check") or {}
+        floor = cfg.get("title_similarity", 0.80)
+        targets = [p for p in proposals if p["op"] == "create_task"
+                   and p["payload"].get("owner_ref") is None]
+        mine = {t["task_id"] for t in tasks}
+        elsewhere = [t for t in all_tasks if t["task_id"] not in mine
+                     and t.get("title")]
+        if not targets or not elsewhere:
+            return
+        vecs = self.embed([_create_title(p) for p in targets]
+                          + [t["title"] for t in elsewhere])
+        board_vecs = vecs[len(targets):]
+        for prop, pvec in zip(targets, vecs[:len(targets)]):
+            best, best_sim = None, floor
+            for cand, cvec in zip(elsewhere, board_vecs):
+                sim = embedders.cosine(pvec, cvec)
+                if sim >= best_sim:
+                    best, best_sim = cand, sim
+            if best is None:
+                continue
+            ref = (best.get("user_ref") or best.get("owner_ref")
+                   or "another user")
+            prop["rationale"] = _append_note(
+                prop["rationale"],
+                "(A similar task exists on {0}'s board.)".format(ref))
+            report["annotations"].append(
+                {"kind": "cross_board_duplicate", "task_id": best["task_id"],
+                 "board_ref": ref, "similarity": round(best_sim, 3),
+                 "proposal_title": _create_title(prop)})
+
+    def _dedupe_creates(self, draft, report):
+        """Merge same-op create proposals describing the same new work.
+
+        Creates have no target_task_id, so _aggregate's (op, target,
+        payload) key treats every wording as a separate card: the first
+        live run proposed one piece of new work twice, once as a vague
+        restatement and once as a specific description. Similarity alone
+        cannot decide this (that pair scored 0.805 on nomic-embed-text,
+        while staging-vs-production creates, which must NOT merge, score
+        0.887), so the policy's bands apply -- near-verbatim
+        merges outright, the gray band goes to the merge judge, and with no
+        judge both survive. The strongest proposal is the survivor and
+        absorbs the rest; nothing is dropped silently."""
+        cfg = (self.policy["aggregation"].get("packet_local_create_dedup")
+               or {})
+        cap = self.policy["aggregation"]["noisy_or_cap"]
+        creates = [p for p in draft if p["op"] in CREATE_OPS]
+        if len(creates) < 2:
+            return draft
+        order = sorted(creates, key=lambda p: -p["confidence"])
+        vecs = self.embed([_create_title(p) for p in order])
+        survivors, absorbed, counts = [], set(), {}
+        for prop, vec in zip(order, vecs):
+            twin = None
+            for kept, kvec in survivors:
+                if (kept["op"] != prop["op"]
+                        or kept["target_task_id"] != prop["target_task_id"]):
+                    continue
+                sim = embedders.cosine(kvec, vec)
+                if sim >= cfg.get("auto_merge", 0.93) or self._judge_merge(
+                        kept, prop, sim, cfg, report):
+                    twin, twin_sim = kept, sim
+                    break
+            if twin is None:
+                survivors.append((prop, vec))
+                continue
+            _absorb_create(twin, prop, cap)
+            absorbed.add(id(prop))
+            counts[id(twin)] = counts.get(id(twin), 1) + 1
+            report["merged"].append(
+                {"kept": _create_title(twin),
+                 "absorbed": _create_title(prop),
+                 "similarity": round(twin_sim, 3),
+                 "signals": list(prop["source_signals"])})
+        for prop, _ in survivors:
+            n = counts.get(id(prop))
+            if n:
+                prop["rationale"] = _append_note(
+                    prop["rationale"],
+                    "({0} mentions of this work merged.)".format(n))
+        return [p for p in draft if id(p) not in absorbed]
+
+    def _judge_merge(self, kept, other, sim, cfg, report):
+        """Gray-band arbiter for two pending creates, using the same merge
+        judge as the periodic task<->task scan. No judge -> False: two
+        cards is noise, a wrong merge hides work the reviewer never sees."""
+        if sim < cfg.get("judge_floor", 0.78) or self.judge_llm is None:
+            return False
+        msgs = judge_prompts.build_merge_judge_messages(
+            _as_merge_block("pending-kept", kept),
+            _as_merge_block("pending-other", other))
+        report["judge_calls"] += 1
+        try:
+            r = judge_prompts.parse_judge_response(self.judge_llm(msgs))
+        except (ValueError, KeyError):
+            return False   # malformed judge output never merges
+        return (r["verdict"] == "same_task"
+                and r["confidence"] >= cfg.get("judge_accept_min", 0.85))
+
     def _aggregate(self, draft, report, run_salt=""):
         floors = self.policy["per_op_confidence_floor"]
         cap = self.policy["aggregation"]["noisy_or_cap"]
@@ -553,6 +687,44 @@ class Reconciler(object):
 
 
 # ---------------------------------------------------------------- utilities
+
+def _create_title(prop):
+    return prop["payload"].get("title") or ""
+
+
+def _absorb_create(keep, drop, cap):
+    """Fold one create proposal into another: pooled confidence, unioned
+    lineage and evidence, and any field the survivor left empty. That last
+    part matters -- an ownerless create is invisible on every board, so a
+    twin that names an owner contributes it."""
+    combined = 1.0 - (1.0 - keep["confidence"]) * (1.0 - drop["confidence"])
+    keep["confidence"] = min(cap, combined)
+    keep["source_signals"] = sorted(
+        set(keep["source_signals"]) | set(drop["source_signals"]))
+    seen = {e["resource_id"] for e in keep["evidence"]}
+    keep["evidence"].extend(e for e in drop["evidence"]
+                            if e["resource_id"] not in seen)
+    for field in ("owner_ref", "deadline", "description"):
+        # `field in keep` guards the schema: add_subtask payloads have no
+        # owner_ref or deadline, and additionalProperties is false.
+        if (field in keep["payload"] and keep["payload"][field] is None
+                and drop["payload"].get(field) is not None):
+            keep["payload"][field] = drop["payload"][field]
+    if drop["conflict"] and not keep["conflict"]:
+        keep["conflict"] = drop["conflict"]
+
+
+def _as_merge_block(pseudo_id, prop):
+    """A pending create rendered as the merge judge's task block. The id is
+    synthetic: these are proposals, not board rows."""
+    p = prop["payload"]
+    return {"task_id": pseudo_id, "title": p.get("title"),
+            "status": p.get("status") or "proposed",
+            "owner": p.get("owner_ref") or "unowned",
+            "description": p.get("description"),
+            "deadline": p.get("deadline") or "(none)",
+            "history_summary": "proposed this run; no confirmed history"}
+
 
 def _task_by_id(tasks, tid):
     for t in tasks:

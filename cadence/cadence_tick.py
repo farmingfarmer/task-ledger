@@ -12,8 +12,10 @@ What one tick does, in order:
               closure signals hold. write_packet supersedes any open packet
               (storage-layer semantics) and skips empty packets.
   3. NOTIFY   if any undecided proposals exist for the user (new packet or
-              a still-open one), raise a macOS notification pointing at the
-              review CLI. Zero pending -> zero noise.
+              a still-open one), raise a notification pointing at the
+              review CLI -- osascript on macOS, the no-admin PowerShell
+              toast on Windows, the log everywhere else. Zero pending ->
+              zero noise.
 
 Everything is logged with timestamps to stdout (launchd redirects to the
 log file). Exit code 0 unless the tick itself failed; a down Ollama or an
@@ -76,25 +78,46 @@ def ollama_chat(model, host):
     def call(messages):
         body = json.dumps({"model": model, "messages": messages,
                            "stream": False,
-                           "options": {"temperature": 0.0}}).encode("utf-8")
+                           "options": {"temperature": 0.0,
+                                       "num_ctx": 16384}}).encode("utf-8")
         req = urllib.request.Request(
             host + "/api/chat", data=body,
             headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=600) as resp:
+        with urllib.request.urlopen(req, timeout=1800) as resp:
             return json.loads(resp.read().decode("utf-8"))["message"]["content"]
     return call
 
 
 def notify(title, text):
+    """Pop the platform's own notification. macOS: osascript. Windows: the
+    no-admin toast from deploy/windows, run through PowerShell with the
+    execution policy bypassed for this one process (the port's whole
+    premise is a locked-down machine where nothing may be installed or
+    configured). Anywhere else, and whenever the toast script is missing,
+    the line still lands in the tick log -- a notification that cannot be
+    shown must never fail the tick."""
     if os.environ.get("TL_NO_NOTIFY") == "1":
         log("notify suppressed: {0} -- {1}".format(title, text))
         return
-    if sys.platform != "darwin":
-        log("notify (non-darwin): {0} -- {1}".format(title, text))
+    if sys.platform == "darwin":
+        script = ('display notification "{0}" with title "{1}" '
+                  'sound name "Glass"').format(text.replace('"', "'"),
+                                               title.replace('"', "'"))
+        subprocess.run(["osascript", "-e", script], check=False)
         return
-    script = 'display notification "{0}" with title "{1}" sound name "Glass"'\
-        .format(text.replace('"', "'"), title.replace('"', "'"))
-    subprocess.run(["osascript", "-e", script], check=False)
+    if sys.platform == "win32":
+        toast = os.path.join(repo_root(), "deploy", "windows",
+                             "windows_toast.ps1")
+        if os.path.exists(toast):
+            log("notify (toast): {0} -- {1}".format(title, text))
+            subprocess.run(["powershell", "-ExecutionPolicy", "Bypass",
+                            "-File", toast, "-Text",
+                            "{0}: {1}".format(title, text)], check=False)
+            return
+        log("notify (toast script missing at {0}): {1} -- {2}".format(
+            toast, title, text))
+        return
+    log("notify ({0}): {1} -- {2}".format(sys.platform, title, text))
 
 
 # ------------------------------------------------------------------- stages
@@ -130,6 +153,9 @@ def process_inbox(dsn, inbox, host, extract_model, llm_factory):
                 "{3} inserted".format(
                     os.path.basename(path), report["kept"],
                     len(report["dropped"]), result["signals_inserted"]))
+            for d in report["dropped"]:
+                log("    dropped [{0}]: {1}".format(
+                    d.get("reason"), (d.get("title") or "")[:70]))
             total += result["signals_inserted"]
             shutil.move(path, os.path.join(processed_dir,
                                            os.path.basename(path)))
@@ -146,8 +172,10 @@ def run_reconcile(dsn, user, host, embed_model, judge_model):
 
     signals = board_io_pg.load_signals(dsn, user)
     tasks, version = board_io_pg.load_board(dsn, user)
-    log("reconcile: {0} pooled signals, {1} matchable tasks, board v{2}"
-        .format(len(signals), len(tasks), version))
+    all_tasks = board_io_pg.load_all_boards(dsn)
+    log("reconcile: {0} pooled signals, {1} matchable tasks, {2} tasks "
+        "across all boards, board v{3}".format(
+            len(signals), len(tasks), len(all_tasks), version))
 
     if ollama_up(host):
         embed = embedders.OllamaEmbedder(embed_model, host)
@@ -162,7 +190,8 @@ def run_reconcile(dsn, user, host, embed_model, judge_model):
     run_id = "cadence-{0}".format(
         datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     rec = rec_mod.Reconciler(embed=embed, judge_llm=judge)
-    packet, report = rec.reconcile(user, signals, tasks, version, run_id)
+    packet, report = rec.reconcile(user, signals, tasks, version, run_id,
+                                   all_tasks=all_tasks)
     result = board_io_pg.write_packet(dsn, packet, report["consumed"],
                                      report["annotations"], run_id)
     log("reconcile: {0} proposals, {1} consumed, {2} held, "

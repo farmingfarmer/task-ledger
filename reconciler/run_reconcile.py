@@ -63,13 +63,16 @@ def main():
 
     signals = board_io_pg.load_signals(args.dsn, args.user)
     tasks, version = board_io_pg.load_board(args.dsn, args.user)
+    all_tasks = board_io_pg.load_all_boards(args.dsn)
     sys.stderr.write("loaded {0} pooled signals, {1} matchable tasks, "
-                     "board v{2}\n".format(len(signals), len(tasks), version))
+                     "{2} tasks across all boards, board v{3}\n".format(
+                         len(signals), len(tasks), len(all_tasks), version))
 
     run_id = "manual-{0}".format(
         datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     rec = reconciler.Reconciler(embed=embed, judge_llm=judge)
-    packet, report = rec.reconcile(args.user, signals, tasks, version, run_id)
+    packet, report = rec.reconcile(args.user, signals, tasks, version, run_id,
+                                   all_tasks=all_tasks)
 
     sys.stderr.write("report: " + json.dumps(
         {k: v for k, v in report.items() if k != "annotations"}, indent=2)
