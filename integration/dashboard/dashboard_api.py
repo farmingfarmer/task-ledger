@@ -113,6 +113,14 @@ def me():
                     "grants_received": received})
 
 
+@app.route("/api/viewers")
+def viewers():
+    rows = q("SELECT DISTINCT owner_ref AS r FROM tasks_current "
+             "WHERE owner_ref IS NOT NULL AND owner_ref <> '' "
+             "ORDER BY 1")
+    return jsonify({"viewers": [x["r"] for x in rows]})
+
+
 @app.route("/api/team")
 def team():
     v = viewer()

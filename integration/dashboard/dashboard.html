@@ -486,6 +486,21 @@
 
   boot();
 })();
+
+  // Real-data viewer list: replace the demo VIEWERS once the API answers,
+  // then fire the dropdown's own change handler to re-init the page.
+  fetch("/api/viewers").then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d.viewers || !d.viewers.length) return;
+      var sel2 = document.getElementById("viewer-sel");
+      sel2.innerHTML = "";
+      d.viewers.forEach(function(v){
+        var o = document.createElement("option");
+        o.textContent = v; o.value = v; sel2.appendChild(o);
+      });
+      sel2.value = d.viewers[0];
+      sel2.dispatchEvent(new Event("change"));
+    });
 </script>
 </body>
 </html>
