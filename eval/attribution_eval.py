@@ -121,8 +121,12 @@ def build_cases(rows, index):
             "self_referential": any(u.get("first_person")
                                     for u in utterances),
             "utterances": utterances,
-            # The one field a human fills in.
+            # The fields a human fills in. no_owner_stated is not the same
+            # as an empty correct_owner_ref: one says "the sentence names
+            # nobody", the other says "not looked at yet", and conflating
+            # them hides the most common case behind an unlabelled count.
             "correct_owner_ref": None,
+            "no_owner_stated": False,
             "label_note": None,
         })
     return cases
@@ -146,7 +150,11 @@ def score(sheet):
     identity would have resolved these."""
     cases = sheet.get("cases") or []
     labelled = [c for c in cases if c.get("correct_owner_ref")]
-    unlabelled = len(cases) - len(labelled)
+    # A sentence that names nobody is a LABELLED case with a real finding:
+    # it should never have produced a per-person proposal at all.
+    no_owner = [c for c in cases if c.get("no_owner_stated")
+                and not c.get("correct_owner_ref")]
+    unlabelled = len(cases) - len(labelled) - len(no_owner)
 
     speaker_would_fix = [c for c in labelled
                          if c.get("speaker_ref")
@@ -173,6 +181,7 @@ def score(sheet):
     n = len(labelled)
     return {
         "cases": len(cases), "labelled": n, "unlabelled": unlabelled,
+        "no_owner_stated": len(no_owner),
         "speaker_would_fix": len(speaker_would_fix),
         "speaker_would_fix_pct": round(100.0 * len(speaker_would_fix) / n, 1)
                                  if n else 0.0,
@@ -181,25 +190,33 @@ def score(sheet):
         "blamed_someone_other_than_the_speaker": len(blamed_listener),
         "by_extracted_basis": by_basis,
         "self_referential_but_unattributed": len(self_ref_no_owner),
-        "verdict": _verdict(n, len(speaker_would_fix)),
+        "verdict": _verdict(n, len(speaker_would_fix), len(no_owner),
+                            len(cases)),
     }
 
 
-def _verdict(n, fixed):
+def _verdict(n, fixed, no_owner=0, total=0):
+    lead = ""
+    if no_owner and total:
+        lead = ("{0} of {1} cases name NOBODY: those must not become any "
+                "individual's proposal, which is a routing question, not an "
+                "attribution one. Of the rest: ").format(no_owner, total)
     if not n:
-        return ("Nothing labelled yet -- fill correct_owner_ref and run "
-                "score again.")
+        return lead + ("nothing else labelled -- fill correct_owner_ref and "
+                       "run score again.")
     pct = 100.0 * fixed / n
     if pct >= 70:
-        return ("Speaker identity alone resolves {0:.0f}% of these. The fix "
-                "is to feed author_ref into attribution, not to rewrite the "
-                "prompt.".format(pct))
+        return lead + ("speaker identity alone resolves {0:.0f}% of them. "
+                       "The fix "
+                       "is to feed author_ref into attribution, not to "
+                       "rewrite the prompt.".format(pct))
     if pct >= 30:
-        return ("Speaker identity resolves {0:.0f}%. Worth wiring, but a "
+        return lead + ("speaker identity resolves {0:.0f}%. Worth wiring, "
+                       "but a "
                 "prompt or guard change is needed for the rest -- look at "
                 "by_extracted_basis for which ladder rung is "
                 "failing.".format(pct))
-    return ("Speaker identity resolves only {0:.0f}%. The failure is in "
+    return lead + ("speaker identity resolves only {0:.0f}%. The failure is in "
             "reading the sentence, not in knowing who spoke: this is prompt "
             "and guard work.".format(pct))
 

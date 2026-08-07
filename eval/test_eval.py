@@ -90,7 +90,7 @@ def test_score():
        in sheet["instructions"],
        "an unlabelled worksheet says what to do with it")
     blank = ev.score(sheet)
-    ok(blank["labelled"] == 0 and "Nothing labelled" in blank["verdict"],
+    ok(blank["labelled"] == 0 and "nothing else labelled" in blank["verdict"],
        "scoring an unlabelled sheet asks for labels rather than "
        "reporting zero accuracy")
 
@@ -107,6 +107,15 @@ def test_score():
        "the guard-shaped cases")
     ok(r["blamed_someone_other_than_the_speaker"] == 1,
        "and cases where the wrong person was named outright")
+    # A sentence that names nobody is a finding, not a missing label: it
+    # says the claim should never have become anyone's proposal.
+    nameless = ev.build_cases(ROWS[:1], INDEX)
+    nameless[0]["no_owner_stated"] = True
+    nr = ev.score({"cases": nameless})
+    ok(nr["no_owner_stated"] == 1 and nr["unlabelled"] == 0,
+       "'names nobody' counts as labelled, not as work outstanding")
+    ok("routing question" in nr["verdict"],
+       "and the verdict says so: unowned claims are a routing problem")
     ok("67%" in r["verdict"] and "prompt or guard" in r["verdict"],
        "the verdict quotes the measured share and says what it implies")
     high = ev.score({"cases": [dict(c, correct_owner_ref=c["speaker_ref"])

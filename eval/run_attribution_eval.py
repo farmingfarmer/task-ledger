@@ -110,6 +110,9 @@ def cmd_score(args):
         result["cases"], result["labelled"]))
     if result["unlabelled"]:
         print("  {0} still unlabelled".format(result["unlabelled"]))
+    if result.get("no_owner_stated"):
+        print("  {0} name nobody at all (a routing finding, not an "
+              "attribution one)".format(result["no_owner_stated"]))
     print("")
     print("  speaker identity would fix:      {0} ({1}%)".format(
         result["speaker_would_fix"], result["speaker_would_fix_pct"]))
