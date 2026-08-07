@@ -40,6 +40,8 @@ BLOCKED_TASK = "task-dash-blocked"
 BATCH = "batch-dash-fixture"
 SIGNAL = "signal-dash-fixture"
 SIGNAL_ACCEPTED = "signal-dash-accepted"
+SIGNAL_CREATE = "signal-dash-create"
+CREATED_TASK = "task-dash-created"
 
 
 def ok(cond, label):
@@ -162,6 +164,56 @@ def seed(conn):
                     (BLOCKED_TASK, BLOCKED, json.dumps({
                         "description": "waiting on the fixture task",
                         "blocking_task_id": TASK})))
+            cur.execute("""
+                INSERT INTO signals (signal_id, batch_id, signal_type, title,
+                  confidence, author_ref, raw)
+                VALUES (%s, %s, 'proposal', 'Fixture claim that became work',
+                        0.85, 'dash-speaker', '{}')
+                ON CONFLICT (signal_id) DO NOTHING""", (SIGNAL_CREATE, BATCH))
+            cur.execute("""
+                INSERT INTO evidence_refs (signal_id, ordinal, source_type,
+                  resource_id, content_hash)
+                VALUES (%s, 1, 'transcript_utterance', 'utt-dash-2', 'hash-3')
+                ON CONFLICT DO NOTHING""", (SIGNAL_CREATE,))
+            for sid in (SIGNAL_ACCEPTED, SIGNAL_CREATE):
+                cur.execute("SELECT 1 FROM signal_pool_events "
+                            "WHERE signal_id = %s", (sid,))
+                if cur.fetchone() is None:
+                    cur.execute("""
+                        INSERT INTO signal_pool_events (signal_id, user_ref,
+                          event, run_id) VALUES (%s,%s,'taken','dash-fixture')""",
+                        (sid, OWNER))
+            cur.execute("""
+                INSERT INTO proposals (proposal_id, packet_id, op,
+                  target_task_id, rationale, confidence, conflict_type,
+                  conflict_detail, payload)
+                VALUES ('prop-dash-create',%s,'create_task',NULL,
+                        'fixture create',0.88,NULL,NULL,%s)
+                ON CONFLICT (proposal_id) DO NOTHING""",
+                (PACKET, json.dumps({"kind": "create_task",
+                                     "title": "Work from the fixture meeting",
+                                     "owner_ref": OWNER})))
+            cur.execute("""
+                INSERT INTO proposal_signals (proposal_id, signal_id)
+                VALUES ('prop-dash-create', %s)
+                ON CONFLICT DO NOTHING""", (SIGNAL_CREATE,))
+            cur.execute("SELECT 1 FROM tasks_current WHERE task_id = %s",
+                        (CREATED_TASK,))
+            if cur.fetchone() is None:
+                cur.execute("""
+                    INSERT INTO decisions (proposal_id, packet_id, decision,
+                      decided_by, decided_at)
+                    VALUES ('prop-dash-create',%s,'accept',%s,now())
+                    ON CONFLICT (proposal_id, decided_by) DO NOTHING
+                    RETURNING decision_id""", (PACKET, OWNER))
+            got = cur.fetchone()
+            if got:
+                cur.execute(
+                    "SELECT apply_task_event(%s,%s,'created','user_decision',"
+                    "%s,%s::jsonb)",
+                    (CREATED_TASK, OWNER, got[0], json.dumps({
+                        "title": "Work from the fixture meeting",
+                        "status": "in_progress", "owner_ref": OWNER})))
             for who, level in ((MATE, "full_trace"), (STAKE, "progress")):
                 cur.execute("""
                     SELECT 1 FROM v_current_grants
@@ -255,9 +307,11 @@ def main():
     ok(code == 200 and cal["decisions_total"] >= 1
        and reasons.get(("create_task", "duplicate"), 0) >= 1,
        "owner's reject histogram routes duplicate/create_task")
-    ok(any(d["op"] == "create_task" and d["accept_rate"] == 0.0
-           for d in cal["drift"]),
-       "acceptance rate reflects the rejected proposal")
+    creates = [d for d in cal["drift"] if d["op"] == "create_task"]
+    ok(creates and creates[0]["n"] == 2
+       and abs(creates[0]["accept_rate"] - 0.5) < 1e-9,
+       "acceptance rate counts both decisions on create_task "
+       "(one accepted, one rejected)")
     code, mate_cal = as_viewer(client, "/api/calibration", MATE)
     ok(code == 200 and mate_cal["decisions_total"] == 0
        and mate_cal["rejects"] == [],
@@ -367,6 +421,41 @@ def main():
     code, projs = as_viewer(client, "/api/projects", STRANGER)
     ok(code == 200 and not [p for p in projs if p["project_id"] == PROJECT],
        "a stranger does not learn the project exists")
+
+    print("meeting follow-through")
+    code, mtgs = as_viewer(client, "/api/meetings", OWNER)
+    mine = [m for m in mtgs if m["source_ref"] == "dash-fixture"]
+    ok(code == 200 and mine, "the viewer's own conversation is reported")
+    m = mine[0]
+    ok(m["claims"] == 3 and m["on the board"] >= 1 and m["waiting"] >= 1,
+       "a meeting summarises what its claims became "
+       "({0} claims, {1} on the board, {2} waiting)".format(
+           m["claims"], m["on the board"], m["waiting"]))
+    code, det = as_viewer(client, "/api/meeting/dash-fixture", OWNER)
+    ids = [c["signal_id"] for c in det["claims"]]
+    ok(code == 200 and len(ids) == len(set(ids)) == m["claims"],
+       "the detail is ONE row per claim, and agrees with the summary")
+    ok(sum(1 for c in det["claims"]
+           if c["outcome"] in ("on the board", "done")) == m["on the board"],
+       "outcome counts in the summary come from the same rows as the detail")
+    code, none = as_viewer(client, "/api/meetings", STRANGER)
+    ok(code == 200 and not [x for x in none
+                            if x["source_ref"] == "dash-fixture"],
+       "a stranger learns nothing about someone else's conversations")
+
+    print("measures")
+    code, mx = as_viewer(client, "/api/metrics", OWNER)
+    ok(code == 200 and mx["tiles"]["traced_tasks"] >= 1
+       and mx["tiles"]["median_lag_hours"] is not None,
+       "talk-to-tracking latency is computed from the provenance chain "
+       "({0}h median over {1} task(s))".format(
+           mx["tiles"]["median_lag_hours"], mx["tiles"]["traced_tasks"]))
+    ok(any(w["created"] >= 1 for w in mx["confirmed"]),
+       "confirmed-per-week counts the board events behind those decisions")
+    code, empty = as_viewer(client, "/api/metrics", STRANGER)
+    ok(code == 200 and empty["tiles"]["traced_tasks"] == 0
+       and empty["confirmed"] == [],
+       "measures are scoped through visible_tasks: a stranger charts nothing")
 
     print("demo picker")
     code, _ = as_viewer(client, "/api/viewers", OWNER)

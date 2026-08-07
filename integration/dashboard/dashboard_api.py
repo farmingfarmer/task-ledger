@@ -480,6 +480,227 @@ def blocked_on(user_ref):
         ORDER BY waiter.user_ref""", (user_ref, user_ref)))
 
 
+# Where a claim ended up, most conclusive first. A signal can be linked to
+# several proposals across packets -- proposed, deferred, re-reconciled
+# after a supersede -- so the raw join fans out and one claim would read as
+# four. The follow-through report is per CLAIM, so the rows collapse to the
+# outcome that actually describes it: landing on the board outranks the
+# rejections that preceded it, and a claim back in the pool is "waiting"
+# however it got there.
+OUTCOME_RANK = ["done", "cancelled", "on the board", "waiting",
+                "proposed, undecided", "deferred", "rejected", "no proposal"]
+
+
+def _claim_rows(v, source_ref=None):
+    """Per-claim follow-through for the viewer's own conversations."""
+    params = [v, v]
+    where = ""
+    if source_ref is not None:
+        where = "AND regexp_replace(b.source_ref, '-p[0-9]+$', '') = %s"
+        params.append(source_ref)
+    rows = q("""
+        SELECT s.signal_id, s.signal_type, s.title, s.confidence,
+               s.author_ref, s.deadline_raw,
+               regexp_replace(b.source_ref, '-p[0-9]+$', '') AS source_ref,
+               b.source_type, b.batch_id, b.window_start,
+               d.decision, d.reject_reason, p.op,
+               t.task_id, t.title AS task_title, t.status AS task_status,
+               (u.signal_id IS NOT NULL) AS still_pooled
+        FROM signals s
+        JOIN extraction_batches b ON b.batch_id = s.batch_id
+        JOIN signal_pool_events pe ON pe.signal_id = s.signal_id
+                                  AND pe.user_ref = %s
+        LEFT JOIN proposal_signals ps ON ps.signal_id = s.signal_id
+        LEFT JOIN proposals p         ON p.proposal_id = ps.proposal_id
+        LEFT JOIN decisions d         ON d.proposal_id = ps.proposal_id
+        LEFT JOIN task_events e       ON e.decision_id = d.decision_id
+        LEFT JOIN tasks_current t     ON t.task_id = e.task_id
+        LEFT JOIN v_unconsumed_signals u
+               ON u.signal_id = s.signal_id AND u.user_ref = %s
+        WHERE true {0}""".format(where), tuple(params))
+    best = {}
+    for r in rows:
+        r["outcome"] = _outcome(r)
+        prev = best.get(r["signal_id"])
+        if prev is None or (OUTCOME_RANK.index(r["outcome"])
+                            < OUTCOME_RANK.index(prev["outcome"])):
+            best[r["signal_id"]] = r
+    return sorted(best.values(),
+                  key=lambda r: (r["source_ref"], r["signal_id"]))
+
+
+@app.route("/api/meetings")
+def meetings_v2():
+    """Follow-through per conversation, summarised from the same per-claim
+    outcomes the detail view shows -- so the summary and the drill-down can
+    never disagree."""
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    out = {}
+    for r in _claim_rows(v):
+        m = out.setdefault(r["source_ref"], {
+            "source_ref": r["source_ref"], "source_type": r["source_type"],
+            "met_at": r["window_start"], "windows": set(), "claims": 0,
+            "done": 0, "on the board": 0, "waiting": 0, "rejected": 0,
+            "other": 0})
+        m["windows"].add(r["batch_id"])
+        m["claims"] += 1
+        if r["window_start"] < m["met_at"]:
+            m["met_at"] = r["window_start"]
+        if r["outcome"] in ("done", "on the board", "waiting", "rejected"):
+            m[r["outcome"]] += 1
+        else:
+            m["other"] += 1
+    meetings = []
+    for m in out.values():
+        m["windows"] = len(m["windows"])
+        meetings.append(m)
+    meetings.sort(key=lambda m: m["met_at"], reverse=True)
+    return jsonify(meetings[:25])
+
+
+@app.route("/api/meeting/<path:source_ref>")
+def meeting_detail_v2(source_ref):
+    """Every claim one conversation produced, and what became of it."""
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    return jsonify({"source_ref": source_ref,
+                    "claims": _claim_rows(v, source_ref)})
+
+
+def _outcome(row):
+    """One word for where a claim ended up. The order matters: a claim can
+    be both proposed and back in the pool (deferred), and the pool is the
+    more useful answer because it means the work is still pending."""
+    if row["still_pooled"]:
+        return "waiting"
+    if row["decision"] in ("accept", "accept_edited"):
+        if row["task_status"] == "completed":
+            return "done"
+        if row["task_status"] in ("cancelled",):
+            return "cancelled"
+        return "on the board"
+    if row["decision"] == "reject":
+        return "rejected"
+    if row["decision"] == "defer":
+        return "deferred"
+    if row["op"]:
+        return "proposed, undecided"
+    return "no proposal"
+
+
+@app.route("/api/metrics")
+def metrics():
+    """The measures that need this ledger to exist.
+
+    talk-to-tracking latency is the thesis as a number: every other tracker
+    starts its clock when someone types a task in; this one knows when the
+    work was first SAID, because the batch window is on the record. The
+    rest -- what got confirmed, what generated friction, where the queue
+    forms -- are event-log aggregates over the same visible-task scope the
+    board uses, so a chart can never show more work than the board would.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    vis = ("WITH vis AS (SELECT task_id FROM visible_tasks(%s) "
+           "WHERE access_level <> 'status_only')")
+
+    confirmed = q(vis + """
+        SELECT to_char(date_trunc('week', e.occurred_at), 'YYYY-MM-DD') AS wk,
+               count(*) FILTER (WHERE e.event_type = 'created')   AS created,
+               count(*) FILTER (WHERE e.event_type = 'completed') AS completed
+        FROM task_events e JOIN vis USING (task_id)
+        WHERE e.occurred_at > now() - interval '12 weeks'
+        GROUP BY 1 ORDER BY 1""", (v,))
+
+    friction = q(vis + """
+        SELECT to_char(date_trunc('week', e.occurred_at), 'YYYY-MM-DD') AS wk,
+               count(*) FILTER (WHERE e.event_type = 'blocker_added')
+                 AS blocked,
+               count(*) FILTER (WHERE e.event_type = 'deadline_changed')
+                 AS moved,
+               count(*) FILTER (WHERE e.event_type = 'cancelled')
+                 AS cancelled
+        FROM task_events e JOIN vis USING (task_id)
+        WHERE e.occurred_at > now() - interval '12 weeks'
+        GROUP BY 1 ORDER BY 1""", (v,))
+
+    # First mention -> confirmed board state. The join walks the whole
+    # provenance chain backwards to the extraction window.
+    latency = q(vis + """,
+        chain AS (
+          SELECT e.task_id, e.occurred_at AS confirmed_at,
+                 min(b.window_start)      AS said_at
+          FROM task_events e
+          JOIN vis USING (task_id)
+          JOIN decisions d          ON d.decision_id = e.decision_id
+          JOIN proposal_signals ps  ON ps.proposal_id = d.proposal_id
+          JOIN signals s            ON s.signal_id = ps.signal_id
+          JOIN extraction_batches b ON b.batch_id = s.batch_id
+          WHERE e.event_type = 'created'
+          GROUP BY e.task_id, e.occurred_at)
+        SELECT to_char(date_trunc('week', confirmed_at), 'YYYY-MM-DD') AS wk,
+               round((percentile_cont(0.5) WITHIN GROUP (
+                 ORDER BY EXTRACT(epoch FROM confirmed_at - said_at)
+                          / 3600.0))::numeric, 1) AS median_hours,
+               count(*) AS n
+        FROM chain GROUP BY 1 ORDER BY 1""", (v,))
+
+    queue = q(vis + """
+        SELECT COALESCE(bt.user_ref, b.blocking_party, 'unattributed')
+                 AS party,
+               round(sum(EXTRACT(epoch FROM
+                 COALESCE(re.occurred_at, now()) - oe.occurred_at)
+                 / 86400.0)::numeric, 1)             AS days,
+               count(*)                              AS blockers,
+               count(*) FILTER (WHERE b.resolved_event_id IS NULL) AS open
+        FROM task_blockers b
+        JOIN vis ON vis.task_id = b.task_id
+        JOIN task_events oe       ON oe.event_id = b.opened_event_id
+        LEFT JOIN task_events re  ON re.event_id = b.resolved_event_id
+        LEFT JOIN tasks_current bt ON bt.task_id = b.blocking_task_id
+        GROUP BY 1 ORDER BY days DESC LIMIT 8""", (v,))
+
+    tiles = q(vis + """,
+        chain AS (
+          SELECT e.occurred_at - min(b.window_start) AS lag
+          FROM task_events e
+          JOIN vis USING (task_id)
+          JOIN decisions d          ON d.decision_id = e.decision_id
+          JOIN proposal_signals ps  ON ps.proposal_id = d.proposal_id
+          JOIN signals s            ON s.signal_id = ps.signal_id
+          JOIN extraction_batches b ON b.batch_id = s.batch_id
+          WHERE e.event_type = 'created'
+          GROUP BY e.event_id, e.occurred_at)
+        SELECT
+          (SELECT round((percentile_cont(0.5) WITHIN GROUP (
+             ORDER BY EXTRACT(epoch FROM lag) / 3600.0))::numeric, 1)
+           FROM chain)                                   AS median_lag_hours,
+          (SELECT count(*) FROM chain)                   AS traced_tasks,
+          (SELECT count(*) FROM task_events e JOIN vis USING (task_id)
+            WHERE e.event_type = 'deadline_changed')     AS deadline_moves,
+          (SELECT count(DISTINCT t.task_id) FROM tasks_current t
+             JOIN vis USING (task_id) WHERE t.deadline IS NOT NULL)
+                                                         AS dated_tasks,
+          (SELECT round(COALESCE(sum(EXTRACT(epoch FROM
+             now() - oe.occurred_at) / 86400.0), 0)::numeric, 1)
+           FROM task_blockers b JOIN vis ON vis.task_id = b.task_id
+           JOIN task_events oe ON oe.event_id = b.opened_event_id
+           WHERE b.resolved_event_id IS NULL)            AS blocked_days_open,
+          (SELECT count(*) FROM v_unconsumed_signals u
+            WHERE u.user_ref = %s
+              AND u.signal_type IN ('completion_claim','cancellation'))
+                                                         AS unconfirmed_closures
+        """, (v, v))
+
+    return jsonify({"confirmed": confirmed, "friction": friction,
+                    "latency": latency, "queue": queue,
+                    "tiles": tiles[0] if tiles else {}})
+
+
 @app.route("/api/recent")
 def recent():
     """What the viewer has personally confirmed lately.

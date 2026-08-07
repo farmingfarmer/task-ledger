@@ -136,6 +136,60 @@
        border-radius:4px;padding:2px 8px;font-family:var(--mono);
        font-size:11px;margin:4px 6px 0 0}
 
+  /* ---- charts -------------------------------------------------------
+     Series colours are the validated categorical slots 1-3 (blue, orange,
+     aqua), assigned in fixed order and never cycled. They are deliberately
+     NOT the board's status colours, and never the evidence amber, which
+     means one thing on this page. Slot 3 sits below 3:1 on white, so every
+     chart ships visible labels and a table twin -- the documented relief. */
+  .viz{--s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
+       --grid:var(--line); --surface:var(--panel)}
+  .wide{padding:0 28px 28px}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+         gap:1px;background:var(--line);border-bottom:1px solid var(--line)}
+  .tile{background:var(--panel);padding:14px 16px}
+  .tile .v{font-size:26px;font-weight:600;letter-spacing:-.02em;
+           line-height:1.1}
+  .tile .k{font-size:11px;color:var(--muted);text-transform:uppercase;
+           letter-spacing:.06em;margin-bottom:4px}
+  .tile .n{font-size:11.5px;color:var(--quiet);margin-top:3px}
+  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+  .fig{margin:0;padding:14px 16px 8px;border-right:1px solid var(--line);
+       border-bottom:1px solid var(--line)}
+  .fig h3{font-size:13px;font-weight:600;margin-bottom:2px}
+  .fig .sub{font-size:11.5px;color:var(--muted);margin-bottom:8px}
+  .fig svg{display:block;width:100%;height:auto;overflow:visible}
+  .lgd{display:flex;flex-wrap:wrap;gap:12px;margin:6px 0 0;font-size:11.5px;
+       color:var(--muted)}
+  .lgd span.k{display:inline-block;width:9px;height:9px;border-radius:2px;
+              margin-right:5px;vertical-align:0}
+  .tbl-btn{background:none;border:0;color:var(--muted);font-size:11px;
+           text-decoration:underline;padding:4px 0;cursor:pointer}
+  .vtbl{width:100%;font-size:11.5px;margin-top:4px}
+  .vtbl th,.vtbl td{padding:3px 6px;border-bottom:1px solid var(--line);
+                    font-variant-numeric:tabular-nums;text-align:right}
+  .vtbl th:first-child,.vtbl td:first-child{text-align:left}
+  .viztip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;
+          font-size:11.5px;padding:6px 9px;border-radius:5px;opacity:0;
+          transition:opacity .1s;z-index:20;max-width:230px}
+  .viztip b{font-weight:600}
+  .mtg{padding:10px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+  .mtg:last-child{border-bottom:none}
+  .mtg:hover{background:#F6F8FA}
+  .mtg .t{font-weight:500;font-size:13px}
+  .mtg .m{font-family:var(--mono);font-size:11px;color:var(--muted);
+          margin-top:2px}
+  .mtg svg{display:block;margin-top:6px}
+  .claim{padding:7px 16px 7px 28px;border-bottom:1px dashed var(--line);
+         font-size:12.5px}
+  .oc{display:inline-block;font-size:10.5px;font-weight:600;border-radius:3px;
+      padding:1px 6px;margin-right:7px;text-transform:uppercase;
+      letter-spacing:.04em;background:#EDF1F5;color:var(--muted)}
+  .oc-done{background:#E2EEE9;color:var(--pine)}
+  .oc-board{background:#E7EEF8;color:#1c5cab}
+  .oc-waiting{background:#F3EEE4;color:#7A5200}
+  .oc-rejected{background:#F6E6E3;color:var(--brick)}
+
   .lg-h{font-weight:600;color:var(--ink);margin-bottom:4px}
   .lg-s{margin-top:6px}
   .level-note ul{margin:4px 0 0 18px;padding:0}
@@ -223,6 +277,24 @@
   </section>
 </div>
 
+<div class="wide">
+  <section class="panel">
+    <h2>Meeting follow-through</h2>
+    <div id="meetings"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Measures</h2>
+    <div id="tiles" class="tiles"></div>
+    <div class="charts">
+      <figure class="fig" id="fig-confirmed"></figure>
+      <figure class="fig" id="fig-friction"></figure>
+      <figure class="fig" id="fig-latency"></figure>
+      <figure class="fig" id="fig-queue"></figure>
+    </div>
+  </section>
+</div>
+
 <script>
 (function(){
   "use strict";
@@ -302,7 +374,7 @@
     document.getElementById("drill").innerHTML =
       '<div class="empty">Select a task to see its history.</div>';
     loadTeam(); loadShares(); loadPending(); loadHeld(); loadCalibration();
-    loadProjects(); loadRecent();
+    loadProjects(); loadRecent(); loadMetrics(); loadMeetings();
   }
 
   // ---- projects you own or have been given ----
@@ -796,6 +868,441 @@
       case "project_assigned": return "Moved to project " + p.project_id;
       default: return ev.event_type.replace("_"," ");
     }
+  }
+
+  // ==================================================================
+  // Chart engine: inline SVG, ES5, no libraries.
+  //
+  // Fixed specs, applied everywhere: columns capped at 24px with a 4px
+  // rounded data-end and a square baseline, 2px lines with >=8px end
+  // markers, a 2px surface gap between touching marks (never a stroke),
+  // hairline solid gridlines one step off the surface, and text in ink
+  // tokens rather than the series colour. Every chart carries a hover
+  // tooltip AND a table twin -- the table is not optional here, because
+  // one of the three series colours sits below 3:1 on white.
+  // ==================================================================
+  var NS = "http://www.w3.org/2000/svg";
+  var GAP = 2;              // the surface gap, in px
+  var SERIES = ["var(--s1)", "var(--s2)", "var(--s3)"];
+
+  function sv(tag, attrs){
+    var e = document.createElementNS(NS, tag);
+    for(var k in attrs) if(attrs.hasOwnProperty(k))
+      e.setAttribute(k, String(attrs[k]));
+    return e;
+  }
+  function num(n){
+    if(n == null) return "\u2014";
+    return (Math.round(n * 10) / 10).toString();
+  }
+  // A column with its data-end rounded and its baseline square. A plain
+  // rx would round all four corners and lift the bar off its own axis.
+  function capPath(x, y, w, h, r){
+    if(h <= 0) return "M" + x + "," + y + "h" + w;
+    r = Math.min(r, h, w / 2);
+    return "M" + x + "," + (y + h) +
+           "V" + (y + r) + "q0," + (-r) + " " + r + "," + (-r) +
+           "h" + (w - 2 * r) + "q" + r + ",0 " + r + "," + r +
+           "V" + (y + h) + "Z";
+  }
+  function endPath(x, y, w, h, r){    // horizontal bar: right end rounded
+    if(w <= 0) return "M" + x + "," + y + "v" + h;
+    r = Math.min(r, w, h / 2);
+    return "M" + x + "," + y +
+           "h" + (w - r) + "q" + r + ",0 " + r + "," + r +
+           "v" + (h - 2 * r) + "q0," + r + " " + (-r) + "," + r +
+           "H" + x + "Z";
+  }
+
+  var TIP = null;
+  function tipFor(el, html){
+    el.addEventListener("mouseenter", function(ev){
+      if(!TIP){ TIP = el2("div","viztip"); document.body.appendChild(TIP); }
+      TIP.innerHTML = html;
+      TIP.style.opacity = "1";
+      move(ev);
+    });
+    el.addEventListener("mousemove", move);
+    el.addEventListener("mouseleave", function(){
+      if(TIP) TIP.style.opacity = "0";
+    });
+    function move(ev){
+      if(!TIP) return;
+      TIP.style.left = Math.min(ev.clientX + 12,
+        window.innerWidth - 240) + "px";
+      TIP.style.top = (ev.clientY - 12) + "px";
+    }
+  }
+  function el2(tag, cls){ var e = document.createElement(tag);
+    if(cls) e.className = cls; return e; }
+
+  function figure(node, title, sub){
+    node.className = "fig viz";
+    node.innerHTML = "";
+    node.appendChild(el("h3", null, title));
+    if(sub) node.appendChild(el("div","sub", sub));
+    return node;
+  }
+  function legend(node, names){
+    if(names.length < 2) return;         // one series: the title names it
+    var l = el2("div","lgd");
+    names.forEach(function(n, i){
+      var s = el2("span", null);
+      var k = el2("span","k");
+      k.style.background = SERIES[i];
+      s.appendChild(k);
+      s.appendChild(document.createTextNode(n));
+      l.appendChild(s);
+    });
+    node.appendChild(l);
+  }
+  // The table twin. Required, not a nicety: it is the documented relief
+  // for a series colour under 3:1, and the keyboard path to every value.
+  function tableTwin(node, cols, rows){
+    var btn = el2("button","tbl-btn");
+    btn.textContent = "Show the numbers";
+    var wrap = el2("div");
+    wrap.style.display = "none";
+    var t = el2("table","vtbl");
+    var thead = el2("thead"), tr = el2("tr");
+    cols.forEach(function(c){ tr.appendChild(el("th", null, c)); });
+    thead.appendChild(tr); t.appendChild(thead);
+    var tb = el2("tbody");
+    rows.forEach(function(r){
+      var row = el2("tr");
+      r.forEach(function(cell){ row.appendChild(el("td", null, String(cell))); });
+      tb.appendChild(row);
+    });
+    t.appendChild(tb); wrap.appendChild(t);
+    btn.addEventListener("click", function(){
+      var open = wrap.style.display !== "none";
+      wrap.style.display = open ? "none" : "block";
+      btn.textContent = open ? "Show the numbers" : "Hide the numbers";
+    });
+    node.appendChild(btn); node.appendChild(wrap);
+  }
+
+  // Columns, grouped or stacked. Rows: {label, values:[]}.
+  function columns(node, spec){
+    var W = 340, H = 150, P = {t: 10, r: 10, b: 26, l: 30};
+    var rows = spec.rows, names = spec.names;
+    var max = 0;
+    rows.forEach(function(r){
+      var v = spec.stacked
+        ? r.values.reduce(function(a, b){ return a + b; }, 0)
+        : Math.max.apply(null, r.values);
+      if(v > max) max = v;
+    });
+    max = Math.max(max, 1);
+    var svg = sv("svg", {viewBox: "0 0 " + W + " " + H, role: "img",
+                         "aria-label": spec.title});
+    var plotW = W - P.l - P.r, plotH = H - P.t - P.b;
+    var y = function(v){ return P.t + plotH - (v / max) * plotH; };
+
+    [0, 0.5, 1].forEach(function(f){        // hairline, solid, recessive
+      var yy = P.t + plotH - f * plotH;
+      svg.appendChild(sv("line", {x1: P.l, x2: W - P.r, y1: yy, y2: yy,
+        stroke: "var(--grid)", "stroke-width": 1}));
+      svg.appendChild(sv("text", {x: P.l - 6, y: yy + 3,
+        "text-anchor": "end", fill: "var(--muted)", "font-size": 9}))
+        .textContent = num(max * f);
+    });
+
+    var band = plotW / Math.max(rows.length, 1);
+    rows.forEach(function(r, ri){
+      var bx = P.l + ri * band;
+      var inner = Math.min(24, (band - 8) / (spec.stacked ? 1 : names.length));
+      names.forEach(function(nm, si){
+        var v = r.values[si] || 0;
+        var x, yTop, h;
+        if(spec.stacked){
+          var below = 0;
+          for(var i = 0; i < si; i++) below += r.values[i] || 0;
+          x = bx + (band - inner) / 2;
+          yTop = y(below + v);
+          h = Math.max(0, y(below) - y(below + v) - (si ? GAP : 0));
+        } else {
+          x = bx + (band - inner * names.length) / 2 + si * inner;
+          yTop = y(v);
+          h = plotH + P.t - yTop;
+          if(si) x += 0;                      // adjacent bars: gap below
+        }
+        if(v <= 0) return;
+        var w = spec.stacked ? inner : Math.max(inner - GAP, 2);
+        svg.appendChild(sv("path", {d: capPath(x, yTop, w, h, 4),
+          fill: SERIES[si]}));
+        var hit = sv("rect", {x: x - 4, y: P.t, width: w + 8, height: plotH,
+          fill: "transparent"});
+        tipFor(hit, "<b>" + r.label + "</b><br>" + nm + ": " + v);
+        svg.appendChild(hit);
+      });
+      if(ri === rows.length - 1 || ri % 2 === 0)
+        svg.appendChild(sv("text", {x: bx + band / 2, y: H - 8,
+          "text-anchor": "middle", fill: "var(--muted)", "font-size": 9}))
+          .textContent = r.label;
+    });
+    // Label the last column only -- selective, never a number per mark.
+    // The tallest bar reaches the top gridline, so a label placed above it
+    // would sit outside the plot: when there is no headroom it moves just
+    // inside the cap instead, and only if the text actually fits the bar's
+    // width. A label is never clipped to make it fit.
+    var last = rows[rows.length - 1];
+    if(last){
+      var total = spec.stacked
+        ? last.values.reduce(function(a, b){ return a + b; }, 0)
+        : Math.max.apply(null, last.values);
+      var barW = Math.min(24, (band - 8) / (spec.stacked ? 1 : names.length));
+      var textW = String(total).length * 6 + 6;
+      var above = y(total) - 6;
+      if(total > 0 && (above >= P.t + 8 || textW <= barW))
+        svg.appendChild(sv("text", {
+          x: P.l + (rows.length - 0.5) * band,
+          y: above >= P.t + 8 ? above : y(total) + 12,
+          "text-anchor": "middle",
+          fill: above >= P.t + 8 ? "var(--ink)" : "var(--surface)",
+          "font-size": 10, "font-weight": 600})).textContent = total;
+    }
+    node.appendChild(svg);
+    legend(node, names);
+    tableTwin(node, ["Week"].concat(names),
+      rows.map(function(r){ return [r.label].concat(r.values); }));
+  }
+
+  // Single-series line: no legend box, value at the end.
+  function lineChart(node, spec){
+    var W = 340, H = 150, P = {t: 12, r: 34, b: 26, l: 30};
+    var pts = spec.points;
+    var svg = sv("svg", {viewBox: "0 0 " + W + " " + H, role: "img",
+                         "aria-label": spec.title});
+    var plotW = W - P.l - P.r, plotH = H - P.t - P.b;
+    var max = 1;
+    pts.forEach(function(p){ if(p.v > max) max = p.v; });
+    var x = function(i){
+      return P.l + (pts.length < 2 ? plotW / 2
+        : (i / (pts.length - 1)) * plotW); };
+    var y = function(v){ return P.t + plotH - (v / max) * plotH; };
+    [0, 0.5, 1].forEach(function(f){
+      var yy = P.t + plotH - f * plotH;
+      svg.appendChild(sv("line", {x1: P.l, x2: W - P.r, y1: yy, y2: yy,
+        stroke: "var(--grid)", "stroke-width": 1}));
+      svg.appendChild(sv("text", {x: P.l - 6, y: yy + 3, "text-anchor": "end",
+        fill: "var(--muted)", "font-size": 9})).textContent = num(max * f);
+    });
+    var d = "";
+    pts.forEach(function(p, i){ d += (i ? "L" : "M") + x(i) + "," + y(p.v); });
+    if(pts.length > 1)
+      svg.appendChild(sv("path", {d: d, fill: "none", stroke: SERIES[0],
+        "stroke-width": 2, "stroke-linejoin": "round",
+        "stroke-linecap": "round"}));
+    pts.forEach(function(p, i){
+      svg.appendChild(sv("circle", {cx: x(i), cy: y(p.v), r: 4,
+        fill: SERIES[0], stroke: "var(--surface)", "stroke-width": 2}));
+      var hit = sv("circle", {cx: x(i), cy: y(p.v), r: 12,
+        fill: "transparent"});
+      tipFor(hit, "<b>" + p.label + "</b><br>" + spec.unit + ": " +
+        num(p.v) + (p.n != null ? "<br>from " + p.n + " task(s)" : ""));
+      svg.appendChild(hit);
+      if(i === pts.length - 1)
+        svg.appendChild(sv("text", {x: x(i) + 8, y: y(p.v) + 3,
+          fill: "var(--ink)", "font-size": 10, "font-weight": 600}))
+          .textContent = num(p.v);
+      if(i === 0 || i === pts.length - 1)
+        svg.appendChild(sv("text", {x: x(i), y: H - 8,
+          "text-anchor": i ? "end" : "start", fill: "var(--muted)",
+          "font-size": 9})).textContent = p.label;
+    });
+    node.appendChild(svg);
+    tableTwin(node, ["Week", spec.unit, "Tasks"],
+      pts.map(function(p){ return [p.label, num(p.v), p.n == null ? "" : p.n]; }));
+  }
+
+  // Nominal categories ranked by magnitude: one hue for every bar, because
+  // bar length already carries the value -- colouring by rank would spend
+  // the identity channel re-encoding it.
+  function hbars(node, spec){
+    var rows = spec.rows, rowH = 22, W = 340;
+    var H = Math.max(rows.length * rowH + 12, 40);
+    var svg = sv("svg", {viewBox: "0 0 " + W + " " + H, role: "img",
+                         "aria-label": spec.title});
+    var labelW = 96, plotW = W - labelW - 46;
+    var max = 1;
+    rows.forEach(function(r){ if(r.v > max) max = r.v; });
+    rows.forEach(function(r, i){
+      var yy = i * rowH + 4, h = Math.min(14, rowH - GAP * 2);
+      svg.appendChild(sv("text", {x: 0, y: yy + h - 2, fill: "var(--ink)",
+        "font-size": 11})).textContent = r.label.length > 16
+          ? r.label.slice(0, 15) + "\u2026" : r.label;
+      var w = Math.max((r.v / max) * plotW, 2);
+      svg.appendChild(sv("path", {d: endPath(labelW, yy, w, h, 4),
+        fill: SERIES[0]}));
+      svg.appendChild(sv("text", {x: labelW + w + 6, y: yy + h - 2,
+        fill: "var(--ink)", "font-size": 10, "font-weight": 600}))
+        .textContent = num(r.v);
+      var hit = sv("rect", {x: 0, y: yy - 4, width: W, height: rowH,
+        fill: "transparent"});
+      tipFor(hit, "<b>" + r.label + "</b><br>" + spec.unit + ": " + num(r.v) +
+        (r.note ? "<br>" + r.note : ""));
+      svg.appendChild(hit);
+    });
+    node.appendChild(svg);
+    tableTwin(node, [spec.dim, spec.unit],
+      rows.map(function(r){ return [r.label, num(r.v)]; }));
+  }
+
+  function tile(box, label, value, note){
+    var t = el2("div","tile");
+    t.appendChild(el("div","k", label));
+    t.appendChild(el("div","v", value));
+    if(note) t.appendChild(el("div","n", note));
+    box.appendChild(t);
+  }
+
+  function shortWeek(iso){ return (iso || "").slice(5); }
+
+  // ---- measures ----
+  function loadMetrics(){
+    var tiles = document.getElementById("tiles");
+    loading(tiles);
+    get("/api/metrics").then(function(d){
+      tiles.innerHTML = "";
+      var t = d.tiles || {};
+      tile(tiles, "Said \u2192 tracked",
+        t.median_lag_hours == null ? "\u2014"
+          : num(t.median_lag_hours / 24) + "d",
+        t.traced_tasks ? "median across " + t.traced_tasks +
+          " traced task(s)" : "no traced tasks yet");
+      tile(tiles, "Deadlines moved", String(t.deadline_moves || 0),
+        (t.dated_tasks || 0) + " task(s) carry a date");
+      tile(tiles, "Open blocked time",
+        num(t.blocked_days_open || 0) + "d",
+        "summed across open blockers");
+      tile(tiles, "Unconfirmed closures",
+        String(t.unconfirmed_closures || 0),
+        "'done' claims still waiting on corroboration");
+
+      var f = figure(document.getElementById("fig-confirmed"),
+        "Confirmed per week",
+        "Board changes a person accepted, by week");
+      columns(f, {title: "Confirmed per week", names: ["Created", "Completed"],
+        rows: d.confirmed.map(function(r){
+          return {label: shortWeek(r.wk), values: [r.created, r.completed]}; })});
+
+      var fr = figure(document.getElementById("fig-friction"),
+        "Friction per week",
+        "Blockers raised, deadlines moved, work cancelled");
+      columns(fr, {title: "Friction per week", stacked: true,
+        names: ["Blocked", "Deadline moved", "Cancelled"],
+        rows: d.friction.map(function(r){
+          return {label: shortWeek(r.wk),
+                  values: [r.blocked, r.moved, r.cancelled]}; })});
+
+      var l = figure(document.getElementById("fig-latency"),
+        "Said \u2192 tracked, by week",
+        "Median time from the words to a confirmed board fact");
+      if(d.latency.length){
+        lineChart(l, {title: "Said to tracked", unit: "hours",
+          points: d.latency.map(function(r){
+            return {label: shortWeek(r.wk), v: r.median_hours, n: r.n}; })});
+      } else {
+        l.appendChild(el("div","empty",
+          "No tasks yet whose creation traces back to a conversation."));
+      }
+
+      var qf = figure(document.getElementById("fig-queue"),
+        "Where the queue forms",
+        "Days of blocked time, by who or what it waits on");
+      if(d.queue.length){
+        hbars(qf, {title: "Blocked days by party", dim: "Waiting on",
+          unit: "days", rows: d.queue.map(function(r){
+            return {label: r.party, v: r.days,
+                    note: r.open + " still open of " + r.blockers}; })});
+      } else {
+        qf.appendChild(el("div","empty","Nothing has been blocked."));
+      }
+    }).catch(function(e){ fail(tiles, e, loadMetrics); });
+  }
+
+  // ---- meeting follow-through ----
+  var OC_CLASS = {"done": "oc-done", "on the board": "oc-board",
+                  "waiting": "oc-waiting", "rejected": "oc-rejected"};
+
+  function loadMeetings(){
+    panel("meetings", "/api/meetings", function(box, rows){
+      if(!rows.length){
+        box.appendChild(el("div","empty",
+          "No conversations of yours have been processed yet."));
+        return;
+      }
+      rows.forEach(function(m){
+        var d = el2("div","mtg");
+        d.tabIndex = 0;
+        d.appendChild(el("div","t", m.source_ref.replace(/^copilot-/, "")
+          .replace(/_/g, " ")));
+        d.appendChild(el("div","m",
+          (m.met_at || "").slice(0,10) + " \u00b7 " + m.claims + " claim(s)" +
+          (m.windows > 1 ? " across " + m.windows + " windows" : "")));
+        // Composition of one meeting's claims: a 2px surface gap between
+        // segments, never a stroke.
+        var segs = [["done", m.done], ["on the board", m["on the board"]],
+                    ["waiting", m.waiting], ["rejected", m.rejected],
+                    ["no board change", m.other]];
+        var total = 0;
+        segs.forEach(function(s){ total += s[1]; });
+        if(total){
+          var W = 300, Hh = 10, x = 0;
+          var svg = sv("svg", {viewBox: "0 0 " + W + " " + Hh, width: W,
+            height: Hh, role: "img",
+            "aria-label": "claim outcomes for this meeting"});
+          var fills = {"done": "var(--s3)", "on the board": "var(--s1)",
+                       "waiting": "var(--s2)", "rejected": "var(--quiet)",
+                       "no board change": "var(--line)"};
+          segs.forEach(function(s){
+            if(!s[1]) return;
+            var w = Math.max((s[1] / total) * W - GAP, 2);
+            var r = sv("rect", {x: x, y: 0, width: w, height: Hh, rx: 2,
+              fill: fills[s[0]]});
+            tipFor(r, "<b>" + s[1] + " " + s[0] + "</b>");
+            svg.appendChild(r);
+            x += w + GAP;
+          });
+          d.appendChild(svg);
+        }
+        var open = function(){ meetingDetail(m, d); };
+        d.addEventListener("click", open);
+        d.addEventListener("keydown", function(ev){
+          if(ev.key === "Enter" || ev.key === " "){ ev.preventDefault(); open(); }
+        });
+        box.appendChild(d);
+      });
+    });
+  }
+
+  function meetingDetail(m, after){
+    var existing = after.nextSibling;
+    if(existing && existing.className === "claims"){
+      after.parentNode.removeChild(existing);
+      return;
+    }
+    var box = el2("div","claims");
+    box.appendChild(el("div","claim","Loading\u2026"));
+    after.parentNode.insertBefore(box, after.nextSibling);
+    get("/api/meeting/" + encodeURIComponent(m.source_ref))
+    .then(function(res){
+      box.innerHTML = "";
+      res.claims.forEach(function(c){
+        var row = el2("div","claim");
+        row.appendChild(el("span","oc " + (OC_CLASS[c.outcome] || ""),
+          c.outcome));
+        row.appendChild(document.createTextNode(c.title));
+        var meta = c.signal_type.replace(/_/g," ") +
+          (c.author_ref ? " \u00b7 said by " + c.author_ref : "") +
+          (c.task_status ? " \u00b7 now " + c.task_status : "") +
+          (c.reject_reason ? " \u00b7 " + c.reject_reason.replace(/_/g," ")
+                           : "");
+        row.appendChild(el("div","via", meta));
+        box.appendChild(row);
+      });
+    }).catch(function(e){ fail(box, e); });
   }
 
   // Identity is a demo affordance either way. The picker endpoint is off
