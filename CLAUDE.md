@@ -30,6 +30,7 @@ cd extraction        && python3 test_extraction.py     # worker, salvage, guards
 cd reconciler        && python3 test_reconciler.py     # bands, gates, aggregation, live packet
 cd reconciler        && python3 test_supersede.py      # supersede/return semantics, own fixture user
 cd cli               && python3 test_review.py         # review CLI over the live pending packet
+cd integration/tests && python3 test_dashboard.py      # dashboard API access rules (own fixture identities)
 cd integration/tests && python3 test_integration.py    # graph ingestion + bot host (not in run_tests)
 cd integration/tenant && python3 test_tenant.py        # webhook host, offline (not in run_tests)
 ```

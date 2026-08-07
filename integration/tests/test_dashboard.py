@@ -1,0 +1,214 @@
+"""Tests for the viewer-aware dashboard API.
+
+Drives the real Flask app through its test client against a live database,
+with its own fixture identities so it never depends on (or disturbs) the
+extraction -> reconcile -> review chain the other suites share.
+
+What matters here is not that the endpoints return rows -- it is that they
+refuse to return the wrong ones:
+
+  - the SELF-ONLY endpoints (pending, held, calibration) stay self-only
+    even for a viewer holding a full_trace grant on the whole board, because
+    unreviewed claims and reject reasons are not board state
+  - progress-level viewers get the history skeleton and a 403 on provenance
+  - a stranger sees nothing at all, and an anonymous request 401s
+  - the demo identity picker is off unless explicitly enabled
+
+Run: python3 test_dashboard.py   (skips politely without a database)
+"""
+
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                "..", "dashboard"))
+
+CHECKS = [0]
+
+OWNER = "dash-owner"
+MATE = "dash-mate"          # full_trace grant on OWNER's board
+STAKE = "dash-stake"        # progress grant on OWNER's board
+STRANGER = "dash-stranger"  # no grants at all
+
+TASK = "task-dash-fixture"
+PACKET = "packet-dash-fixture"
+BATCH = "batch-dash-fixture"
+SIGNAL = "signal-dash-fixture"
+
+
+def ok(cond, label):
+    assert cond, label
+    CHECKS[0] += 1
+    print("  pass: {0}".format(label))
+
+
+def seed(conn):
+    """Idempotent fixture: a task, a delivered packet with one undecided
+    and one rejected proposal, a pooled signal, and the two grants."""
+    with conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM tasks_current WHERE task_id = %s",
+                        (TASK,))
+            if cur.fetchone() is None:
+                cur.execute(
+                    "SELECT apply_task_event(%s,%s,'created','manual_edit',"
+                    "NULL,%s::jsonb)",
+                    (TASK, OWNER, json.dumps({
+                        "title": "Dashboard fixture task",
+                        "status": "in_progress", "owner_ref": OWNER})))
+            cur.execute("""
+                INSERT INTO extraction_batches (batch_id, extracted_at,
+                  extractor_model, prompt_version, source_type, source_ref,
+                  window_start, window_end)
+                VALUES (%s, now(), 'fixture', 'v0', 'meeting_transcript',
+                        'dash-fixture', now() - interval '1 hour', now())
+                ON CONFLICT (batch_id) DO NOTHING""", (BATCH,))
+            cur.execute("""
+                INSERT INTO signals (signal_id, batch_id, signal_type, title,
+                  confidence, raw)
+                VALUES (%s, %s, 'completion_claim',
+                        'Fixture claim awaiting corroboration', 0.80, '{}')
+                ON CONFLICT (signal_id) DO NOTHING""", (SIGNAL, BATCH))
+            cur.execute("""
+                INSERT INTO evidence_refs (signal_id, ordinal, source_type,
+                  resource_id, content_hash)
+                VALUES (%s, 1, 'transcript_utterance', 'utt-dash-1', 'hash')
+                ON CONFLICT DO NOTHING""", (SIGNAL,))
+            cur.execute("SELECT 1 FROM signal_pool_events WHERE signal_id = %s",
+                        (SIGNAL,))
+            if cur.fetchone() is None:
+                cur.execute("""
+                    INSERT INTO signal_pool_events (signal_id, user_ref, event,
+                      run_id) VALUES (%s,%s,'pooled','dash-fixture')""",
+                    (SIGNAL, OWNER))
+            cur.execute("""
+                INSERT INTO review_packets (packet_id, user_ref,
+                  cadence_run_id, board_version, generated_at, expires_at)
+                VALUES (%s,%s,'dash-fixture',1, now(), now() + interval '2 days')
+                ON CONFLICT (packet_id) DO NOTHING""", (PACKET, OWNER))
+            cur.execute("SELECT 1 FROM packet_state_events WHERE packet_id = %s",
+                        (PACKET,))
+            if cur.fetchone() is None:
+                cur.execute("INSERT INTO packet_state_events (packet_id, state)"
+                            " VALUES (%s,'delivered')", (PACKET,))
+            for pid, op, conf, conflict in (
+                    ("prop-dash-open", "update_status", 0.80, None),
+                    ("prop-dash-rejected", "create_task", 0.70, None)):
+                cur.execute("""
+                    INSERT INTO proposals (proposal_id, packet_id, op,
+                      target_task_id, rationale, confidence, conflict_type,
+                      conflict_detail, payload)
+                    VALUES (%s,%s,%s,%s,'fixture rationale',%s,NULL,NULL,%s)
+                    ON CONFLICT (proposal_id) DO NOTHING""",
+                    (pid, PACKET, op, TASK if op != "create_task" else None,
+                     conf, json.dumps({"kind": op})))
+            cur.execute("""
+                INSERT INTO decisions (proposal_id, packet_id, decision,
+                  reject_reason, decided_by, decided_at)
+                VALUES ('prop-dash-rejected',%s,'reject','duplicate',%s,now())
+                ON CONFLICT (proposal_id, decided_by) DO NOTHING""",
+                (PACKET, OWNER))
+            for who, level in ((MATE, "full_trace"), (STAKE, "progress")):
+                cur.execute("""
+                    SELECT 1 FROM v_current_grants
+                    WHERE grantee_ref = %s AND subject_type = 'user'
+                      AND subject_id = %s AND level = %s""",
+                    (who, OWNER, level))
+                if cur.fetchone() is None:
+                    cur.execute("SELECT grant_access(%s,%s,'user',%s,%s,%s)",
+                                (OWNER, who, OWNER, level, "dashboard test"))
+
+
+def as_viewer(client, path, who=None):
+    headers = {"X-Viewer": who} if who else {}
+    r = client.get(path, headers=headers)
+    body = r.get_json()
+    return r.status_code, body
+
+
+def main():
+    dsn = os.environ.get(
+        "DB_DSN",
+        "host=/home/claude/pgsock port=5433 dbname=taskintel user=postgres")
+    try:
+        import psycopg2
+        conn = psycopg2.connect(dsn)
+    except Exception as e:
+        print("skipped: database not reachable ({0})".format(
+            e.__class__.__name__))
+        return
+    os.environ["DB_DSN"] = dsn
+    os.environ.pop("TL_VIEWER_PICKER", None)
+    import dashboard_api
+    dashboard_api.DSN = dsn
+    client = dashboard_api.app.test_client()
+
+    seed(conn)
+    conn.close()
+
+    print("identity")
+    code, _ = as_viewer(client, "/api/board/" + OWNER)
+    ok(code == 401, "anonymous request is refused")
+
+    print("self-only endpoints")
+    code, pend = as_viewer(client, "/api/pending", OWNER)
+    ok(code == 200 and pend["undecided"] == 1
+       and pend["packets"][0]["packet_id"] == PACKET,
+       "owner sees their own pending packet and undecided count")
+    code, mate_pend = as_viewer(client, "/api/pending", MATE)
+    ok(code == 200 and mate_pend["undecided"] == 0
+       and mate_pend["packets"] == [],
+       "full_trace grantee sees NO pending packets of the board owner")
+
+    code, held = as_viewer(client, "/api/held", OWNER)
+    ok(code == 200 and any(h["signal_id"] == SIGNAL for h in held)
+       and [h for h in held if h["signal_id"] == SIGNAL][0]["sources"] == 1,
+       "owner sees the pooled claim with its source count")
+    code, mate_held = as_viewer(client, "/api/held", MATE)
+    ok(code == 200 and not [h for h in mate_held if h["signal_id"] == SIGNAL],
+       "full_trace grantee sees none of the owner's held claims")
+
+    code, cal = as_viewer(client, "/api/calibration", OWNER)
+    reasons = {(r["op"], r["reject_reason"]): r["n"] for r in cal["rejects"]}
+    ok(code == 200 and cal["decisions_total"] >= 1
+       and reasons.get(("create_task", "duplicate"), 0) >= 1,
+       "owner's reject histogram routes duplicate/create_task")
+    ok(any(d["op"] == "create_task" and d["accept_rate"] == 0.0
+           for d in cal["drift"]),
+       "acceptance rate reflects the rejected proposal")
+    code, mate_cal = as_viewer(client, "/api/calibration", MATE)
+    ok(code == 200 and mate_cal["decisions_total"] == 0
+       and mate_cal["rejects"] == [],
+       "full_trace grantee sees none of the owner's reject reasons")
+
+    print("board scoping (unchanged paths)")
+    code, board = as_viewer(client, "/api/board/" + OWNER, STAKE)
+    ok(code == 200 and any(t["task_id"] == TASK for t in board)
+       and [t for t in board if t["task_id"] == TASK][0]["access_level"]
+       == "progress",
+       "progress grantee sees the board row at progress level")
+    code, board = as_viewer(client, "/api/board/" + OWNER, STRANGER)
+    ok(code == 200 and board == [],
+       "stranger sees an empty board, not an error revealing it exists")
+
+    code, hist = as_viewer(client, "/api/task/{0}/history".format(TASK), STAKE)
+    ok(code == 200 and hist["access_level"] == "progress"
+       and all(e["decided_by"] is None for e in hist["events"]),
+       "progress history keeps the skeleton and drops decider identity")
+    code, _ = as_viewer(client, "/api/task/{0}/history".format(TASK), STRANGER)
+    ok(code == 403, "stranger is refused the history")
+
+    print("demo picker")
+    code, _ = as_viewer(client, "/api/viewers", OWNER)
+    ok(code == 404, "identity picker is off by default")
+    os.environ["TL_VIEWER_PICKER"] = "1"
+    code, v = as_viewer(client, "/api/viewers", OWNER)
+    ok(code == 200 and OWNER in v["viewers"],
+       "identity picker answers only when explicitly enabled")
+    os.environ.pop("TL_VIEWER_PICKER", None)
+
+
+if __name__ == "__main__":
+    main()
+    print("\nall {0} dashboard checks passed".format(CHECKS[0]))

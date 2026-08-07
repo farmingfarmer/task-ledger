@@ -75,6 +75,10 @@
   .deadline.overdue{color:var(--brick);font-weight:500}
   .flag{font-size:11px;color:var(--brick)}
 
+  .viewer input{border:1px solid var(--line);border-radius:6px;
+                background:var(--panel);padding:4px 8px;font:inherit}
+  .loud{padding:10px 16px;font-weight:600;font-size:13px;
+        border-bottom:1px solid var(--line)}
   .dep{padding:10px 16px;border-bottom:1px solid var(--line);font-size:13px}
   .dep:last-child{border-bottom:none}
   .dep .who{font-weight:600}
@@ -140,11 +144,23 @@
   <div class="viewer">
     <label for="viewer-sel">Viewing as</label>
     <select id="viewer-sel" aria-label="Viewing as"></select>
+    <input id="viewer-txt" aria-label="Viewing as (type an identity)"
+           placeholder="or type a ref" size="14">
   </div>
 </header>
 
 <div class="wrap">
   <div>
+    <section class="panel" id="panel-pending">
+      <h2>Waiting for your review</h2>
+      <div id="pending"></div>
+    </section>
+
+    <section class="panel" id="panel-held">
+      <h2>Waiting for corroboration</h2>
+      <div id="held"></div>
+    </section>
+
     <section class="panel">
       <h2>Boards shared with you</h2>
       <div class="team" id="team"></div>
@@ -166,6 +182,11 @@
     <section class="panel">
       <h2>Access you have granted</h2>
       <div id="shares"></div>
+    </section>
+
+    <section class="panel" id="panel-cal">
+      <h2>Calibration</h2>
+      <div id="cal"></div>
     </section>
   </div>
 
@@ -230,7 +251,111 @@
   function boot(){
     document.getElementById("drill").innerHTML =
       '<div class="empty">Select a task to see its history.</div>';
-    loadTeam(); loadShares();
+    loadTeam(); loadShares(); loadPending(); loadHeld(); loadCalibration();
+  }
+
+  // ---- your own review loop (Q6): self-only, never widened by a grant ----
+  function loadPending(){
+    var box = document.getElementById("pending");
+    get("/api/pending").then(function(d){
+      box.innerHTML = "";
+      if(!d.undecided){
+        box.appendChild(el("div","empty",
+          "Nothing waiting. Proposals appear here after a cadence run."));
+        return;
+      }
+      var head = el("div","loud",
+        d.undecided + " proposal" + (d.undecided===1?"":"s") + " awaiting you" +
+        (d.conflicts ? " \u00b7 " + d.conflicts + " flagged" : ""));
+      box.appendChild(head);
+      d.packets.forEach(function(p){
+        var row = el("div","dep");
+        row.appendChild(el("div", null,
+          p.undecided + " of " + p.proposals + " undecided \u00b7 " + p.state));
+        row.appendChild(el("div","via", "packet " + p.packet_id.slice(0,12) +
+          " \u00b7 built " + (p.generated_at||"").slice(0,10) +
+          (p.expires_at ? " \u00b7 expires " + p.expires_at.slice(0,10) : "")));
+        box.appendChild(row);
+      });
+      box.appendChild(el("div","via",
+        "Answer them: python3 cli/review.py --as " + state.viewer));
+    }).catch(function(e){ fail(box, e); });
+  }
+
+  // ---- claims the gates are holding, not guessing at ----
+  function loadHeld(){
+    var box = document.getElementById("held");
+    get("/api/held").then(function(rows){
+      box.innerHTML = "";
+      if(!rows.length){
+        box.appendChild(el("div","empty",
+          "No claims are waiting. Anything the gates hold shows up here."));
+        return;
+      }
+      rows.forEach(function(s){
+        var d = el("div","dep");
+        d.appendChild(el("div", null,
+          s.signal_type.replace(/_/g," ") + ": \u201c" + s.title + "\u201d"));
+        d.appendChild(el("div","via",
+          s.sources + " source" + (s.sources===1?"":"s") + " \u00b7 " +
+          Math.round(s.confidence*100) + "% \u00b7 pooled " +
+          (s.pooled_at||"").slice(0,10) +
+          (s.deadline_raw ? " \u00b7 said \u201c" + s.deadline_raw + "\u201d" : "")));
+        box.appendChild(d);
+      });
+    }).catch(function(e){ fail(box, e); });
+  }
+
+  // ---- calibration (Q7 drift + Q8 reject reasons), self-only ----
+  var REASON_ROUTE = {
+    duplicate: "matching thresholds",
+    wrong_task_match: "auto-link threshold",
+    bad_date_resolution: "extraction",
+    not_a_task: "extraction",
+    wrong_owner: "attribution",
+    wrong_status: "status gates",
+    stale: "cadence latency"
+  };
+
+  function loadCalibration(){
+    var box = document.getElementById("cal");
+    get("/api/calibration").then(function(d){
+      box.innerHTML = "";
+      if(!d.decisions_total){
+        box.appendChild(el("div","empty",
+          "No decisions yet. Accept and reject reasons accumulate here and " +
+          "become the input for threshold calibration."));
+        return;
+      }
+      var latest = {};
+      d.drift.forEach(function(r){ latest[r.op] = r; });
+      Object.keys(latest).sort().forEach(function(op){
+        var r = latest[op];
+        var row = el("div","dep");
+        var line = el("div");
+        line.appendChild(el("span","who", op.replace(/_/g," ")));
+        line.appendChild(document.createTextNode(
+          " " + Math.round(r.accept_rate*100) + "% accepted (n=" + r.n + ")"));
+        if(r.drift_alarm) line.appendChild(el("span","flag"," drift"));
+        row.appendChild(line);
+        if(r.trailing_4wk != null)
+          row.appendChild(el("div","via", "trailing 4wk " +
+            Math.round(r.trailing_4wk*100) + "%"));
+        box.appendChild(row);
+      });
+      if(d.rejects.length){
+        box.appendChild(el("div","loud","Why proposals were rejected"));
+        d.rejects.forEach(function(r){
+          var row = el("div","dep");
+          row.appendChild(el("div", null, (r.reject_reason || "unspecified")
+            .replace(/_/g," ") + " \u00d7 " + r.n));
+          row.appendChild(el("div","via", r.op.replace(/_/g," ") +
+            (REASON_ROUTE[r.reject_reason]
+              ? " \u2192 tune " + REASON_ROUTE[r.reject_reason] : "")));
+          box.appendChild(row);
+        });
+      }
+    }).catch(function(e){ fail(box, e); });
   }
 
   // ---- boards visible to the viewer ----
@@ -484,23 +609,42 @@
     }
   }
 
+  // Identity is a demo affordance either way. The picker endpoint is off
+  // by default because listing everyone who owns a task leaks exactly what
+  // the rollup refuses to leak, so typing a ref is the reliable path; in
+  // production this whole control is the signed-in AAD identity.
+  var txt = document.getElementById("viewer-txt");
+  txt.value = state.viewer;
+  txt.addEventListener("change", function(){
+    var v = txt.value.trim();
+    if(!v) return;
+    var known = false;
+    for(var i = 0; i < sel.options.length; i++)
+      if(sel.options[i].value === v) known = true;
+    if(!known){
+      var o = el("option", null, v); o.value = v; sel.appendChild(o);
+    }
+    sel.value = v;
+    state.viewer = v; state.user = null; state.task = null;
+    boot();
+  });
+
+  fetch("/api/viewers").then(function(r){
+    return r.ok ? r.json() : null;          // 404 = picker disabled
+  }).then(function(d){
+    if(!d || !d.viewers || !d.viewers.length) return;
+    sel.innerHTML = "";
+    d.viewers.forEach(function(v){
+      var o = el("option", null, v); o.value = v; sel.appendChild(o);
+    });
+    sel.value = d.viewers[0];
+    txt.value = d.viewers[0];
+    state.viewer = d.viewers[0];
+    boot();
+  })["catch"](function(){ /* keep the built-in list */ });
+
   boot();
 })();
-
-  // Real-data viewer list: replace the demo VIEWERS once the API answers,
-  // then fire the dropdown's own change handler to re-init the page.
-  fetch("/api/viewers").then(function(r){ return r.json(); })
-    .then(function(d){
-      if (!d.viewers || !d.viewers.length) return;
-      var sel2 = document.getElementById("viewer-sel");
-      sel2.innerHTML = "";
-      d.viewers.forEach(function(v){
-        var o = document.createElement("option");
-        o.textContent = v; o.value = v; sel2.appendChild(o);
-      });
-      sel2.value = d.viewers[0];
-      sel2.dispatchEvent(new Event("change"));
-    });
 </script>
 </body>
 </html>

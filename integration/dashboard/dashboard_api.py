@@ -25,6 +25,16 @@ Endpoints:
   GET /api/event/<id>/provenance     Q3; 403 unless full_trace on the task
   GET /api/blocked-on/<user_ref>     Q4; owner or full_trace board grant only
   GET /api/grants                    grants the viewer has given (audit view)
+  GET /api/pending                   Q6; SELF ONLY
+  GET /api/held                      pooled, unconsumed claims; SELF ONLY
+  GET /api/calibration               Q7 + Q8 on own decisions; SELF ONLY
+  GET /api/viewers                   demo identity picker; off by default
+
+SELF ONLY is a stricter rule than the grant ladder: pending packets, held
+claims, and reject reasons are unreviewed model output about a person and
+what they judged wrong about it. A full_trace grant covers the confirmed
+board, never this. These endpoints filter on the viewer's own ref and
+consult no grant at all.
 
 Sessions are READ ONLY: grants are written through grant_access()/
 revoke_access() in SQL (wired to the bot's /share command or an admin flow),
@@ -115,10 +125,134 @@ def me():
 
 @app.route("/api/viewers")
 def viewers():
+    """Demo-only identity picker, OFF unless TL_VIEWER_PICKER=1.
+
+    Every other task-reading endpoint joins through visible_tasks(); this
+    one cannot, because it answers "who could I sign in as" before there
+    is a viewer to scope by. Enumerating everyone who owns a task leaks
+    the existence of people and their work -- the same no-count-leakage
+    rule the team rollup obeys. In production the viewer is the AAD
+    identity on the request and this endpoint does not exist at all.
+    """
+    if os.environ.get("TL_VIEWER_PICKER") != "1":
+        return jsonify({"error": "viewer picker disabled; set "
+                                 "TL_VIEWER_PICKER=1 for local demos"}), 404
     rows = q("SELECT DISTINCT owner_ref AS r FROM tasks_current "
              "WHERE owner_ref IS NOT NULL AND owner_ref <> '' "
              "ORDER BY 1")
     return jsonify({"viewers": [x["r"] for x in rows]})
+
+
+@app.route("/api/pending")
+def pending():
+    """Q6 for the viewer's own packets: what is waiting on them.
+
+    Owner-only, and not weakened by a full_trace board grant: a pending
+    packet is unreviewed model output about someone, which is a strictly
+    more sensitive thing than the confirmed board a grant covers.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    rows = q("""
+        WITH latest AS (
+          SELECT DISTINCT ON (packet_id) packet_id, state
+          FROM packet_state_events ORDER BY packet_id, event_id DESC)
+        SELECT rp.packet_id, l.state, rp.generated_at, rp.expires_at,
+               count(p.proposal_id)                        AS proposals,
+               count(p.proposal_id) - count(d.decision_id) AS undecided,
+               count(*) FILTER (WHERE p.conflict_type IS NOT NULL
+                                  AND d.decision_id IS NULL) AS conflicts
+        FROM review_packets rp
+        JOIN latest l USING (packet_id)
+        JOIN proposals p USING (packet_id)
+        LEFT JOIN decisions d ON d.proposal_id = p.proposal_id
+        WHERE rp.user_ref = %s
+          AND l.state IN ('draft','delivered','partially_decided')
+        GROUP BY rp.packet_id, l.state, rp.generated_at, rp.expires_at
+        HAVING count(p.proposal_id) - count(d.decision_id) > 0
+        ORDER BY rp.generated_at""", (v,))
+    return jsonify({"packets": rows,
+                    "undecided": sum(r["undecided"] for r in rows),
+                    "conflicts": sum(r["conflicts"] for r in rows)})
+
+
+@app.route("/api/held")
+def held():
+    """Claims pooled for the viewer and not yet consumed by a packet.
+
+    The gates that hold a signal (corroboration, closure strictness) leave
+    it in the pool rather than guessing, and until now that state was
+    invisible outside psql -- so work the system knows about but cannot
+    yet propose looked identical to work it never heard. Owner-only: these
+    are unreviewed claims, the same sensitivity as a pending packet.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    return jsonify(q("""
+        SELECT u.signal_id, u.signal_type, u.title, u.confidence,
+               u.deadline_raw, u.status_signal,
+               (SELECT count(*) FROM evidence_refs e
+                 WHERE e.signal_id = u.signal_id)          AS sources,
+               (SELECT min(pe.occurred_at) FROM signal_pool_events pe
+                 WHERE pe.signal_id = u.signal_id
+                   AND pe.user_ref = u.user_ref)           AS pooled_at
+        FROM v_unconsumed_signals u
+        WHERE u.user_ref = %s
+        ORDER BY pooled_at DESC NULLS LAST, u.signal_id""", (v,)))
+
+
+@app.route("/api/calibration")
+def calibration():
+    """Q7 + Q8 over the viewer's OWN decisions: the feedback loop the
+    matching policy calibrates on (MATCHING_POLICY section 5).
+
+    Reject reasons are a record of what a person judged wrong about claims
+    made in their communications, so this is owner-only and never widened
+    by a grant. Drift is the current week against the trailing four-week
+    mean; the histogram routes fixes -- duplicate to thresholds,
+    bad_date_resolution to extraction, wrong_task_match to auto-link.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    drift = q("""
+        WITH weekly AS (
+          SELECT date_trunc('week', d.decided_at) AS wk, p.op,
+                 count(*) FILTER (WHERE d.decision IN ('accept',
+                                                       'accept_edited'))::numeric
+                   / count(*) AS accept_rate,
+                 count(*) AS n
+          FROM decisions d
+          JOIN proposals p USING (proposal_id)
+          JOIN review_packets rp ON rp.packet_id = p.packet_id
+          WHERE d.decision <> 'defer' AND rp.user_ref = %s
+          GROUP BY 1, 2)
+        SELECT wk, op, round(accept_rate, 3) AS accept_rate, n,
+               round(avg(accept_rate) OVER (PARTITION BY op ORDER BY wk
+                     ROWS BETWEEN 4 PRECEDING AND 1 PRECEDING), 3)
+                 AS trailing_4wk,
+               COALESCE((accept_rate - avg(accept_rate) OVER (
+                     PARTITION BY op ORDER BY wk
+                     ROWS BETWEEN 4 PRECEDING AND 1 PRECEDING))
+                 < -0.15, false) AS drift_alarm
+        FROM weekly ORDER BY op, wk""", (v,))
+    rejects = q("""
+        SELECT p.op, d.reject_reason, count(*) AS n
+        FROM decisions d
+        JOIN proposals p USING (proposal_id)
+        JOIN review_packets rp ON rp.packet_id = p.packet_id
+        WHERE d.decision = 'reject' AND rp.user_ref = %s
+        GROUP BY p.op, d.reject_reason
+        ORDER BY n DESC, p.op""", (v,))
+    decided = q("""
+        SELECT count(*) AS n FROM decisions d
+        JOIN proposals p USING (proposal_id)
+        JOIN review_packets rp ON rp.packet_id = p.packet_id
+        WHERE rp.user_ref = %s""", (v,))
+    return jsonify({"drift": drift, "rejects": rejects,
+                    "decisions_total": decided[0]["n"] if decided else 0})
 
 
 @app.route("/api/team")
@@ -289,4 +423,7 @@ def grants_given():
 
 
 if __name__ == "__main__":
+    if os.environ.get("TL_VIEWER_PICKER") != "1":
+        print("viewer picker off (it enumerates everyone with a task); "
+              "type an identity in the header, or set TL_VIEWER_PICKER=1")
     app.run(host="127.0.0.1", port=8090)
