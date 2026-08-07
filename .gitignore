@@ -2,3 +2,7 @@ __pycache__/
 *.pyc
 .DS_Store
 pgdata/
+# Eval worksheets hold real colleague speech; they live outside the
+# repo (the builder enforces it) -- this is the second line of defence.
+*attribution*.json
+task-ledger-eval/

@@ -33,6 +33,7 @@ cd cli               && python3 test_review.py         # review CLI over the liv
 cd cli               && python3 test_share.py          # grant/revoke rules, expiry, audit trail
 cd digest            && python3 test_digest.py         # digest assembly, redaction-by-construction
 cd ask               && python3 test_ask.py            # question routing, refusal, citation, scoping
+cd eval              && python3 test_eval.py           # attribution eval builder (no DB needed)
 cd integration/tests && python3 test_dashboard.py      # dashboard API access rules (own fixture identities)
 cd integration/tests && python3 test_integration.py    # graph ingestion + bot host (not in run_tests)
 cd integration/tenant && python3 test_tenant.py        # webhook host, offline (not in run_tests)
@@ -97,6 +98,7 @@ Communication in → typed signals → proposals → **human decision** → prov
 | `integration/` | Graph ingestion & windowing, bot host, viewer-aware dashboard API + UI, `tenant/` (Graph auth, webhook host, mail subscription) |
 | `cadence/` | weekday tick: inbox → extract → reconcile → digest → notify (launchd; Task Scheduler on Windows) |
 | `digest/` | weekly personal + project digests; pure builder, pg loader, text/HTML/card renderers |
+| `eval/` | attribution eval built from real rejections; worksheets hold real speech and are written outside the repo by force |
 | `ask/` | question answering over confirmed state: rule-based routing, row-assembled answers, refusal when only unconfirmed claims exist |
 | `testdata/` | seeded synthetic messy-comms generator + scorer against golden labels |
 | `deploy/windows/` | no-admin port: portable Postgres on port 5433, batch wrappers |

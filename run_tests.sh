@@ -9,6 +9,7 @@ cd "$(dirname "$0")"
 ( cd cli && python3 test_share.py )
 ( cd digest && python3 test_digest.py )
 ( cd ask && python3 test_ask.py )
+( cd eval && python3 test_eval.py )
 ( cd integration/tests && python3 test_dashboard.py )
 python3 scripts/build_system_map.py
 echo "ALL SUITES COMPLETE"
