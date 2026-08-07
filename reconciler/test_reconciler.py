@@ -529,8 +529,25 @@ def test_pg_live():
     run_id = "test-live-{0}".format(int(time.time()))
     packet, rep = r.reconcile("aad-dev", signals, tasks, version, run_id)
     ops = sorted(p["op"] for p in packet["proposals"])
-    ok("complete_task" in ops and "create_task" in ops,
-       "live reconcile: completion matches seeded task, assignment creates")
+    # The op assertions need the fixture board this chain was built on:
+    # extraction writes the signals, this test seeds task-devocr, and
+    # test_review then ANSWERS the packet -- closing task-devocr and
+    # creating the assignment's task. On a second run against the same
+    # database the completion has nothing open to close and the assignment
+    # matches the task the last run created, both correctly. The chain is
+    # single-shot per database; the persistence assertions below are the
+    # portable ones and still run.
+    seeded = next((t for t in tasks if t["task_id"] == "task-devocr"), None)
+    if len(tasks) == 1 and seeded["status"] not in ("completed",
+                                                    "cancelled"):
+        ok("complete_task" in ops and "create_task" in ops,
+           "live reconcile: completion matches seeded task, assignment "
+           "creates")
+    else:
+        print("  skipped: this database already answered the fixture "
+              "packet (board has {0} task(s), task-devocr is {1}) -- "
+              "op assertions need a fresh scratch DB".format(
+                  len(tasks), seeded["status"]))
 
     result = board_io_pg.write_packet(dsn, packet, rep["consumed"],
                                       rep["annotations"], run_id)
