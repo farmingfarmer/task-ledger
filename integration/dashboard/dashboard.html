@@ -211,10 +211,8 @@
   .wc-meta{font-family:var(--mono);font-size:11px;color:var(--faint);
            margin-top:4px}
   .wc-right{text-align:right;white-space:nowrap}
-  .wc-noted{margin-top:11px;font-size:13.5px;padding:10px 13px;
-            border-radius:var(--r1);
-            background:linear-gradient(180deg,var(--well),var(--well-lit));
-            box-shadow:inset 0 1px 3px rgba(20,30,45,.10)}
+  .wc-noted{margin-top:9px;font-size:13.5px;color:var(--muted);
+            padding-left:11px;border-left:3px solid var(--tint-2)}
   .wc-noted .lead{color:var(--brand);font-weight:700}
   .wc-with{margin-top:10px;display:flex;flex-wrap:wrap;gap:7px;
            align-items:center;font-size:12.5px;color:var(--muted)}
@@ -253,8 +251,9 @@
             margin-top:4px}
   .lede{font-size:14px;font-weight:700;margin-bottom:8px;
         color:var(--brand-deep)}
-  .empty{padding:24px 4px;color:var(--muted);text-align:center;font-size:13px}
-  .empty img{display:block;margin:0 auto 12px;width:140px;opacity:.9}
+  .empty{padding:16px 4px;color:var(--muted);font-size:13px;text-align:left}
+  .empty img{display:none}      /* a 140px illustration for "nothing here"
+                                   cost more space than the content would */
   .loading{text-align:left;color:var(--faint)}
   .err{padding:12px 0;color:var(--brick);font-size:13px;font-weight:600}
 
@@ -313,6 +312,8 @@
           letter-spacing:-.015em;color:var(--ink);margin:0 0 4px}
   .fig .sub{font-size:12.5px;color:var(--muted);margin-bottom:14px;
             line-height:1.45}
+  .sparse{font-size:12.5px;color:var(--faint);padding:14px 0 4px;
+          border-top:1px dashed var(--line)}
   .fig svg{display:block;width:100%;height:auto;overflow:visible}
   .lgd{display:flex;flex-wrap:wrap;gap:15px;margin-top:11px;font-size:12px;
        color:var(--muted)}
@@ -335,6 +336,13 @@
   .tile .n{font-size:11.5px;color:var(--faint);margin-top:4px}
 
   /* ---- ask ------------------------------------------------------- */
+  .askhint{font-size:12px;color:var(--faint);margin-top:7px}
+  .kv{display:flex;justify-content:space-between;gap:14px;padding:8px 0;
+      border-bottom:1px solid var(--line);font-size:13px}
+  .kv:last-child{border-bottom:none}
+  .kv-n{display:inline-block;min-width:22px;font-weight:800;
+        color:var(--brand-deep);font-variant-numeric:tabular-nums}
+  .kv-r{color:var(--faint);font-size:12px;text-align:right}
   .askbar{display:flex;gap:10px;margin-top:16px}
   .askbar input{flex:1}
   #askout:not(:empty){margin-top:14px;background:var(--panel);
@@ -356,13 +364,14 @@
         background:linear-gradient(180deg,var(--tint),#F6FAFF)}
 
   /* ---- more ------------------------------------------------------ */
-  details.more{margin-top:34px;background:var(--panel);border:1px solid var(--line);
-               border-radius:var(--r2);box-shadow:var(--sh-panel)}
+  details.more{margin-bottom:12px;background:var(--panel);
+               border:1px solid var(--line);border-radius:var(--r2);
+               box-shadow:var(--sh-panel)}
   details.more > summary{cursor:pointer;padding:15px 19px;font-weight:700;
        font-size:13.5px;list-style:none;display:flex;align-items:center;gap:10px;
        color:var(--brand-deep);border-radius:var(--r2)}
   details.more > summary::-webkit-details-marker{display:none}
-  details.more > summary::before{content:"\\25b8";color:var(--brand);
+  details.more > summary::before{content:"\25b8";color:var(--brand);
                                  transition:transform .13s}
   details.more[open] > summary::before{transform:rotate(90deg)}
   details.more > summary:hover{background:var(--tint)}
@@ -426,7 +435,7 @@
         <label for="viewer-sel">Viewing as</label>
         <select id="viewer-sel" aria-label="Viewing as"></select>
         <input id="viewer-txt" aria-label="Viewing as (type an identity)"
-               placeholder="or type a ref" size="11">
+               placeholder="type a ref" size="14" hidden>
       </div>
     </div>
 
@@ -440,6 +449,7 @@
              placeholder="Ask the ledger: what is blocked &middot; status of the intake work &middot; what came out of the scrum">
       <button type="submit" class="btn btn-primary">Ask</button>
     </form>
+    <p id="askhint" class="askhint"></p>
     <div id="askout"></div>
   </header>
 
@@ -457,43 +467,61 @@
       </div>
     </section>
 
-    <details class="more">
-      <summary>More &mdash; conversations, projects, sharing, other boards</summary>
-      <div class="more-body">
-        <div class="split">
-          <div>
-            <h3>Meeting follow-through</h3>
-            <div id="meetings"></div>
-            <h3>Calibration</h3>
-            <div id="cal"></div>
-          </div>
-          <div>
-            <h3>Projects</h3>
-            <div id="projects"></div>
-            <h3>Access you have granted</h3>
-            <div id="shares"></div>
-            <h3>Confirmed by you</h3>
-            <div id="recent"></div>
-          </div>
-        </div>
+    <section class="sect" id="sect-more">
+      <h2>Everything else
+        <span class="sub">four separate things, each closed until you want
+          it &mdash; one long list was the problem</span></h2>
 
-        <h3>Other boards shared with you</h3>
-        <div class="team" id="team"></div>
-        <h3 id="board-title">Board</h3>
-        <table class="board">
-          <thead><tr><th>Task</th><th>Status</th><th>Deadline</th></tr></thead>
-          <tbody id="board"></tbody>
-        </table>
-        <div class="split">
-          <div><h3>Waiting on this board</h3><div id="deps"></div></div>
-          <div><h3>What they are waiting for</h3><div id="waiting"></div></div>
+      <details class="more">
+        <summary>Conversations &mdash; what each meeting produced</summary>
+        <div class="more-body"><div id="meetings"></div></div>
+      </details>
+
+      <details class="more">
+        <summary>Other people&rsquo;s boards &mdash; what has been shared
+          with you</summary>
+        <div class="more-body">
+          <div class="team" id="team"></div>
+          <h3 id="board-title">Board</h3>
+          <table class="board">
+            <thead><tr><th>Task</th><th>Status</th><th>Deadline</th></tr></thead>
+            <tbody id="board"></tbody>
+          </table>
+          <div class="split">
+            <div><h3>Waiting on this board</h3><div id="deps"></div></div>
+            <div><h3>What they are waiting for</h3><div id="waiting"></div></div>
+          </div>
+          <h3>History</h3>
+          <div id="drill"><div class="empty">Select a task in the board
+            above to see its history and, where you have full-trace access,
+            the sources behind each change.</div></div>
         </div>
-        <h3>History</h3>
-        <div id="drill"><div class="empty">Select a task in the board above
-          to see its history and, where you have full-trace access, the
-          sources behind each change.</div></div>
-      </div>
-    </details>
+      </details>
+
+      <details class="more">
+        <summary>Sharing &mdash; projects, grants, and what you confirmed</summary>
+        <div class="more-body">
+          <div class="split">
+            <div>
+              <h3>Projects</h3>
+              <div id="projects"></div>
+              <h3>Access you have granted</h3>
+              <div id="shares"></div>
+            </div>
+            <div>
+              <h3>Confirmed by you</h3>
+              <div id="recent"></div>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="more">
+        <summary>Calibration &mdash; how often proposals are right, and why
+          they are not</summary>
+        <div class="more-body"><div id="cal"></div></div>
+      </details>
+    </section>
   </main>
 </div>
 
@@ -1695,6 +1723,9 @@
         String(t.unconfirmed_closures || 0),
         "'done' claims still waiting on corroboration");
 
+      function sparse(node, msg){
+        node.appendChild(el("div","sparse", msg));
+      }
       var f = figure(document.getElementById("fig-confirmed"),
         "Work confirmed each week",
         "Tasks created and completed on the boards you can see. Counts " +
@@ -1707,6 +1738,12 @@
         "Friction each week",
         "Blockers raised, deadlines moved, work cancelled \u2014 the three " +
         "ways plans change after they are agreed.");
+      var anyFriction = d.friction.some(function(r){
+        return r.blocked || r.moved || r.cancelled; });
+      if(!anyFriction)
+        sparse(fr, "Nothing has been blocked, re-dated or cancelled yet. " +
+                   "This chart fills in when plans start changing.");
+      else
       columns(fr, {title: "Friction per week", stacked: true,
         names: ["Blocked", "Deadline moved", "Cancelled"],
         rows: d.friction.map(function(r){
@@ -1718,7 +1755,12 @@
         "Median time between someone saying the work exists and it being " +
         "confirmed on a board. No other tracker can measure this: its " +
         "clock starts when you type.");
-      if(d.latency.length){
+      if(d.latency.length === 1){
+        var only = d.latency[0];
+        sparse(l, "First measurement: " + num(only.median_hours / 24) +
+          " days, across " + only.n + " task(s) confirmed in the week of " +
+          only.wk + ". The line appears once there are two weeks to join.");
+      } else if(d.latency.length){
         lineChart(l, {title: "Said to tracked", unit: "hours",
           points: d.latency.map(function(r){
             return {label: shortWeek(r.wk), v: r.median_hours, n: r.n}; })});
@@ -1829,9 +1871,12 @@
           var svg = sv("svg", {viewBox: "0 0 " + W + " " + Hh, width: W,
             height: Hh, role: "img",
             "aria-label": "claim outcomes for this meeting"});
-          var fills = {"done": "var(--s3)", "on the board": "var(--s1)",
-                       "waiting": "var(--s2)", "rejected": "var(--quiet)",
-                       "no board change": "var(--line)"};
+          // Explicit hex: these bars sit outside .viz, so the chart
+          // custom properties do not resolve here and every segment fell
+          // back to black.
+          var fills = {"done": "#1baf7a", "on the board": "#2a78d6",
+                       "waiting": "#eb6834", "rejected": "#B3402F",
+                       "no board change": "#D3DDE8"};
           segs.forEach(function(s){
             if(!s[1]) return;
             var w = Math.max((s[1] / total) * W - GAP, 2);
@@ -1904,7 +1949,11 @@
   fetch("/api/viewers").then(function(r){
     return r.ok ? r.json() : null;          // 404 = picker disabled
   }).then(function(d){
-    if(!d || !d.viewers || !d.viewers.length) return;
+    if(!d || !d.viewers || !d.viewers.length){
+      sel.hidden = true;                    // no list: type a ref instead
+      txt.hidden = false;
+      return;
+    }
     sel.innerHTML = "";
     d.viewers.forEach(function(v){
       var o = el("option", null, v); o.value = v; sel.appendChild(o);
