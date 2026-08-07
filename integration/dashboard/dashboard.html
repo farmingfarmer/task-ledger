@@ -7,431 +7,445 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
+  /* =================================================================
+     Task ledger \u2014 design system
+     Depth: real controls cast a shadow, lift on hover and press IN on
+     click, so a button looks like something you can press. Flat panels
+     are for content, never for controls.
+     Motion: 120ms, and none at all under prefers-reduced-motion.
+     Contrast: every text colour clears 4.5:1 on the panel. The old
+     "quiet" grey measured 3.08:1 and was carrying small print.
+     ================================================================= */
   :root{
-    --bg:#EEF1F4; --panel:#FFFFFF; --ink:#1B2733; --muted:#5B6B7A;
-    --line:#D8DEE4; --pine:#2E6E63; --brick:#B3402F; --slate:#778390;
-    --quiet:#8A94A0;
-    /* Evidence amber: reserved for one meaning only -- "this links to a
-       source". Nothing else on the page may use it. */
+    --bg:#F1F4F7; --panel:#FFFFFF; --sunken:#F7F9FB;
+    --ink:#1B2733;        /* 15.2:1 */
+    --muted:#5B6B7A;      /*  5.5:1 */
+    --faint:#66727E;      /*  4.9:1 \u2014 small print, replaces #8A94A0 */
+    --line:#DDE3E9; --line-2:#C9D2DB;
+    --pine:#2E6E63; --brick:#B3402F; --slate:#5F6B77;
+    /* Evidence amber: one meaning only \u2014 "this links to a source". */
     --evidence:#D9930D; --evidence-ink:#7A5200; --evidence-bg:#FBF3E2;
+    --sh-1:0 1px 1px rgba(16,24,32,.04), 0 1px 2px rgba(16,24,32,.06);
+    --sh-2:0 2px 4px rgba(16,24,32,.07), 0 6px 16px rgba(16,24,32,.06);
+    --sh-in:inset 0 1px 3px rgba(16,24,32,.16);
+    --r1:7px; --r2:11px; --r3:14px;
     --mono:'IBM Plex Mono',monospace; --sans:'Archivo',system-ui,sans-serif;
   }
   *{box-sizing:border-box;margin:0}
   body{background:var(--bg);color:var(--ink);font-family:var(--sans);
-       font-size:14px;line-height:1.45}
+       font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
   a{color:inherit}
-  button,select{font:inherit;cursor:pointer}
-  :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-  @media (prefers-reduced-motion: reduce){*{transition:none!important}}
-
-  header{padding:20px 28px 14px;display:flex;align-items:baseline;gap:14px;
-         border-bottom:1px solid var(--line);flex-wrap:wrap}
-  header h1{font-weight:800;font-size:19px;letter-spacing:-.01em}
-  header p{color:var(--muted);font-size:13px;flex:1}
-  .viewer{display:flex;align-items:center;gap:8px;font-size:13px}
-  .viewer label{color:var(--muted)}
-  .viewer select{border:1px solid var(--line);border-radius:6px;
-                 background:var(--panel);padding:4px 8px}
-
-  /* ---- page rhythm -------------------------------------------------
-     One column of ranked zones. The order IS the argument: what you own,
-     then what needs you, then what the ledger has measured, then
-     everything else folded away. */
-  main{padding:0 28px 40px;max-width:1180px;margin:0 auto}
-  .zone{margin:26px 0 0}
-  .zone > h2{font-size:15px;font-weight:600;letter-spacing:-.01em;
-             color:var(--ink);text-transform:none;padding:0 0 8px;
-             border:0;border-bottom:1px solid var(--line);margin-bottom:14px;
-             display:flex;flex-wrap:wrap;align-items:baseline;gap:10px}
-  .zsub{font-size:12.5px;font-weight:400;color:var(--muted)}
-  .zone h3{font-size:11px;font-weight:600;letter-spacing:.07em;
-           text-transform:uppercase;color:var(--muted);margin:16px 0 6px}
-  .zone h3:first-child{margin-top:0}
-  .split{display:grid;grid-template-columns:1fr 1fr;gap:24px}
-  @media (max-width:900px){.split{grid-template-columns:1fr}}
-  .col > div{background:var(--panel);border:1px solid var(--line);
-             border-radius:8px;overflow:hidden}
-
-  /* ---- masthead: one tight band, no dead space --------------------
-     Title, mission and identity share a single baseline row; the stats
-     sit directly under it as a full-width strip. An earlier version put
-     the title block and the identity control at opposite ends of a
-     space-between row, which opened a hole across the middle. */
-  .mast{padding:18px 28px 0;max-width:1180px;margin:0 auto}
-  .mast-top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
-  .mast h1{font-weight:800;font-size:19px;letter-spacing:-.02em;
-           white-space:nowrap}
-  .mission{color:var(--muted);font-size:13px;flex:1;min-width:260px}
-  .mast .viewer{margin-left:auto}
-
-  /* ---- the pipeline: the masthead visual ---------------------------
-     The three numbers are not separate metrics, they are three stages of
-     one path: a claim is heard, becomes a proposal, becomes confirmed
-     work. Showing them in order, with the human gate in the middle, makes
-     the strip explain the product as well as report it.
-
-     Ordinal ramp (one hue, light to dark, validated) carries the
-     progression -- colour says "further along", not "different kind".
-     Blocks are EQUAL width on purpose: three heard claims do not become
-     one proposal, so proportional widths would assert a conversion rate
-     that is not there. */
-  .pipe{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;
-        align-items:stretch;gap:0;margin:14px 0 0}
-  @media (max-width:820px){
-    .pipe{grid-template-columns:1fr;gap:8px}
-    .pipe .arrow{display:none}
+  :focus-visible{outline:2px solid var(--ink);outline-offset:2px;
+                 border-radius:4px}
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none!important;animation:none!important}
+    .btn:hover,.stage:hover{transform:none!important}
   }
-  .stage{background:var(--panel);border:1px solid var(--line);
-         border-top:3px solid var(--step);border-radius:8px;
-         padding:12px 14px;text-align:left;font:inherit;cursor:pointer;
-         display:block;width:100%}
-  .stage:hover{background:#F8FAFC}
-  .stage:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-  .stage .v{font-size:26px;font-weight:600;letter-spacing:-.02em;
-            line-height:1.1}
-  .stage .k{font-size:10.5px;font-weight:600;color:var(--muted);
-            text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px}
-  .stage .n{font-size:11.5px;color:var(--quiet);margin-top:3px;
-            line-height:1.35}
-  .stage .go{font-size:11px;color:var(--muted);margin-top:5px;
-             visibility:hidden}
-  .stage:hover .go,.stage:focus-visible .go{visibility:visible}
+
+  /* ---- controls: the thing that was missing ---------------------- */
+  .btn{display:inline-flex;align-items:center;gap:6px;font:inherit;
+       font-size:13px;font-weight:500;color:var(--ink);
+       background:linear-gradient(180deg,#FFFFFF,#F2F5F8);
+       border:1px solid var(--line-2);border-radius:var(--r1);
+       padding:7px 13px;box-shadow:var(--sh-1);cursor:pointer;
+       transition:box-shadow .12s ease,transform .12s ease,background .12s ease}
+  .btn:hover{background:linear-gradient(180deg,#FFFFFF,#E9EEF4);
+             box-shadow:var(--sh-2);transform:translateY(-1px)}
+  .btn:active{transform:translateY(0);box-shadow:var(--sh-in);
+              background:#E4EAF1}
+  .btn[aria-expanded="true"]{background:linear-gradient(180deg,#EAF0F6,#DFE7EF);
+                             box-shadow:var(--sh-in);border-color:#B7C3CE}
+  .btn-primary{color:#fff;border-color:#16202B;
+               background:linear-gradient(180deg,#33465A,#1B2733)}
+  .btn-primary:hover{background:linear-gradient(180deg,#3C5266,#22303E)}
+  .btn-sm{font-size:12px;padding:5px 10px}
+  .btn .caret{font-size:10px;color:var(--muted);transition:transform .12s}
+  .btn[aria-expanded="true"] .caret{transform:rotate(180deg)}
+
+  .chip{font:inherit;font-size:12px;color:var(--muted);cursor:pointer;
+        background:linear-gradient(180deg,#FFFFFF,#F4F7FA);
+        border:1px solid var(--line-2);border-radius:999px;padding:4px 13px;
+        box-shadow:var(--sh-1);transition:all .12s ease}
+  .chip:hover{transform:translateY(-1px);box-shadow:var(--sh-2)}
+  .chip[aria-pressed="true"]{background:linear-gradient(180deg,#33465A,#1B2733);
+                             color:#fff;border-color:#16202B;
+                             box-shadow:var(--sh-in)}
+
+  /* ---- page ------------------------------------------------------ */
+  .shell{max-width:1120px;margin:0 auto;padding:22px 26px 56px}
+  .mast{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+        margin-bottom:6px}
+  .mast h1{font-weight:800;font-size:20px;letter-spacing:-.02em;
+           white-space:nowrap}
+  .mission{color:var(--muted);font-size:13.5px;flex:1;min-width:280px}
+  .idbox{display:flex;align-items:center;gap:7px;font-size:12.5px;
+         color:var(--muted)}
+  .idbox select,.idbox input{font:inherit;font-size:12.5px;
+        border:1px solid var(--line-2);border-radius:var(--r1);
+        padding:5px 9px;background:var(--panel);box-shadow:var(--sh-1)}
+
+  /* ---- the pipeline + its drawer --------------------------------- */
+  .pipe{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;
+        align-items:stretch;margin-top:16px}
+  @media (max-width:840px){
+    .pipe{grid-template-columns:1fr}
+    .pipe .arrow{display:none}
+    .stage{margin-bottom:8px}
+  }
+  .stage{position:relative;text-align:left;font:inherit;cursor:pointer;
+         background:linear-gradient(180deg,#FFFFFF,#F7F9FC);
+         border:1px solid var(--line-2);border-top:3px solid var(--step);
+         border-radius:var(--r2);padding:13px 15px;box-shadow:var(--sh-1);
+         transition:box-shadow .12s ease,transform .12s ease,background .12s}
+  .stage:hover{transform:translateY(-1px);box-shadow:var(--sh-2)}
+  .stage[aria-expanded="true"]{background:linear-gradient(180deg,#FFFFFF,#EEF3F8);
+        box-shadow:var(--sh-2);border-color:#B7C3CE}
+  .stage .k{font-size:10.5px;font-weight:700;color:var(--muted);
+            text-transform:uppercase;letter-spacing:.08em}
+  .stage .v{font-size:30px;font-weight:700;letter-spacing:-.03em;
+            line-height:1.05;margin:3px 0 1px}
+  .stage .n{font-size:12px;color:var(--faint);line-height:1.4}
+  .stage .go{font-size:11.5px;color:var(--muted);margin-top:6px;
+             font-weight:500}
   .stage.act .v{color:var(--brick)}
   .arrow{display:flex;align-items:center;justify-content:center;
-         padding:0 10px;color:var(--quiet);font-size:15px}
+         padding:0 12px;color:var(--line-2);font-size:20px;user-select:none}
+
+  .drawer{position:relative;margin-top:12px;background:var(--panel);
+          border:1px solid var(--line);border-radius:var(--r2);
+          box-shadow:var(--sh-2);overflow:hidden}
+  .drawer-nose{position:absolute;top:-7px;width:12px;height:12px;
+               background:var(--panel);border-left:1px solid var(--line);
+               border-top:1px solid var(--line);transform:rotate(45deg);
+               border-radius:2px 0 0 0}
+  .drawer-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+               padding:13px 16px;border-bottom:1px solid var(--line);
+               background:var(--sunken)}
+  .drawer-head h2{font-size:14px;font-weight:600;letter-spacing:-.01em}
+  .drawer-head .sub{font-size:12.5px;color:var(--muted);flex:1}
+  .drawer-body{padding:14px 16px}
   .pipe-foot{display:flex;justify-content:space-between;gap:12px;
-             flex-wrap:wrap;margin-top:8px;font-size:12px;
+             flex-wrap:wrap;margin-top:10px;font-size:12.5px;
              color:var(--muted)}
-  .pipe-foot button{background:none;border:0;padding:0;font:inherit;
-                    color:var(--muted);text-decoration:underline;
-                    cursor:pointer}
-  .pipe-foot button:hover{color:var(--ink)}
+  .pipe-foot .lagbtn{background:none;border:0;padding:0;font:inherit;
+                     color:var(--muted);text-decoration:underline;
+                     text-underline-offset:2px;cursor:pointer}
+  .pipe-foot .lagbtn:hover{color:var(--ink)}
 
-  .askbar{display:flex;gap:8px;margin:12px 0 0;padding:0;border:0}
-  .askbar input{flex:1;border:1px solid var(--line);border-radius:6px;
-                padding:8px 11px;font:inherit;background:var(--panel)}
-  .askbar button{border:1px solid var(--ink);background:var(--ink);
-                 color:#fff;border-radius:6px;padding:8px 18px;
-                 font-weight:500}
-  #askout:not(:empty){background:var(--panel);border:1px solid var(--line);
-                      border-radius:8px;margin-top:10px;overflow:hidden}
+  /* ---- sections -------------------------------------------------- */
+  .sect{margin-top:30px}
+  .sect > h2{font-size:15px;font-weight:600;letter-spacing:-.01em;
+             display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+             padding-bottom:8px;border-bottom:1px solid var(--line);
+             margin-bottom:14px}
+  .sect > h2 .sub{font-size:12.5px;font-weight:400;color:var(--muted)}
+  .sect h3{font-size:11px;font-weight:700;letter-spacing:.08em;
+           text-transform:uppercase;color:var(--muted);margin:18px 0 7px}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+  @media (max-width:900px){.split{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);
+        border-radius:var(--r2);box-shadow:var(--sh-1);overflow:hidden}
 
-  /* Where a stat sends you, briefly marked so the jump is legible. */
-  .flash{animation:flash 1.2s ease-out}
-  @keyframes flash{from{background:#FBF3E2}to{background:transparent}}
-  @media (prefers-reduced-motion: reduce){.flash{animation:none;
-    outline:2px solid var(--evidence);outline-offset:4px}}
-
-  .filters{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
-  .filters button{border:1px solid var(--line);background:var(--panel);
-                  border-radius:20px;padding:3px 12px;font-size:12px;
-                  color:var(--muted)}
-  .filters button[aria-pressed="true"]{background:var(--ink);color:#fff;
-                                       border-color:var(--ink)}
-
-  /* ---- the work card: the page's centre of gravity ----------------- */
+  /* ---- work cards ------------------------------------------------ */
+  .filters{display:flex;gap:7px;margin-bottom:14px;flex-wrap:wrap}
   .workcard{background:var(--panel);border:1px solid var(--line);
-            border-radius:8px;padding:14px 16px;margin-bottom:10px}
-  .workcard.blocked{border-left:3px solid var(--brick)}
-  .workcard.overdue{border-left:3px solid var(--brick)}
-  .workcard.in_progress{border-left:3px solid var(--pine)}
-  .workcard.proposed{border-left:3px solid var(--slate)}
-  .wc-top{display:flex;justify-content:space-between;gap:14px;
-          align-items:baseline;flex-wrap:wrap}
-  .wc-title{font-size:15px;font-weight:600;letter-spacing:-.01em}
-  .wc-meta{font-family:var(--mono);font-size:11px;color:var(--muted)}
-  .wc-noted{margin-top:8px;font-size:13px;color:var(--ink)}
-  .wc-noted .lead{color:var(--muted)}
-  .wc-with{margin-top:6px;font-size:12.5px;color:var(--muted);
-           display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-  .who-chip{display:inline-block;background:var(--bg);border:1px solid
-            var(--line);border-radius:20px;padding:1px 9px;font-size:11.5px}
+            border-left:3px solid var(--line-2);border-radius:var(--r2);
+            box-shadow:var(--sh-1);padding:14px 16px;margin-bottom:10px;
+            transition:box-shadow .12s ease}
+  .workcard:hover{box-shadow:var(--sh-2)}
+  .workcard.blocked,.workcard.overdue{border-left-color:var(--brick)}
+  .workcard.in_progress{border-left-color:var(--pine)}
+  .workcard.proposed{border-left-color:var(--slate)}
+  .wc-top{display:flex;justify-content:space-between;gap:16px;
+          align-items:flex-start;flex-wrap:wrap}
+  .wc-title{font-size:15.5px;font-weight:600;letter-spacing:-.01em;
+            line-height:1.3}
+  .wc-meta{font-family:var(--mono);font-size:11px;color:var(--faint);
+           margin-top:3px}
+  .wc-right{text-align:right;white-space:nowrap}
+  .wc-noted{margin-top:10px;font-size:13.5px;padding:8px 11px;
+            background:var(--sunken);border-radius:var(--r1)}
+  .wc-noted .lead{color:var(--muted);font-weight:500}
+  .wc-with{margin-top:9px;display:flex;flex-wrap:wrap;gap:6px;
+           align-items:center;font-size:12.5px;color:var(--muted)}
+  .who-chip{display:inline-flex;gap:5px;background:var(--sunken);
+            border:1px solid var(--line);border-radius:999px;
+            padding:2px 11px;font-size:12px}
   .who-chip b{font-weight:600}
-  .wc-actions{margin-top:10px;display:flex;gap:8px;align-items:center}
-  .wc-rail{margin-top:10px;border-top:1px dashed var(--line);padding-top:8px}
-
-  .panel{background:var(--panel);border:1px solid var(--line);
-         border-radius:8px;overflow:hidden;margin-bottom:20px}
-  .panel h2{font-size:12px;font-weight:600;letter-spacing:.08em;
-            text-transform:uppercase;color:var(--muted);
-            padding:12px 16px;border-bottom:1px solid var(--line)}
-
-  .team{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px}
-  .member{border:1px solid var(--line);border-radius:6px;background:var(--bg);
-          padding:8px 12px;text-align:left}
-  .member[aria-pressed="true"]{background:var(--ink);color:#fff;
-          border-color:var(--ink)}
-  .member .name{font-weight:600;display:block}
-  .member .counts{font-family:var(--mono);font-size:11px;color:var(--muted)}
-  .member[aria-pressed="true"] .counts{color:#C7D0D9}
-
-  table{width:100%;border-collapse:collapse}
-  th{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
-     color:var(--muted);text-align:left;padding:8px 16px;
-     border-bottom:1px solid var(--line)}
-  td{padding:10px 16px;border-bottom:1px solid var(--line);vertical-align:top}
-  tr.task{cursor:pointer}
-  tr.task:hover td{background:#F6F8FA}
-  tr.task[aria-selected="true"] td{background:#EDF1F5}
-  td .title{font-weight:500}
-  td .tid{font-family:var(--mono);font-size:11px;color:var(--muted)}
-  .proj{display:inline-block;border:1px solid var(--line);border-radius:3px;
-        background:var(--bg);color:var(--muted);font-size:11px;
-        padding:0 6px;margin-left:6px;vertical-align:1px}
-  .status{display:inline-block;border-left:3px solid;padding:1px 0 1px 7px;
-          font-size:12px;font-weight:500}
-  .s-in_progress{border-color:var(--pine);color:var(--pine)}
-  .s-blocked{border-color:var(--brick);color:var(--brick)}
-  .s-proposed{border-color:var(--slate);color:var(--slate)}
-  .s-completed,.s-cancelled{border-color:var(--quiet);color:var(--quiet)}
-  .deadline{font-family:var(--mono);font-size:12px}
-  .deadline.overdue{color:var(--brick);font-weight:500}
-  .flag{font-size:11px;color:var(--brick)}
-
-  .viewer input{border:1px solid var(--line);border-radius:6px;
-                background:var(--panel);padding:4px 8px;font:inherit}
-  .loud{padding:10px 16px;font-weight:600;font-size:13px;
-        border-bottom:1px solid var(--line)}
-  .quiet{font-size:11px;color:var(--quiet)}
+  .wc-actions{margin-top:11px}
+  .wc-rail{margin-top:11px;border-top:1px dashed var(--line);padding-top:10px}
+  .quiet-note{font-size:12px;color:var(--faint);margin-top:5px}
   .rawdate{font-family:var(--mono);font-size:11px;color:var(--muted);
-           margin-top:2px}
-  .integ{display:block;font-size:10.5px;color:var(--quiet);margin-top:3px}
-  .integ.changed{color:var(--brick)}
-  .dep{padding:10px 16px;border-bottom:1px solid var(--line);font-size:13px}
-  .dep:last-child{border-bottom:none}
-  .dep .who{font-weight:600}
-  .dep .via{font-family:var(--mono);font-size:11px;color:var(--muted)}
+           margin-top:3px}
 
-  .share-row{padding:10px 16px;border-bottom:1px solid var(--line);
-             font-size:13px;display:flex;gap:8px;align-items:baseline}
-  .share-row:last-child{border-bottom:none}
-  .share-row .lvl{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  /* ---- status + flags -------------------------------------------- */
+  .status{display:inline-block;border-radius:999px;padding:2px 11px;
+          font-size:11.5px;font-weight:600;letter-spacing:.02em;
+          border:1px solid}
+  .s-in_progress{color:var(--pine);background:#E9F3F0;border-color:#C6E0D8}
+  .s-blocked{color:var(--brick);background:#FBEDEA;border-color:#F0CFC7}
+  .s-proposed{color:var(--slate);background:#EEF1F4;border-color:#D8DEE4}
+  .s-completed,.s-cancelled{color:var(--muted);background:#F2F4F7;
+                            border-color:var(--line)}
+  .deadline{font-family:var(--mono);font-size:12px;color:var(--muted);
+            margin-top:5px}
+  .deadline.overdue{color:var(--brick);font-weight:600}
 
-  .drill-head{padding:14px 16px;border-bottom:1px solid var(--line)}
-  .drill-head .t{font-size:16px;font-weight:600}
-  .drill-head .tid{font-family:var(--mono);font-size:11px;color:var(--muted)}
-  .level-note{margin:10px 16px 0;padding:8px 12px;border:1px dashed var(--line);
-              border-radius:6px;font-size:12.5px;color:var(--muted)}
-  .rail{padding:6px 0 14px}
-  .ev{display:grid;grid-template-columns:64px 1fr;position:relative}
-  .ev::before{content:"";position:absolute;left:31px;top:0;bottom:0;
+  /* ---- lists ----------------------------------------------------- */
+  .row{padding:11px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+  .row:last-child{border-bottom:none}
+  .row .who{font-weight:600}
+  .row .via{font-family:var(--mono);font-size:11.5px;color:var(--faint);
+            margin-top:3px}
+  .lede{font-size:13.5px;font-weight:600;margin-bottom:6px}
+  .empty{padding:22px 4px;color:var(--muted);text-align:center;
+         font-size:13px}
+  .empty img{display:block;margin:0 auto 12px;width:140px;opacity:.9}
+  .loading{text-align:left;color:var(--faint)}
+  .err{padding:12px 0;color:var(--brick);font-size:13px}
+
+  /* ---- provenance rail ------------------------------------------- */
+  .rail{padding:2px 0}
+  .ev{display:grid;grid-template-columns:56px 1fr;position:relative}
+  .ev::before{content:"";position:absolute;left:27px;top:0;bottom:0;
               width:1px;background:var(--line)}
-  .ev:first-child::before{top:18px}
-  .ev:last-child::before{bottom:auto;height:18px}
-  .vno{font-family:var(--mono);font-size:11px;color:var(--muted);
-       text-align:center;padding-top:12px}
-  .vno b{display:inline-block;background:var(--panel);border:1px solid var(--line);
-         border-radius:10px;padding:1px 7px;font-weight:500}
-  .ebody{padding:10px 16px 12px 4px;border-bottom:1px dashed var(--line)}
-  .ev:last-child .ebody{border-bottom:none}
+  .ev:first-child::before{top:16px}
+  .ev:last-child::before{height:16px;bottom:auto}
+  .vno{font-family:var(--mono);font-size:11px;color:var(--faint);
+       text-align:center;padding-top:10px}
+  .vno b{display:inline-block;background:var(--panel);
+         border:1px solid var(--line);border-radius:999px;padding:1px 7px;
+         font-weight:500}
+  .ebody{padding:9px 0 12px 6px}
   .etype{font-weight:600;font-size:13px}
-  .actor{display:inline-block;font-size:10.5px;font-weight:600;
-         letter-spacing:.05em;text-transform:uppercase;border-radius:3px;
-         padding:1px 6px;margin-left:8px;vertical-align:1px}
-  .a-manual_edit{background:#E4E9EE;color:var(--muted)}
-  .a-user_decision{background:#E2EEE9;color:var(--pine)}
-  .a-system{background:#F0F1F3;color:var(--quiet)}
-  .rationale{color:var(--muted);margin-top:3px}
-  .redacted{color:var(--quiet);font-style:italic}
-  .meta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:4px}
-
-  .trace-btn{margin-top:8px;background:var(--evidence-bg);
-             border:1px solid var(--evidence);color:var(--evidence-ink);
-             border-radius:5px;padding:3px 10px;font-size:12px;font-weight:500}
-  .trace-btn:hover{background:#F6E8C8}
-  .trace{margin:8px 0 2px;border-left:2px solid var(--evidence);
-         padding:8px 0 2px 12px}
-  .sig{margin-bottom:8px}
-  .sig .st{font-size:12.5px}
-  .sig .sm{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .actor{display:inline-block;font-size:10px;font-weight:700;
+         letter-spacing:.06em;text-transform:uppercase;border-radius:4px;
+         padding:2px 7px;margin-left:8px;vertical-align:1px}
+  .a-manual_edit{background:#EDF1F5;color:var(--muted)}
+  .a-user_decision{background:#E9F3F0;color:var(--pine)}
+  .a-system{background:#F2F4F7;color:var(--muted)}
+  .rationale{color:var(--muted);margin-top:3px;font-size:13px}
+  .redacted{color:var(--faint);font-style:italic}
+  .meta{font-family:var(--mono);font-size:11px;color:var(--faint);
+        margin-top:4px}
   .src{display:inline-block;background:var(--evidence-bg);
        border:1px solid var(--evidence);color:var(--evidence-ink);
-       border-radius:4px;padding:2px 8px;font-family:var(--mono);
-       font-size:11px;margin:4px 6px 0 0}
-
-  /* ---- charts -------------------------------------------------------
-     Series colours are the validated categorical slots 1-3 (blue, orange,
-     aqua), assigned in fixed order and never cycled. They are deliberately
-     NOT the board's status colours, and never the evidence amber, which
-     means one thing on this page. Slot 3 sits below 3:1 on white, so every
-     chart ships visible labels and a table twin -- the documented relief. */
-  .viz{--s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
-       --grid:var(--line); --surface:var(--panel)}
-  .wide{padding:0 28px 28px}
-  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-         gap:1px;background:var(--line);border-bottom:1px solid var(--line)}
-  .tile{background:var(--panel);padding:14px 16px}
-  .tile .v{font-size:26px;font-weight:600;letter-spacing:-.02em;
-           line-height:1.1}
-  .tile .k{font-size:11px;color:var(--muted);text-transform:uppercase;
-           letter-spacing:.06em;margin-bottom:4px}
-  .tile .n{font-size:11.5px;color:var(--quiet);margin-top:3px}
-  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
-  .fig{margin:0;padding:14px 16px 8px;border-right:1px solid var(--line);
-       border-bottom:1px solid var(--line)}
-  .fig h3{font-size:13px;font-weight:600;margin-bottom:2px}
-  .fig .sub{font-size:11.5px;color:var(--muted);margin-bottom:8px}
-  .fig svg{display:block;width:100%;height:auto;overflow:visible}
-  .lgd{display:flex;flex-wrap:wrap;gap:12px;margin:6px 0 0;font-size:11.5px;
-       color:var(--muted)}
-  .lgd span.k{display:inline-block;width:9px;height:9px;border-radius:2px;
-              margin-right:5px;vertical-align:0}
-  .tbl-btn{background:none;border:0;color:var(--muted);font-size:11px;
-           text-decoration:underline;padding:4px 0;cursor:pointer}
-  .vtbl{width:100%;font-size:11.5px;margin-top:4px}
-  .vtbl th,.vtbl td{padding:3px 6px;border-bottom:1px solid var(--line);
-                    font-variant-numeric:tabular-nums;text-align:right}
-  .vtbl th:first-child,.vtbl td:first-child{text-align:left}
-  .viztip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;
-          font-size:11.5px;padding:6px 9px;border-radius:5px;opacity:0;
-          transition:opacity .1s;z-index:20;max-width:230px}
-  .viztip b{font-weight:600}
-  .askbar{display:flex;gap:8px;padding:12px 16px;border-bottom:1px solid
-          var(--line)}
-  .askbar input{flex:1;border:1px solid var(--line);border-radius:6px;
-                padding:7px 10px;font:inherit;background:var(--panel)}
-  .askbar button{border:1px solid var(--ink);background:var(--ink);color:#fff;
-                 border-radius:6px;padding:7px 16px;font-weight:500}
-  .afact{padding:10px 16px;border-bottom:1px solid var(--line)}
-  .afact:last-child{border-bottom:none}
-  .acite{font-family:var(--mono);font-size:11px;color:var(--muted);
-         margin-top:3px;padding-left:12px;border-left:2px solid var(--line)}
-  .acite.ev{border-left-color:var(--evidence);color:var(--evidence-ink)}
-  .arefuse{padding:12px 16px;color:var(--muted);font-size:13px;
-           background:#F6F8FA;border-bottom:1px solid var(--line)}
-  .aunconf{padding:10px 16px;border-bottom:1px solid var(--line);
-           font-size:12.5px}
-  .aunconf .hdr{font-size:11px;text-transform:uppercase;letter-spacing:.06em;
-                color:var(--muted);margin-bottom:4px}
-  .mtg{padding:10px 16px;border-bottom:1px solid var(--line);cursor:pointer}
-  .mtg:last-child{border-bottom:none}
-  .mtg:hover{background:#F6F8FA}
-  .mtg .t{font-weight:500;font-size:13px}
-  .mtg .m{font-family:var(--mono);font-size:11px;color:var(--muted);
-          margin-top:2px}
-  .mtg svg{display:block;margin-top:6px}
-  .claim{padding:7px 16px 7px 28px;border-bottom:1px dashed var(--line);
-         font-size:12.5px}
-  .oc{display:inline-block;font-size:10.5px;font-weight:600;border-radius:3px;
-      padding:1px 6px;margin-right:7px;text-transform:uppercase;
-      letter-spacing:.04em;background:#EDF1F5;color:var(--muted)}
-  .oc-done{background:#E2EEE9;color:var(--pine)}
-  .oc-board{background:#E7EEF8;color:#1c5cab}
-  .oc-waiting{background:#F3EEE4;color:#7A5200}
-  .oc-rejected{background:#F6E6E3;color:var(--brick)}
-
+       border-radius:var(--r1);padding:3px 9px;font-family:var(--mono);
+       font-size:11px;margin:5px 6px 0 0}
+  .integ{display:block;font-size:11px;color:var(--faint);margin-top:4px}
+  .integ.changed{color:var(--brick);font-weight:600}
+  .trace{margin:8px 0 2px;border-left:2px solid var(--evidence);
+         padding:8px 0 2px 12px}
+  .sig{margin-bottom:10px}
+  .sig .st{font-size:13px}
+  .sig .sm{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .level-note{margin:0 0 10px;padding:10px 12px;background:var(--sunken);
+              border:1px solid var(--line);border-radius:var(--r1);
+              font-size:12.5px;color:var(--muted)}
   .lg-h{font-weight:600;color:var(--ink);margin-bottom:4px}
   .lg-s{margin-top:6px}
   .level-note ul{margin:4px 0 0 18px;padding:0}
   .level-note li{margin:2px 0}
-  .lg-f{margin-top:8px;font-size:12px}
-  .loading{padding:18px 16px;text-align:left;font-size:12.5px}
-  .empty{padding:28px 16px;color:var(--muted);text-align:center}
-  .empty img{display:block;margin:0 auto 12px;width:150px;height:auto;
-             opacity:.9}
-  .err{padding:14px 16px;color:var(--brick)}
+  .lg-f{margin-top:8px}
+
+  /* ---- charts ---------------------------------------------------- */
+  .viz{--s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
+       --grid:var(--line); --surface:var(--panel)}
+  .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));
+          gap:16px}
+  .fig{margin:0;padding:16px;background:var(--panel);
+       border:1px solid var(--line);border-radius:var(--r2);
+       box-shadow:var(--sh-1)}
+  .fig h3{font-size:14px;font-weight:600;text-transform:none;
+          letter-spacing:-.01em;color:var(--ink);margin:0 0 3px}
+  .fig .sub{font-size:12.5px;color:var(--muted);margin-bottom:12px;
+            line-height:1.45}
+  .fig svg{display:block;width:100%;height:auto;overflow:visible}
+  .lgd{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:12px;
+       color:var(--muted)}
+  .lgd span.k{display:inline-block;width:10px;height:10px;border-radius:3px;
+              margin-right:6px}
+  .vtbl{width:100%;font-size:12px;margin-top:10px;border-collapse:collapse}
+  .vtbl th,.vtbl td{padding:5px 8px;border-bottom:1px solid var(--line);
+                    font-variant-numeric:tabular-nums;text-align:right}
+  .vtbl th{color:var(--muted);font-weight:600}
+  .vtbl th:first-child,.vtbl td:first-child{text-align:left}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+         gap:12px;margin-bottom:16px}
+  .tile{background:var(--panel);border:1px solid var(--line);
+        border-radius:var(--r2);box-shadow:var(--sh-1);padding:13px 15px}
+  .tile .k{font-size:10.5px;font-weight:700;color:var(--muted);
+           text-transform:uppercase;letter-spacing:.08em}
+  .tile .v{font-size:24px;font-weight:700;letter-spacing:-.02em;margin-top:3px}
+  .tile .n{font-size:11.5px;color:var(--faint);margin-top:3px}
+
+  /* ---- ask ------------------------------------------------------- */
+  .askbar{display:flex;gap:9px;margin-top:14px}
+  .askbar input{flex:1;font:inherit;border:1px solid var(--line-2);
+                border-radius:var(--r1);padding:9px 13px;background:var(--panel);
+                box-shadow:var(--sh-in)}
+  .askbar input:focus{outline:2px solid var(--ink);outline-offset:1px}
+  #askout:not(:empty){margin-top:12px;background:var(--panel);
+        border:1px solid var(--line);border-radius:var(--r2);
+        box-shadow:var(--sh-1);overflow:hidden}
+  .afact{padding:12px 16px;border-bottom:1px solid var(--line)}
+  .afact:last-child{border-bottom:none}
+  .acite{font-family:var(--mono);font-size:11px;color:var(--muted);
+         margin-top:5px;padding-left:11px;border-left:2px solid var(--line)}
+  .acite.ev{border-left-color:var(--evidence);color:var(--evidence-ink)}
+  .arefuse{padding:13px 16px;background:var(--sunken);
+           border-bottom:1px solid var(--line);font-size:13px;
+           color:var(--muted)}
+  .aunconf{padding:12px 16px;border-bottom:1px solid var(--line);
+           font-size:13px}
+  .aunconf .hdr{font-size:10.5px;font-weight:700;text-transform:uppercase;
+                letter-spacing:.08em;color:var(--muted);margin-bottom:5px}
+  .loud{font-weight:600;font-size:14px;padding:13px 16px;
+        border-bottom:1px solid var(--line)}
+
+  /* ---- more ------------------------------------------------------ */
+  details.more{margin-top:30px;background:var(--panel);
+               border:1px solid var(--line);border-radius:var(--r2);
+               box-shadow:var(--sh-1)}
+  details.more > summary{cursor:pointer;padding:14px 18px;font-weight:600;
+                         font-size:13.5px;list-style:none;
+                         display:flex;align-items:center;gap:9px}
+  details.more > summary::-webkit-details-marker{display:none}
+  details.more > summary::before{content:"\\25b8";color:var(--muted);
+                                 transition:transform .12s}
+  details.more[open] > summary::before{transform:rotate(90deg)}
+  details.more > summary:hover{background:var(--sunken)}
+  .more-body{padding:4px 18px 20px;border-top:1px solid var(--line)}
+  .mtg{padding:11px 0;border-bottom:1px solid var(--line);cursor:pointer}
+  .mtg:last-child{border-bottom:none}
+  .mtg:hover{background:var(--sunken)}
+  .mtg .t{font-weight:600;font-size:13.5px}
+  .mtg .m{font-family:var(--mono);font-size:11px;color:var(--faint);
+          margin-top:3px}
+  .mtg svg{display:block;margin-top:7px}
+  .claim{padding:8px 0 8px 22px;border-bottom:1px dashed var(--line);
+         font-size:13px}
+  .oc{display:inline-block;font-size:10px;font-weight:700;border-radius:4px;
+      padding:2px 7px;margin-right:8px;text-transform:uppercase;
+      letter-spacing:.05em;background:#EDF1F5;color:var(--muted)}
+  .oc-done{background:#E9F3F0;color:var(--pine)}
+  .oc-board{background:#E7EEF8;color:#1c5cab}
+  .oc-waiting{background:var(--evidence-bg);color:var(--evidence-ink)}
+  .oc-rejected{background:#FBEDEA;color:var(--brick)}
+  .team{display:flex;flex-wrap:wrap;gap:9px}
+  .member{border:1px solid var(--line-2);border-radius:var(--r1);
+          background:linear-gradient(180deg,#FFF,#F4F7FA);padding:9px 13px;
+          text-align:left;font:inherit;cursor:pointer;box-shadow:var(--sh-1)}
+  .member:hover{transform:translateY(-1px);box-shadow:var(--sh-2)}
+  .member[aria-pressed="true"]{background:linear-gradient(180deg,#33465A,#1B2733);
+          color:#fff;border-color:#16202B}
+  .member .name{font-weight:600;display:block;font-size:13px}
+  .member .counts{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .member[aria-pressed="true"] .counts{color:#C7D0D9}
+  table.board{width:100%;border-collapse:collapse;margin-top:6px}
+  table.board th{font-size:10.5px;font-weight:700;letter-spacing:.07em;
+     text-transform:uppercase;color:var(--muted);text-align:left;
+     padding:7px 10px;border-bottom:1px solid var(--line)}
+  table.board td{padding:10px;border-bottom:1px solid var(--line);
+                 vertical-align:top;font-size:13px}
+  table.board tr.task{cursor:pointer}
+  table.board tr.task:hover td{background:var(--sunken)}
+  .share-row{padding:10px 0;border-bottom:1px solid var(--line);
+             font-size:13px;display:flex;gap:9px;align-items:baseline;
+             flex-wrap:wrap}
+  .share-row:last-child{border-bottom:none}
+  .share-row .lvl{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  .flag{font-size:11.5px;color:var(--brick);font-weight:600}
+  .proj{display:inline-block;border:1px solid var(--line);border-radius:4px;
+        background:var(--sunken);color:var(--muted);font-size:11px;
+        padding:1px 7px;margin-left:7px;vertical-align:1px}
+  .viztip{position:fixed;pointer-events:none;background:var(--ink);
+          color:#fff;font-size:12px;padding:7px 10px;border-radius:var(--r1);
+          opacity:0;transition:opacity .1s;z-index:30;max-width:240px;
+          box-shadow:var(--sh-2)}
 </style>
 </head>
 <body>
-<header class="mast">
-  <div class="mast-top">
-    <h1>Task ledger</h1>
-    <p class="mission">Your work, as the conversations recorded it &mdash;
-      every fact traceable to the sentence that produced it.</p>
-    <div class="viewer">
-      <label for="viewer-sel">Viewing as</label>
-      <select id="viewer-sel" aria-label="Viewing as"></select>
-      <input id="viewer-txt" aria-label="Viewing as (type an identity)"
-             placeholder="or type a ref" size="12">
-    </div>
-  </div>
-
-  <div class="pipe" id="hero"></div>
-  <div class="pipe-foot" id="pipefoot"></div>
-
-  <form id="askform" class="askbar">
-    <input id="askq" type="search" autocomplete="off"
-           aria-label="Ask the ledger"
-           placeholder="Ask: what is blocked &middot; status of the intake work &middot; what came out of the scrum">
-    <button type="submit">Ask</button>
-  </form>
-  <div id="askout"></div>
-</header>
-
-<main>
-  <section class="zone" id="zone-work">
-    <h2>Your work
-      <span class="zsub">what you own, where each item was last noted, and
-        who else is attached to it</span></h2>
-    <div id="work"></div>
-  </section>
-
-  <section class="zone" id="zone-needs">
-    <h2>Needs you
-      <span class="zsub">nothing here changes the board until you say so</span></h2>
-    <div class="split">
-      <div class="col">
-        <h3>Proposals awaiting your review</h3>
-        <div id="pending"></div>
-      </div>
-      <div class="col">
-        <h3>Heard, not yet confirmed</h3>
-        <div id="held"></div>
+<div class="shell">
+  <header>
+    <div class="mast">
+      <h1>Task ledger</h1>
+      <p class="mission">Your work, as the conversations recorded it &mdash;
+        every fact traceable to the sentence that produced it.</p>
+      <div class="idbox">
+        <label for="viewer-sel">Viewing as</label>
+        <select id="viewer-sel" aria-label="Viewing as"></select>
+        <input id="viewer-txt" aria-label="Viewing as (type an identity)"
+               placeholder="or type a ref" size="11">
       </div>
     </div>
-  </section>
 
-  <section class="zone" id="zone-signals">
-    <h2>Signals over time
-      <span class="zsub">what the ledger has measured about your work and
-        about itself</span></h2>
-    <div id="tiles" class="tiles"></div>
-    <div class="charts">
-      <figure class="fig" id="fig-latency"></figure>
-      <figure class="fig" id="fig-confirmed"></figure>
-      <figure class="fig" id="fig-friction"></figure>
-      <figure class="fig" id="fig-queue"></figure>
-    </div>
-  </section>
+    <div class="pipe" id="pipe"></div>
+    <div class="pipe-foot" id="pipefoot"></div>
+    <section class="drawer" id="drawer" aria-live="polite"></section>
 
-  <details class="zone more">
-    <summary>More &mdash; conversations, projects, sharing, other boards</summary>
-    <div class="more-body">
-      <div class="split">
-        <div class="col">
-          <h3>Meeting follow-through</h3>
-          <div id="meetings"></div>
+    <form id="askform" class="askbar">
+      <input id="askq" type="search" autocomplete="off"
+             aria-label="Ask the ledger"
+             placeholder="Ask the ledger: what is blocked &middot; status of the intake work &middot; what came out of the scrum">
+      <button type="submit" class="btn btn-primary">Ask</button>
+    </form>
+    <div id="askout"></div>
+  </header>
+
+  <main>
+    <section class="sect" id="sect-signals">
+      <h2>Signals over time
+        <span class="sub">what the ledger has measured about your work, and
+          about itself</span></h2>
+      <div id="tiles" class="tiles"></div>
+      <div class="charts">
+        <figure class="fig viz" id="fig-latency"></figure>
+        <figure class="fig viz" id="fig-confirmed"></figure>
+        <figure class="fig viz" id="fig-friction"></figure>
+        <figure class="fig viz" id="fig-queue"></figure>
+      </div>
+    </section>
+
+    <details class="more">
+      <summary>More &mdash; conversations, projects, sharing, other boards</summary>
+      <div class="more-body">
+        <div class="split">
+          <div>
+            <h3>Meeting follow-through</h3>
+            <div id="meetings"></div>
+            <h3>Calibration</h3>
+            <div id="cal"></div>
+          </div>
+          <div>
+            <h3>Projects</h3>
+            <div id="projects"></div>
+            <h3>Access you have granted</h3>
+            <div id="shares"></div>
+            <h3>Confirmed by you</h3>
+            <div id="recent"></div>
+          </div>
         </div>
-        <div class="col">
-          <h3>Projects</h3>
-          <div id="projects"></div>
-          <h3>Access you have granted</h3>
-          <div id="shares"></div>
-          <h3>Confirmed by you</h3>
-          <div id="recent"></div>
-        </div>
-      </div>
 
-      <h3>Other boards shared with you</h3>
-      <div class="team" id="team"></div>
-      <h3 id="board-title">Board</h3>
-      <table>
-        <thead><tr><th>Task</th><th>Status</th><th>Deadline</th></tr></thead>
-        <tbody id="board"></tbody>
-      </table>
-      <div class="split">
-        <div class="col"><h3>Waiting on this board</h3><div id="deps"></div></div>
-        <div class="col"><h3>What they are waiting for</h3><div id="waiting"></div></div>
+        <h3>Other boards shared with you</h3>
+        <div class="team" id="team"></div>
+        <h3 id="board-title">Board</h3>
+        <table class="board">
+          <thead><tr><th>Task</th><th>Status</th><th>Deadline</th></tr></thead>
+          <tbody id="board"></tbody>
+        </table>
+        <div class="split">
+          <div><h3>Waiting on this board</h3><div id="deps"></div></div>
+          <div><h3>What they are waiting for</h3><div id="waiting"></div></div>
+        </div>
+        <h3>History</h3>
+        <div id="drill"><div class="empty">Select a task in the board above
+          to see its history and, where you have full-trace access, the
+          sources behind each change.</div></div>
       </div>
-      <h3>History</h3>
-      <div id="drill"><div class="empty">Select a task above to see its
-        history and, where you have full-trace access, the sources behind
-        each change.</div></div>
-      <h3>Calibration</h3>
-      <div id="cal"></div>
-    </div>
-  </details>
-</main>
+    </details>
+  </main>
+</div>
 
 <script>
 (function(){
@@ -481,7 +495,7 @@
       : "Could not load this panel: " + e.message);
     node.appendChild(box);
     if(retry && !e.forbidden){
-      var again = el("button","trace-btn","Try again");
+      var again = el("button","btn btn-sm","Try again");
       again.addEventListener("click", retry);
       node.appendChild(again);
     }
@@ -511,6 +525,8 @@
   function boot(){
     document.getElementById("drill").innerHTML =
       '<div class="empty">Select a task to see its history.</div>';
+    STATE.work = STATE.pending = STATE.held = null;
+    paintPipe(); paintDrawer();
     loadWork(); loadPending(); loadHeld(); loadMetrics();
     loadTeam(); loadShares(); loadCalibration();
     loadProjects(); loadRecent(); loadMeetings();
@@ -570,69 +586,32 @@
   }
 
   // ---- your own review loop (Q6): self-only, never widened by a grant ----
+  // Self-only, never widened by a grant. Feeds the cache; the drawer
+  // decides whether it is on screen.
   function loadPending(){
-    panel("pending", "/api/pending", function(box, d){
-      HERO.pending = d.undecided; paintHero();
-      if(!d.undecided){
-        box.appendChild(el("div","empty",
-          "Nothing waiting. Proposals appear here after a cadence run."));
-        return;
-      }
+    get("/api/pending").then(function(d){
+      STATE.pending = d;
       HERO.pending = d.undecided;
-      HERO.pendingNote = d.conflicts ? d.conflicts + " flagged" :
-                                       "proposals, nothing applied yet";
-      paintHero();
-      var head = el("div","loud",
-        d.undecided + " proposal" + (d.undecided===1?"":"s") + " awaiting you" +
-        (d.conflicts ? " \u00b7 " + d.conflicts + " flagged" : ""));
-      box.appendChild(head);
-      d.packets.forEach(function(p){
-        var row = el("div","dep");
-        row.appendChild(el("div", null,
-          p.undecided + " of " + p.proposals + " undecided \u00b7 " + p.state));
-        row.appendChild(el("div","via", "packet " + p.packet_id.slice(0,12) +
-          " \u00b7 built " + (p.generated_at||"").slice(0,10) +
-          (p.expires_at ? " \u00b7 expires " + p.expires_at.slice(0,10) : "")));
-        box.appendChild(row);
-      });
-      box.appendChild(el("div","via",
-        "Answer them: python3 cli/review.py --as " + state.viewer));
+      paintPipe();
+      if(STATE.stage === "pending") paintDrawer();
+    }).catch(function(){
+      STATE.pending = {undecided: 0, packets: []};
+      paintPipe();
     });
   }
 
-  // ---- claims the gates are holding, not guessing at ----
+  // Claims the gates are holding rather than guessing at. Self-only.
   function loadHeld(){
-    panel("held", "/api/held", function(box, rows){
-      HERO.held = rows.length; paintHero();
-      if(!rows.length){
-        box.appendChild(el("div","empty",
-          "No claims are waiting. Anything the gates hold shows up here."));
-        return;
-      }
-      rows.forEach(function(s){
-        var d = el("div","dep");
-        d.appendChild(el("div", null,
-          s.signal_type.replace(/_/g," ") + ": \u201c" + s.title + "\u201d"));
-        d.appendChild(el("div","via",
-          s.sources + " source" + (s.sources===1?"":"s") + " \u00b7 " +
-          Math.round(s.confidence*100) + "% \u00b7 pooled " +
-          (s.pooled_at||"").slice(0,10) +
-          (s.deadline_raw ? " \u00b7 said \u201c" + s.deadline_raw + "\u201d" : "")));
-        box.appendChild(d);
-      });
+    get("/api/held").then(function(rows){
+      STATE.held = rows;
+      HERO.held = rows.length;
+      paintPipe();
+      if(STATE.stage === "held") paintDrawer();
+    }).catch(function(){
+      STATE.held = [];
+      paintPipe();
     });
   }
-
-  // ---- calibration (Q7 drift + Q8 reject reasons), self-only ----
-  var REASON_ROUTE = {
-    duplicate: "matching thresholds",
-    wrong_task_match: "auto-link threshold",
-    bad_date_resolution: "extraction",
-    not_a_task: "extraction",
-    wrong_owner: "attribution",
-    wrong_status: "status gates",
-    stale: "cadence latency"
-  };
 
   function loadCalibration(){
     panel("cal", "/api/calibration", function(box, d){
@@ -674,99 +653,187 @@
   }
 
   // ==================================================================
-  // Your work: the card that answers "what am I on, where did it get
-  // to, and who else is attached" without a click. Everything on it
-  // comes from one board row -- status, the last thing the ledger
-  // noted, the people the work touches, and the receipts underneath.
+  // The pipeline and its drawer.
+  //
+  // One control, three stages, and the detail opens directly underneath
+  // the stage you pressed -- nothing scrolls, nothing jumps. An earlier
+  // version threw the page around with scrollIntoView, which loses your
+  // place and hides the fact that anything happened at all.
   // ==================================================================
-  var HERO = {};
-
-  // Each headline number is a control: it takes you to the layer of
-  // detail behind it, rather than making you find the panel yourself.
-  // A number you cannot follow is a number you cannot act on.
-  // The masthead visual: one path, three stages, the human gate in the
-  // middle. Each stage is a control into the layer behind it.
   var STEP = ["#86b6ef", "#3987e5", "#1c5cab"];   // validated ordinal ramp
+  var HERO = {};
+  var STATE = {stage: "work", filter: "open", work: null, pending: null,
+               held: null};
 
-  function paintHero(){
-    var box = document.getElementById("hero");
+  var STAGES = [
+    {key: "held", label: "Heard", idx: 0,
+     note: "claims from conversation, waiting on a second source",
+     go: "See the claims",
+     head: "Heard, not yet confirmed",
+     sub: "The gates hold a claim rather than guess. Each waits for a " +
+          "second source, or for you to decide."},
+    {key: "pending", label: "Awaiting you", idx: 1,
+     note: "proposals \u2014 nothing reaches the board until you accept it",
+     go: "See what is waiting",
+     head: "Proposals awaiting your review",
+     sub: "Answer them with cli/review.py. Nothing here has touched the " +
+          "board."},
+    {key: "work", label: "On your board", idx: 2,
+     note: "confirmed work, traceable to what was said",
+     go: "See the work",
+     head: "Your work",
+     sub: "Where each item was last noted, and who else is attached to it."}
+  ];
+
+  function stageByKey(k){
+    for(var i = 0; i < STAGES.length; i++)
+      if(STAGES[i].key === k) return STAGES[i];
+    return STAGES[2];
+  }
+
+  function paintPipe(){
+    var box = document.getElementById("pipe");
     box.innerHTML = "";
-
-    function stage(i, k, v, n, go, onClick, urgent){
-      var b = el2("button", "stage" + (urgent ? " act" : ""));
+    STAGES.forEach(function(st, i){
+      if(i) box.appendChild(el("div","arrow","\u203a"));
+      var count = st.key === "held" ? HERO.held
+                : st.key === "pending" ? HERO.pending : HERO.active;
+      var b = el2("button", "stage" +
+        (st.key === "pending" && HERO.pending > 0 ? " act" : ""));
       b.type = "button";
-      b.style.setProperty("--step", STEP[i]);
-      b.appendChild(el("div","k", k));
-      b.appendChild(el("div","v", v == null ? "\u2014" : String(v)));
-      b.appendChild(el("div","n", n));
-      b.appendChild(el("div","go", go));
-      b.addEventListener("click", onClick);
+      b.style.setProperty("--step", STEP[st.idx]);
+      b.setAttribute("aria-expanded", String(STATE.stage === st.key));
+      b.setAttribute("aria-controls", "drawer");
+      b.appendChild(el("div","k", st.label));
+      b.appendChild(el("div","v", count == null ? "\u2014" : String(count)));
+      b.appendChild(el("div","n", st.key === "work" && HERO.activeNote
+                                  ? HERO.activeNote : st.note));
+      b.appendChild(el("div","go", (STATE.stage === st.key ? "\u2713 showing"
+                                                           : st.go)));
+      b.addEventListener("click", function(){
+        STATE.stage = st.key;
+        paintPipe();
+        paintDrawer();
+      });
       box.appendChild(b);
-    }
-    function arrow(){
-      box.appendChild(el("div","arrow", "\u203a"));
-    }
+    });
+    paintFoot();
+  }
 
-    stage(0, "Heard", HERO.held,
-          "claims from conversation, waiting on a second source",
-          "see the claims \u2193",
-          function(){ focusZone("zone-needs", "held"); });
-    arrow();
-    stage(1, "Awaiting you", HERO.pending,
-          HERO.pendingNote || "proposals \u2014 nothing reaches the board "
-                              + "until you accept it",
-          "see what is waiting \u2193",
-          function(){ focusZone("zone-needs", "pending"); },
-          HERO.pending > 0);
-    arrow();
-    stage(2, "On your board", HERO.active,
-          HERO.activeNote || "confirmed work, each fact traceable",
-          "see the open items \u2193",
-          function(){ setWorkFilter("open"); focusZone("zone-work"); });
-
+  function paintFoot(){
     var foot = document.getElementById("pipefoot");
     foot.innerHTML = "";
-    var lag = el2("button", null);
+    var lag = el2("button","lagbtn");
     lag.type = "button";
     lag.textContent = "Median " + (HERO.lag || "\u2014") +
       " from said to tracked" +
-      (HERO.lagTasks ? " across " + HERO.lagTasks + " task(s)" : "");
+      (HERO.lagTasks ? ", across " + HERO.lagTasks + " task(s)" : "");
     lag.addEventListener("click", function(){
-      focusZone("zone-signals", "fig-latency");
       openTable(document.getElementById("fig-latency"));
+      document.getElementById("fig-latency").classList.add("flash");
     });
     foot.appendChild(lag);
     foot.appendChild(el("span", null,
       "Nothing moves right without a human decision."));
   }
 
-  // Scroll to the zone, then mark the thing worth looking at.
-  function focusZone(zoneId, innerId){
-    var zone = document.getElementById(zoneId);
-    if(!zone) return;
-    zone.scrollIntoView({behavior: "smooth", block: "start"});
-    var target = innerId ? document.getElementById(innerId) : zone;
-    if(!target) target = zone;
-    target.classList.remove("flash");
-    void target.offsetWidth;                 // restart the animation
-    target.classList.add("flash");
+  // The drawer's nose points at the stage that opened it, so the
+  // connection between the press and the panel is visible.
+  function paintDrawer(){
+    var st = stageByKey(STATE.stage);
+    var box = document.getElementById("drawer");
+    box.innerHTML = "";
+    var nose = el2("div","drawer-nose");
+    nose.style.left = ((st.idx * 2 + 1) / 6 * 100) + "%";
+    box.appendChild(nose);
+
+    var head = el2("div","drawer-head");
+    head.appendChild(el("h2", null, st.head));
+    head.appendChild(el("span","sub", st.sub));
+    box.appendChild(head);
+
+    var body = el2("div","drawer-body");
+    box.appendChild(body);
+
+    if(STATE.stage === "work") return drawWork(body);
+    if(STATE.stage === "pending") return drawPending(body);
+    return drawHeld(body);
   }
 
-  // The next layer for a chart is its numbers, so open the table twin.
-  function openTable(fig){
-    if(!fig) return;
-    var buttons = fig.getElementsByTagName("button");
-    for(var i = 0; i < buttons.length; i++){
-      if(buttons[i].className === "tbl-btn"
-         && buttons[i].textContent.indexOf("Show") === 0){
-        buttons[i].click();
-        return;
-      }
-    }
+  function drawWork(body){
+    if(STATE.work === null) return body.appendChild(
+      el("div","empty loading","Loading\u2026"));
+    var chips = el2("div","filters");
+    FILTERS.forEach(function(f){
+      var b = el2("button","chip");
+      b.type = "button";
+      b.textContent = f[1];
+      b.setAttribute("aria-pressed", String(STATE.filter === f[0]));
+      b.addEventListener("click", function(){
+        STATE.filter = f[0]; paintDrawer(); });
+      chips.appendChild(b);
+    });
+    body.appendChild(chips);
+    if(!STATE.work.length)
+      return body.appendChild(emptyEl(
+        "Nothing on your board yet. Work appears here once a proposal " +
+        "from a conversation is accepted.", "empty-board.png"));
+    var test = FILTERS.filter(function(f){
+      return f[0] === STATE.filter; })[0][2];
+    var rows = STATE.work.filter(test);
+    if(!rows.length)
+      return body.appendChild(el("div","empty",
+        "Nothing matches that filter right now."));
+    rows.sort(function(a, b){
+      return (b.overdue - a.overdue) ||
+             ((a.status === "blocked" ? 0 : 1) -
+              (b.status === "blocked" ? 0 : 1)); });
+    rows.forEach(function(t){ body.appendChild(workCard(t)); });
   }
 
-  // Filter chips over the work list: the drill-down for "in progress".
-  var WORK = {rows: [], filter: "open"};
+  function drawPending(body){
+    var d = STATE.pending;
+    if(d === null) return body.appendChild(
+      el("div","empty loading","Loading\u2026"));
+    if(!d.undecided) return body.appendChild(el("div","empty",
+      "Nothing waiting. Proposals appear here after a cadence run."));
+    body.appendChild(el("div","lede",
+      d.undecided + " proposal" + (d.undecided === 1 ? "" : "s") +
+      " awaiting you" +
+      (d.conflicts ? " \u00b7 " + d.conflicts + " flagged" : "")));
+    d.packets.forEach(function(p){
+      var row = el2("div","row");
+      row.appendChild(el("div", null, p.undecided + " of " + p.proposals +
+        " undecided \u00b7 " + p.state));
+      row.appendChild(el("div","via", "packet " + p.packet_id.slice(0,12) +
+        " \u00b7 built " + (p.generated_at || "").slice(0,10) +
+        (p.expires_at ? " \u00b7 expires " + p.expires_at.slice(0,10) : "")));
+      body.appendChild(row);
+    });
+    body.appendChild(el("div","via",
+      "Answer them: python3 cli/review.py --as " + state.viewer));
+  }
+
+  function drawHeld(body){
+    var rows = STATE.held;
+    if(rows === null) return body.appendChild(
+      el("div","empty loading","Loading\u2026"));
+    if(!rows.length) return body.appendChild(el("div","empty",
+      "No claims are waiting. Anything the gates hold shows up here."));
+    rows.forEach(function(s){
+      var row = el2("div","row");
+      row.appendChild(el("div", null,
+        s.signal_type.replace(/_/g," ") + ": \u201c" + s.title + "\u201d"));
+      row.appendChild(el("div","via",
+        s.sources + " source" + (s.sources === 1 ? "" : "s") + " \u00b7 " +
+        Math.round(s.confidence * 100) + "% \u00b7 pooled " +
+        (s.pooled_at || "").slice(0,10) +
+        (s.author_ref ? " \u00b7 said by " + s.author_ref : "") +
+        (s.deadline_raw ? " \u00b7 \u201c" + s.deadline_raw + "\u201d" : "")));
+      body.appendChild(row);
+    });
+  }
+
   var FILTERS = [
     ["open", "Open", function(r){ return r.status !== "completed"
                                      && r.status !== "cancelled"; }],
@@ -777,53 +844,33 @@
     ["all", "Everything", function(){ return true; }]
   ];
 
-  function setWorkFilter(key){
-    WORK.filter = key;
-    paintWork();
+  // The next layer for a chart is its numbers.
+  function openTable(fig){
+    if(!fig) return;
+    var b = fig.getElementsByTagName("button");
+    for(var i = 0; i < b.length; i++)
+      if(b[i].className.indexOf("tbl-btn") >= 0
+         && b[i].textContent.indexOf("Show") === 0){ b[i].click(); return; }
   }
 
-  function paintWork(){
-    var box = document.getElementById("work");
-    box.innerHTML = "";
-    var chips = el2("div","filters");
-    FILTERS.forEach(function(f){
-      var b = el2("button", null);
-      b.type = "button";
-      b.textContent = f[1];
-      b.setAttribute("aria-pressed", String(WORK.filter === f[0]));
-      b.addEventListener("click", function(){ setWorkFilter(f[0]); });
-      chips.appendChild(b);
+  // ---- loaders feed the cache, then repaint what is on screen ----
+  function loadWork(){
+    get("/api/board/" + encodeURIComponent(state.viewer)).then(function(rows){
+      STATE.work = rows;
+      var open = rows.filter(function(r){
+        return r.status !== "completed" && r.status !== "cancelled"; });
+      HERO.active = open.length;
+      var closed = rows.length - open.length;
+      HERO.activeNote = "confirmed work, traceable to what was said" +
+        (closed ? " \u00b7 " + closed + " closed" : "");
+      paintPipe();
+      if(STATE.stage === "work") paintDrawer();
+    }).catch(function(e){
+      STATE.work = [];
+      if(STATE.stage === "work")
+        fail(document.getElementById("drawer"), e, loadWork);
     });
-    box.appendChild(chips);
-
-    var test = FILTERS.filter(function(f){ return f[0] === WORK.filter; })[0][2];
-    var rows = WORK.rows.filter(test);
-    if(!WORK.rows.length){
-      box.appendChild(emptyEl(
-        "Nothing on your board yet. Work appears here once a proposal " +
-        "from a conversation is accepted.", "empty-board.png"));
-      return;
-    }
-    if(!rows.length){
-      box.appendChild(el("div","empty",
-        "Nothing matches that filter right now."));
-      return;
-    }
-    rows.sort(function(a, b){
-      return (b.overdue - a.overdue) ||
-             ((a.status === "blocked" ? 0 : 1) -
-              (b.status === "blocked" ? 0 : 1)); });
-    rows.forEach(function(t){ box.appendChild(workCard(t)); });
   }
-
-  var NOTED = {
-    created: "created", status_changed: "moved to", completed: "completed",
-    cancelled: "cancelled", reopened: "reopened",
-    deadline_changed: "re-dated to", reassigned: "handed to",
-    blocker_added: "reported blocked", blocker_resolved: "unblocked",
-    alias_added: "also called", project_assigned: "filed under",
-    merged_into: "merged into"
-  };
 
   function notedLine(t){
     var ln = t.last_noted;
@@ -847,21 +894,6 @@
     var t = Date.parse(iso);
     if(isNaN(t)) return null;
     return Math.max(0, Math.round((Date.now() - t) / 86400000));
-  }
-
-  function loadWork(){
-    panel("work", "/api/board/" + encodeURIComponent(state.viewer),
-      function(box, rows){
-        WORK.rows = rows;
-        var open = rows.filter(function(r){
-          return r.status !== "completed" && r.status !== "cancelled"; });
-        HERO.active = open.length;
-        var closed = rows.length - open.length;
-        HERO.activeNote = "confirmed work, traceable to what was said" +
-          (closed ? " \u00b7 " + closed + " closed" : "");
-        paintHero();
-        paintWork();
-      });
   }
 
   function workCard(t){
@@ -889,7 +921,7 @@
     noted.appendChild(document.createTextNode(notedLine(t)));
     card.appendChild(noted);
     if(t.quiet_days >= 14)
-      card.appendChild(el("div","quiet",
+      card.appendChild(el("div","quiet-note",
         "no change in " + t.quiet_days + " days"));
 
     if(t.with && t.with.length){
@@ -905,17 +937,21 @@
     }
 
     var actions = el2("div","wc-actions");
-    var btn = el2("button","trace-btn");
+    var btn = el2("button","btn btn-sm");
     btn.textContent = "Receipts";
+    btn.type = "button";
+    btn.setAttribute("aria-expanded", "false");
     var rail = el2("div","wc-rail");
     rail.style.display = "none";
     btn.addEventListener("click", function(){
       if(rail.style.display === "none"){
         rail.style.display = "block";
+        btn.setAttribute("aria-expanded", "true");
         btn.textContent = "Hide receipts";
         if(!rail.firstChild) fillRail(rail, t);
       } else {
         rail.style.display = "none";
+        btn.setAttribute("aria-expanded", "false");
         btn.textContent = "Receipts";
       }
     });
@@ -1052,7 +1088,7 @@
         // nobody has mentioned in weeks is decaying whether or not it is due.
         if(r.quiet_days >= 14 && r.status !== "completed"
            && r.status !== "cancelled")
-          t1.appendChild(el("div","quiet",
+          t1.appendChild(el("div","quiet-note",
             "no change in " + r.quiet_days + " days"));
         var t2 = el("td");
         t2.appendChild(el("span","status s-" + r.status,
@@ -1201,7 +1237,7 @@
     body.appendChild(el("div","meta", meta));
 
     if(ev.has_provenance){
-      var btn = el("button","trace-btn","Trace to source");
+      var btn = el("button","btn btn-sm","Trace to source");
       var holder = el("div");
       btn.addEventListener("click", function(){
         if(holder.firstChild){ holder.innerHTML=""; btn.textContent="Trace to source"; return; }
@@ -1355,23 +1391,10 @@
     if(sub) node.appendChild(el("div","sub", sub));
     return node;
   }
-  function legend(node, names){
-    if(names.length < 2) return;         // one series: the title names it
-    var l = el2("div","lgd");
-    names.forEach(function(n, i){
-      var s = el2("span", null);
-      var k = el2("span","k");
-      k.style.background = SERIES[i];
-      s.appendChild(k);
-      s.appendChild(document.createTextNode(n));
-      l.appendChild(s);
-    });
-    node.appendChild(l);
-  }
-  // The table twin. Required, not a nicety: it is the documented relief
-  // for a series colour under 3:1, and the keyboard path to every value.
   function tableTwin(node, cols, rows){
-    var btn = el2("button","tbl-btn");
+    var btn = el2("button","btn btn-sm tbl-btn");
+    btn.type = "button";
+    btn.setAttribute("aria-expanded", "false");
     btn.textContent = "Show the numbers";
     var wrap = el2("div");
     wrap.style.display = "none";
@@ -1389,6 +1412,7 @@
     btn.addEventListener("click", function(){
       var open = wrap.style.display !== "none";
       wrap.style.display = open ? "none" : "block";
+      btn.setAttribute("aria-expanded", String(!open));
       btn.textContent = open ? "Show the numbers" : "Hide the numbers";
     });
     node.appendChild(btn); node.appendChild(wrap);
@@ -1581,8 +1605,7 @@
       HERO.lag = t.median_lag_hours == null ? null
         : num(t.median_lag_hours / 24) + "d";
       HERO.lagTasks = t.traced_tasks;
-      paintHero();
-      tile(tiles, "Said \u2192 tracked",
+        tile(tiles, "Said \u2192 tracked",
         t.median_lag_hours == null ? "\u2014"
           : num(t.median_lag_hours / 24) + "d",
         t.traced_tasks ? "median across " + t.traced_tasks +
