@@ -312,7 +312,9 @@
   .charts{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));
           gap:18px}
   .fig{margin:0;padding:18px;background:var(--panel);border:1px solid var(--line);
-       border-radius:var(--r2);box-shadow:var(--sh-panel)}
+       border-radius:var(--r2);box-shadow:var(--sh-panel);
+       display:flex;flex-direction:column;min-height:270px}
+  .fig .sparse{margin-top:auto}
   .fig h3{font-size:14.5px;font-weight:700;text-transform:none;
           letter-spacing:-.015em;color:var(--ink);margin:0 0 4px}
   .fig .sub{font-size:12.5px;color:var(--muted);margin-bottom:14px;
@@ -377,7 +379,8 @@
        color:var(--brand-deep);border-radius:var(--r2)}
   details.more > summary::-webkit-details-marker{display:none}
   details.more > summary::before{content:"\25b8";color:var(--brand);
-                                 transition:transform .13s}
+       font-size:15px;line-height:1;transition:transform .13s;
+       display:inline-block}
   details.more[open] > summary::before{transform:rotate(90deg)}
   details.more > summary:hover{background:var(--tint)}
   .more-body{padding:4px 19px 22px;border-top:1px solid var(--line)}
@@ -617,8 +620,10 @@
     loadTimeline();
     loadTeam(); loadShares(); loadCalibration();
     loadProjects(); loadRecent(); loadMeetings();
-    document.getElementById("askout").innerHTML =
-      '<div class="empty">Answers come from confirmed board state, with their receipts. Unconfirmed claims are labelled as such, never asserted.</div>';
+    document.getElementById("askout").innerHTML = "";
+    document.getElementById("askhint").textContent =
+      "Answers come from confirmed board state, with their receipts. " +
+      "Unconfirmed claims are labelled as such, never asserted.";
   }
 
   // ---- projects you own or have been given ----
@@ -1551,13 +1556,17 @@
     var plotW = W - P.l - P.r, plotH = H - P.t - P.b;
     var y = function(v){ return P.t + plotH - (v / max) * plotH; };
 
-    [0, 0.5, 1].forEach(function(f){        // hairline, solid, recessive
-      var yy = P.t + plotH - f * plotH;
+    // Counts are integers; a gridline labelled 1.5 is a gridline lying.
+    var stops = max <= 4 ? [0, max] : [0, 0.5, 1];
+    stops.forEach(function(f){        // hairline, solid, recessive
+      var val = max <= 4 ? f : max * f;
+      var frac = max <= 4 ? (f / max) : f;
+      var yy = P.t + plotH - frac * plotH;
       svg.appendChild(sv("line", {x1: P.l, x2: W - P.r, y1: yy, y2: yy,
         stroke: "var(--grid)", "stroke-width": 1}));
       svg.appendChild(sv("text", {x: P.l - 6, y: yy + 3,
         "text-anchor": "end", fill: "var(--muted)", "font-size": 9}))
-        .textContent = num(max * f);
+        .textContent = String(Math.round(val));
     });
 
     var band = plotW / Math.max(rows.length, 1);
@@ -1941,10 +1950,25 @@
           "text-anchor": "end", fill: "var(--faint)", "font-size": 10}))
           .textContent = it.board;
 
-      // The life: from first said to now, or to the day it finished.
-      svg.appendChild(sv("line", {x1: x(start), x2: Math.max(x(end),
-        x(start) + 2), y1: y, y2: y, stroke: st.fill, "stroke-width": 3,
-        "stroke-linecap": "round", opacity: it.stage === "done" ? .55 : 1}));
+      // The life, in two spans. Everything before the first board event
+      // is time the work existed only as something somebody said, so it
+      // is drawn thin and dotted; the solid run starts when a human
+      // confirmed it. The distance between them IS the product's point.
+      var firstBoard = it.events.length ? Date.parse(it.events[0].at) : null;
+      if(isNaN(firstBoard)) firstBoard = null;
+      var solidFrom = firstBoard || (it.kind === "claim" ? null : start);
+      if(solidFrom === null || solidFrom > start){
+        var untilX = solidFrom === null ? x(now) : x(solidFrom);
+        svg.appendChild(sv("line", {x1: x(start), x2: Math.max(untilX,
+          x(start) + 2), y1: y, y2: y, stroke: TL.heard.fill,
+          "stroke-width": 2, "stroke-dasharray": "2 4",
+          "stroke-linecap": "round"}));
+      }
+      if(solidFrom !== null)
+        svg.appendChild(sv("line", {x1: x(solidFrom), x2: Math.max(x(end),
+          x(solidFrom) + 2), y1: y, y2: y, stroke: st.fill,
+          "stroke-width": 3, "stroke-linecap": "round",
+          opacity: it.stage === "done" ? .55 : 1}));
 
       // Where it was first said: an open marker, because nothing had been
       // confirmed at that point.
