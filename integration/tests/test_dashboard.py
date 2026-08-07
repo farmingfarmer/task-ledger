@@ -30,9 +30,13 @@ OWNER = "dash-owner"
 MATE = "dash-mate"          # full_trace grant on OWNER's board
 STAKE = "dash-stake"        # progress grant on OWNER's board
 STRANGER = "dash-stranger"  # no grants at all
+BLOCKED = "dash-blocked"    # owns a task blocked on OWNER's task
+EXPIRED = "dash-expired"    # holds a grant that has already lapsed
 
 TASK = "task-dash-fixture"
 PACKET = "packet-dash-fixture"
+PROJECT = "proj-dash-fixture"
+BLOCKED_TASK = "task-dash-blocked"
 BATCH = "batch-dash-fixture"
 SIGNAL = "signal-dash-fixture"
 SIGNAL_ACCEPTED = "signal-dash-accepted"
@@ -130,6 +134,34 @@ def seed(conn):
                 VALUES ('prop-dash-rejected',%s,'reject','duplicate',%s,now())
                 ON CONFLICT (proposal_id, decided_by) DO NOTHING""",
                 (PACKET, OWNER))
+            cur.execute("""
+                INSERT INTO projects (project_id, name, owner_ref)
+                VALUES (%s, 'Dashboard fixture project', %s)
+                ON CONFLICT (project_id) DO NOTHING""", (PROJECT, OWNER))
+            cur.execute("SELECT project_id FROM tasks_current WHERE task_id=%s",
+                        (TASK,))
+            if (cur.fetchone() or [None])[0] is None:
+                cur.execute(
+                    "SELECT apply_task_event(%s,%s,'project_assigned',"
+                    "'manual_edit',NULL,%s::jsonb)",
+                    (TASK, OWNER, json.dumps({"project_id": PROJECT})))
+            # A second person's task, blocked on the fixture task: the edge
+            # is what earns them status_only sight of it.
+            cur.execute("SELECT 1 FROM tasks_current WHERE task_id = %s",
+                        (BLOCKED_TASK,))
+            if cur.fetchone() is None:
+                cur.execute(
+                    "SELECT apply_task_event(%s,%s,'created','manual_edit',"
+                    "NULL,%s::jsonb)",
+                    (BLOCKED_TASK, BLOCKED, json.dumps({
+                        "title": "Work waiting on the fixture task",
+                        "status": "in_progress", "owner_ref": BLOCKED})))
+                cur.execute(
+                    "SELECT apply_task_event(%s,%s,'blocker_added',"
+                    "'manual_edit',NULL,%s::jsonb)",
+                    (BLOCKED_TASK, BLOCKED, json.dumps({
+                        "description": "waiting on the fixture task",
+                        "blocking_task_id": TASK})))
             for who, level in ((MATE, "full_trace"), (STAKE, "progress")):
                 cur.execute("""
                     SELECT 1 FROM v_current_grants
@@ -281,6 +313,50 @@ def main():
     ok(code == 200 and prov and prov[0]["integrity"] == "unverified"
        and "no message fetcher" in prov[0]["integrity_note"],
        "an unchecked hash says so rather than looking checked")
+
+    print("blocker-implied visibility")
+    code, board = as_viewer(client, "/api/board/" + OWNER, BLOCKED)
+    rows = [t for t in board if t["task_id"] == TASK]
+    ok(code == 200 and len(rows) == 1
+       and rows[0]["access_level"] == "status_only"
+       and rows[0].get("blocking_you") is True,
+       "being blocked on a task earns sight of that task")
+    ok("deadline" not in rows[0] and "owner_ref" not in rows[0]
+       and "quiet_days" not in rows[0] and "project_name" not in rows[0],
+       "status_only is title and status: no deadline, owner, project or age")
+    code, _ = as_viewer(client, "/api/task/{0}/history".format(TASK), BLOCKED)
+    ok(code == 403, "status_only earns no history")
+    code, waiting = as_viewer(client, "/api/waiting-on/" + BLOCKED, BLOCKED)
+    ok(code == 200 and any(w["blocking_task"] == TASK
+                           and w["blocking_status"] is not None
+                           for w in waiting),
+       "the blocked person can see whether the blocking task is moving")
+
+    print("grant expiry")
+    with psycopg2.connect(dsn) as c2:
+        with c2.cursor() as cur2:
+            cur2.execute("""
+                INSERT INTO access_grant_events (grantee_ref, subject_type,
+                  subject_id, level, event, granted_by, expires_at)
+                VALUES (%s,'user',%s,'progress','granted',%s,
+                        now() - interval '1 hour')""",
+                (EXPIRED, OWNER, OWNER))
+    c2.close()
+    code, board = as_viewer(client, "/api/board/" + OWNER, EXPIRED)
+    ok(code == 200 and board == [],
+       "an expired grant stops applying without anyone revoking it")
+    code, _ = as_viewer(client, "/api/task/{0}/history".format(TASK), EXPIRED)
+    ok(code == 403, "expiry closes the history path too, via the same view")
+
+    print("project directory")
+    code, projs = as_viewer(client, "/api/projects", OWNER)
+    mine = [p for p in projs if p["project_id"] == PROJECT]
+    ok(code == 200 and mine and mine[0]["is_owner"] is True
+       and mine[0]["tasks"] >= 1,
+       "an owner sees their project and its visible task count")
+    code, projs = as_viewer(client, "/api/projects", STRANGER)
+    ok(code == 200 and not [p for p in projs if p["project_id"] == PROJECT],
+       "a stranger does not learn the project exists")
 
     print("demo picker")
     code, _ = as_viewer(client, "/api/viewers", OWNER)

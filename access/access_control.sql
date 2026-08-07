@@ -48,6 +48,7 @@ CREATE TABLE access_grant_events (
   event        text NOT NULL CHECK (event IN ('granted','revoked')),
   granted_by   text NOT NULL,
   note         text,
+  expires_at   timestamptz,                  -- NULL = until revoked
   occurred_at  timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX grant_lookup_idx
@@ -59,18 +60,20 @@ CREATE TRIGGER access_grant_events_append_only
 
 -- Current grants: latest event per (grantee, subject) that is 'granted'.
 CREATE VIEW v_current_grants AS
-SELECT grantee_ref, subject_type, subject_id, level, granted_by, occurred_at
+SELECT grantee_ref, subject_type, subject_id, level, granted_by, occurred_at,
+       expires_at
 FROM (
   SELECT DISTINCT ON (grantee_ref, subject_type, subject_id) *
   FROM access_grant_events
   ORDER BY grantee_ref, subject_type, subject_id, event_id DESC
 ) latest
-WHERE latest.event = 'granted';
+WHERE latest.event = 'granted'
+  AND (latest.expires_at IS NULL OR latest.expires_at > now());
 
 -- The only write path for grants; enforces who may grant what.
 CREATE OR REPLACE FUNCTION grant_access(
   p_granted_by text, p_grantee text, p_subject_type text, p_subject_id text,
-  p_level text, p_note text DEFAULT NULL
+  p_level text, p_note text DEFAULT NULL, p_expires_at timestamptz DEFAULT NULL
 ) RETURNS bigint AS $$
 DECLARE eid bigint;
 BEGIN
@@ -86,10 +89,13 @@ BEGIN
         p_subject_id;
     END IF;
   END IF;
+  IF p_expires_at IS NOT NULL AND p_expires_at <= now() THEN
+    RAISE EXCEPTION 'expiry % is already in the past', p_expires_at;
+  END IF;
   INSERT INTO access_grant_events(grantee_ref, subject_type, subject_id,
-                                  level, event, granted_by, note)
+                                  level, event, granted_by, note, expires_at)
   VALUES (p_grantee, p_subject_type, p_subject_id, p_level, 'granted',
-          p_granted_by, p_note)
+          p_granted_by, p_note, p_expires_at)
   RETURNING event_id INTO eid;
   RETURN eid;
 END $$ LANGUAGE plpgsql;
@@ -134,7 +140,15 @@ RETURNS TABLE (task_id text, access_level text) AS $$
                             OR (g.subject_type = 'project'
                                 AND g.subject_id = t.project_id))
                           AND g.level = 'full_trace') THEN 'full_trace'
-           ELSE 'progress'
+           WHEN EXISTS (SELECT 1 FROM v_current_grants g
+                        WHERE g.grantee_ref = p_viewer
+                          AND ((g.subject_type = 'user'
+                                AND g.subject_id = t.user_ref)
+                            OR (g.subject_type = 'project'
+                                AND g.subject_id = t.project_id)))
+                THEN 'progress'
+           -- Blocking a task the viewer owns: title and status, nothing more.
+           ELSE 'status_only'
          END AS access_level
   FROM tasks_current t
   WHERE t.user_ref = p_viewer
@@ -144,6 +158,13 @@ RETURNS TABLE (task_id text, access_level text) AS $$
                         AND g.subject_id = t.user_ref)
                     OR (g.subject_type = 'project'
                         AND g.subject_id = t.project_id)))
+     -- Blocker-implied visibility: the edge IS the grant, so resolving the
+     -- blocker withdraws it with no revocation to remember.
+     OR EXISTS (SELECT 1 FROM task_blockers b
+                JOIN tasks_current w ON w.task_id = b.task_id
+                WHERE b.blocking_task_id = t.task_id
+                  AND b.resolved_event_id IS NULL
+                  AND w.user_ref = p_viewer)
 $$ LANGUAGE sql STABLE;
 
 -- Convenience: may this viewer see this task, and at what level?

@@ -326,6 +326,7 @@ def board(user_ref):
         WHERE t.user_ref = %s AND t.merged_into IS NULL
         ORDER BY overdue DESC, t.status, t.deadline NULLS LAST""",
         (v, user_ref))
+    out = []
     for r in rows:
         # A raw deadline phrase is a quote, and a source count is a fact
         # about someone's communications -- both belong to the provenance
@@ -333,7 +334,15 @@ def board(user_ref):
         if r["access_level"] != "full_trace":
             r["deadline_raw"] = None
             r["sources"] = None
-    return jsonify(rows)
+        if r["access_level"] == "status_only":
+            # Visible because it blocks the viewer's own work. They get the
+            # title and whether it is moving -- not the deadline, project,
+            # owner, blocker counts, or how quiet it has gone.
+            r = {"task_id": r["task_id"], "title": r["title"],
+                 "status": r["status"], "access_level": "status_only",
+                 "blocking_you": True}
+        out.append(r)
+    return jsonify(out)
 
 
 @app.route("/api/task/<task_id>/history")
@@ -344,6 +353,12 @@ def history(task_id):
     level = task_level(v, task_id)
     if level is None:
         return jsonify({"error": "task not shared with you"}), 403
+    if level == "status_only":
+        # A blocker edge earns the current status, not the story of how the
+        # task got there -- that is the whole point of the narrow level.
+        return jsonify({"error": "this task is visible to you only because "
+                                 "it blocks your work: status only, no "
+                                 "history"}), 403
     rows = q("""
         SELECT e.event_id, e.board_version, e.occurred_at, e.event_type,
                e.actor_type, e.payload,
@@ -465,13 +480,88 @@ def blocked_on(user_ref):
         ORDER BY waiter.user_ref""", (user_ref, user_ref)))
 
 
+@app.route("/api/waiting-on/<user_ref>")
+def waiting_on(user_ref):
+    """The reciprocal of blocked-on: what this person is waiting for, and
+    whether it is moving.
+
+    Being blocked on someone's task is the one situation where the model
+    hands out visibility automatically -- status_only, resolved inside
+    visible_tasks -- so this endpoint reads that level rather than
+    inventing its own rule. Same gate as the dependency view: yourself, or
+    a full_trace grant on the whole board.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    if v != user_ref:
+        grants = q("""
+            SELECT 1 FROM v_current_grants
+            WHERE grantee_ref = %s AND subject_type = 'user'
+              AND subject_id = %s AND level = 'full_trace'""", (v, user_ref))
+        if not grants:
+            return jsonify({"error":
+                "the dependency view is owner-only unless the board is "
+                "shared at full trace"}), 403
+    return jsonify(q("""
+        SELECT mine.task_id      AS my_task,
+               mine.title        AS my_title,
+               b.description     AS blocker_desc,
+               b.blocking_party  AS blocking_party,
+               blk.task_id       AS blocking_task,
+               blk.title         AS blocking_title,
+               blk.status        AS blocking_status,
+               blk.user_ref      AS blocking_owner,
+               vt.access_level   AS blocking_access
+        FROM task_blockers b
+        JOIN tasks_current mine ON mine.task_id = b.task_id
+        LEFT JOIN tasks_current blk ON blk.task_id = b.blocking_task_id
+        LEFT JOIN visible_tasks(%s) vt ON vt.task_id = blk.task_id
+        WHERE b.resolved_event_id IS NULL AND mine.user_ref = %s
+        ORDER BY blk.status NULLS LAST, mine.task_id""", (v, user_ref)))
+
+
+@app.route("/api/projects")
+def projects():
+    """Projects the viewer may see: their own, and any granted to them.
+
+    Project scope is the most useful idea in the access model and was
+    invisible -- you could be a member of a workstream with no way to see
+    that it existed. Counts run through visible_tasks so a project row
+    never reveals more work than the grant behind it covers.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    return jsonify(q("""
+        SELECT pr.project_id, pr.name, pr.owner_ref, pr.created_at,
+               (pr.owner_ref = %s) AS is_owner,
+               g.level AS granted_level, g.expires_at,
+               count(vt.task_id)                                  AS tasks,
+               count(*) FILTER (WHERE t.status = 'blocked')        AS blocked,
+               count(DISTINCT t.user_ref)                          AS people
+        FROM projects pr
+        LEFT JOIN v_current_grants g
+               ON g.grantee_ref = %s AND g.subject_type = 'project'
+              AND g.subject_id = pr.project_id
+        LEFT JOIN tasks_current t
+               ON t.project_id = pr.project_id AND t.merged_into IS NULL
+        LEFT JOIN visible_tasks(%s) vt ON vt.task_id = t.task_id
+              AND vt.access_level <> 'status_only'
+        WHERE pr.owner_ref = %s OR g.grantee_ref IS NOT NULL
+        GROUP BY pr.project_id, pr.name, pr.owner_ref, pr.created_at,
+                 g.level, g.expires_at
+        ORDER BY pr.name""", (v, v, v, v)))
+
+
 @app.route("/api/grants")
 def grants_given():
     v = viewer()
     if not v:
         return _need_viewer()
     return jsonify(q("""
-        SELECT grantee_ref, subject_type, subject_id, level, occurred_at
+        SELECT grantee_ref, subject_type, subject_id, level, occurred_at,
+               expires_at
         FROM v_current_grants WHERE granted_by = %s
         ORDER BY subject_type, subject_id, grantee_ref""", (v,)))
 
