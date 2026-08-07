@@ -11,7 +11,11 @@ What one tick does, in order:
               judge -- auto-links and gates still run, judge-band and
               closure signals hold. write_packet supersedes any open packet
               (storage-layer semantics) and skips empty packets.
-  3. NOTIFY   if any undecided proposals exist for the user (new packet or
+  3. DIGEST   on TL_DIGEST_DAY, the week's digest is written as HTML.
+              A quiet week writes nothing; a failure here never fails the
+              tick, because the digest only summarises work already safely
+              recorded.
+  4. NOTIFY   if any undecided proposals exist for the user (new packet or
               a still-open one), raise a notification pointing at the
               review CLI -- osascript on macOS, the no-admin PowerShell
               toast on Windows, the log everywhere else. Zero pending ->
@@ -31,6 +35,8 @@ Configuration (environment, set in the launchd plist or a shell):
   TL_EXTRACT_MODEL  default mistral-small3.1
   OLLAMA_HOST_URL   default http://localhost:11434
   TL_NO_NOTIFY      set to 1 to suppress the popup (tests, headless)
+  TL_DIGEST_DAY     weekday for the weekly digest (0=Mon, default 4=Fri)
+  TL_DIGEST_DIR     where digests are written (default ~/task-ledger-digests)
 
 Python 3.8 compatible. Requires psycopg2, pyyaml, jsonschema.
 """
@@ -60,7 +66,7 @@ def repo_root():
 
 def wire_paths():
     root = repo_root()
-    for sub in ("extraction", "reconciler", "policy"):
+    for sub in ("extraction", "reconciler", "policy", "digest"):
         p = os.path.join(root, sub)
         if p not in sys.path:
             sys.path.insert(0, p)
@@ -202,6 +208,32 @@ def run_reconcile(dsn, user, host, embed_model, judge_model):
     return result
 
 
+def weekly_digest(dsn, user, out_dir):
+    """On the digest day, write the week's digest and say where it went.
+
+    The tick already knows the ledger's state; a digest is that state
+    addressed to a person. It writes a file rather than sending anything,
+    because a cadence job that can mail cannot be run casually -- delivery
+    belongs to the bot host, and the file is what a human or a mail step
+    picks up. A quiet week writes nothing at all.
+    """
+    import digest as digest_mod
+    import digest_io_pg
+
+    data = digest_io_pg.load_personal(dsn, user, days=7)
+    d = digest_mod.build_personal(user, data)
+    if d["quiet"]:
+        log("digest: quiet week for {0}; nothing written".format(user))
+        return None
+    os.makedirs(out_dir, exist_ok=True)
+    stamp = datetime.datetime.now().strftime("%Y%m%d")
+    path = os.path.join(out_dir, "digest-{0}-{1}.html".format(user, stamp))
+    with open(path, "w") as f:
+        f.write(digest_mod.render_html(d))
+    log("digest: {0} -> {1}".format(d["headline"], path))
+    return d
+
+
 def pending_count(dsn, user):
     import psycopg2
     conn = psycopg2.connect(dsn)
@@ -253,6 +285,21 @@ def main():
             log("pending: {0} -> notified".format(n))
         else:
             log("pending: 0 -> silent")
+
+        # Weekly digest, on one configured weekday (Friday by default).
+        # Same discipline as the notification: only when there is
+        # something to say.
+        digest_day = int(os.environ.get("TL_DIGEST_DAY", "4"))
+        if datetime.datetime.now().weekday() == digest_day:
+            try:
+                d = weekly_digest(dsn, user, os.path.expanduser(
+                    os.environ.get("TL_DIGEST_DIR", "~/task-ledger-digests")))
+                if d and n == 0:
+                    notify("Task Ledger", d["headline"])
+            except Exception as e:
+                # A digest is a summary of work already safely recorded;
+                # failing to write one must not fail the tick.
+                log("digest FAILED (tick continues): {0!r}".format(e))
         log("tick done")
         return 0
     except Exception as e:

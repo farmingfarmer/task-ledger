@@ -7,6 +7,7 @@ cd "$(dirname "$0")"
 ( [ -f reconciler/test_supersede.py ] && cd reconciler && python3 test_supersede.py || true )
 ( cd cli && python3 test_review.py )
 ( cd cli && python3 test_share.py )
+( cd digest && python3 test_digest.py )
 ( cd integration/tests && python3 test_dashboard.py )
 python3 scripts/build_system_map.py
 echo "ALL SUITES COMPLETE"

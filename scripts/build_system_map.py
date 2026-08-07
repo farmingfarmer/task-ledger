@@ -414,6 +414,18 @@ ATLAS = {
                                "judge-band work holds for a better day "
                                "instead of being guessed at."},
                  ]},
+                {"name": "Weekly digest",
+                 "file": "digest/digest_io_pg.py",
+                 "components": [
+                     {"symbol": "load_project",
+                      "blurb": "The stakeholder digest cannot leak the "
+                               "discussion behind a change, because this "
+                               "query never SELECTS a rationale, a decider, "
+                               "a confidence or an evidence pointer. "
+                               "Redaction by construction beats redaction "
+                               "by filter: there is no field here to forget "
+                               "to strip."},
+                 ]},
                 {"name": "Degradation",
                  "file": "cadence/cadence_tick.py",
                  "components": [
@@ -939,6 +951,18 @@ NARRATIVE = {
              "one cheap check decides the tick's whole posture -- "
              "learned when a busy AI queue looked identical to a dead "
              "one"],
+        ],
+        "digest/digest_io_pg.py::load_project": [
+            ["Write the stakeholder's weekly note",
+             "people who follow a project get what changed and where it "
+             "stands, without having to open anything"],
+            ["Leave the conversation out by not asking for it",
+             "the query fetches titles, states and dates and nothing "
+             "else -- so a digest sent to someone outside the team "
+             "cannot quote a meeting they were not in, even by mistake"],
+            ["Let the grant list decide who receives it",
+             "recipients come from current access, so a share that "
+             "expired or was withdrawn simply stops arriving"],
         ],
         "cadence/cadence_tick.py::notify": [
             ["Pop a notification only when reviews await",
