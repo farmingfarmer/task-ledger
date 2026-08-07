@@ -30,6 +30,7 @@ cd extraction        && python3 test_extraction.py     # worker, salvage, guards
 cd reconciler        && python3 test_reconciler.py     # bands, gates, aggregation, live packet
 cd reconciler        && python3 test_supersede.py      # supersede/return semantics, own fixture user
 cd cli               && python3 test_review.py         # review CLI over the live pending packet
+cd cli               && python3 test_share.py          # grant/revoke rules, expiry, audit trail
 cd integration/tests && python3 test_dashboard.py      # dashboard API access rules (own fixture identities)
 cd integration/tests && python3 test_integration.py    # graph ingestion + bot host (not in run_tests)
 cd integration/tenant && python3 test_tenant.py        # webhook host, offline (not in run_tests)
@@ -43,12 +44,16 @@ Database setup and the live loop:
 createdb taskintel
 psql -d taskintel -f storage/schema.sql          # then storage/validate_storage.sql to assert
 psql -d taskintel -f access/access_control.sql   # then access/validate_access.sql
+# Databases predating a column need its migration; doctor.py reports which:
+psql -d taskintel -f storage/migrate_author_ref.sql   # signals.author_ref
+psql -d taskintel -f access/migrate_sharing.sql       # grant expiry + status_only
 export DB_DSN="host=localhost port=5432 dbname=taskintel user=$(whoami)"
 
 python3 scripts/demo_offline.py                  # seed a reviewable state, no Ollama needed
 python3 extraction/run_local.py --transcript extraction/sample_transcript.json --model mistral-small3.1 --write-db
 python3 reconciler/run_reconcile.py --user aad-dev --dsn "$DB_DSN" --embed-model nomic-embed-text --judge-model mistral-small3.1 --write
 python3 cli/review.py --as aad-dev --dsn "$DB_DSN"
+python3 cli/share.py --as aad-dev --dsn "$DB_DSN" list   # grant/revoke/list access
 python3 integration/dashboard/dashboard_api.py   # http://127.0.0.1:8090 (on Windows browse the literal IP; bare hostnames get https-upgraded)
 ```
 

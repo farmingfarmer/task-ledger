@@ -4,14 +4,20 @@ Adds the visibility layer to the design set. `access_control.sql` is the migrati
 
 ## 1. The model
 
-Two **scopes**, two **levels**, one implicit rule:
+Two **scopes**, two granted **levels**, two implicit rules:
 
 | | `progress` | `full_trace` |
 |---|---|---|
 | **`user` scope** (a whole board) | follow a person's task states | teammate view: everything, incl. provenance |
 | **`project` scope** (one workstream, any owner) | *the stakeholder case*: follow one project's progress across everyone working on it, and nothing else those people do | embedded collaborator on one project |
 
-The implicit rule: **owners always have `full_trace` on their own tasks** — no grant rows, nothing to misconfigure, no way to lock yourself out.
+The first implicit rule: **owners always have `full_trace` on their own tasks** — no grant rows, nothing to misconfigure, no way to lock yourself out.
+
+The second: **an open blocker edge grants `status_only` on the task it points at.** If your task is blocked on mine, you see my task's title and status — not its deadline, owner, project, history, or provenance. This is the one automatic grant in the model, and it is the most defensible one: you already know the work exists (you recorded the dependency), and being unable to tell whether it is moving is the whole problem. It is also self-withdrawing, because the rule reads *open* blockers rather than a stored grant: resolve the blocker and the visibility disappears with it, with no revocation for anyone to remember. `status_only` sits below `progress` deliberately — a stakeholder follows a board's history skeleton, this shows one row of one task.
+
+**Grants may expire.** `grant_access(..., p_expires_at)` sets a lifetime; `v_current_grants` stops returning the grant at that moment, so every read path inherits the expiry without new code. The stakeholder case is inherently temporary ("follow this through launch") and a grant that lasts until someone remembers to revoke it is a grant that lasts forever. Expiry is not revocation: both are kept, because "it ran out" and "they took it back" are different facts about what happened.
+
+**Sharing happens through `cli/share.py`** (`grant`, `revoke`, `list`) until the bot's `/share` ships. Both surfaces call the same two SQL functions, which is where the rules live — the CLI cannot route around them, and neither will the bot.
 
 The scenario you described falls out directly: alex creates `proj-drift`, tags `task-88` into it, and grants vic `progress` on the project. Vic now sees the drift work — including priya's `task-99`, because project scope crosses owners — and cannot see `task-70`, alex's other work, or that it even exists.
 

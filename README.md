@@ -127,8 +127,15 @@ and endpoints.
 ## Status
 
 Local system complete and validated end to end (storage, access,
-extraction, reconciliation, review, dashboard, cadence -- 150+ checks
+extraction, reconciliation, review, dashboard, cadence -- 130+ checks
 across module suites plus the live loop). Extraction quality measured on
-synthetic messy corpora (table above). Not yet done: Graph/AAD production
-wiring, live threshold calibration from real reject-reason data, periodic
-task-merge scan, `signals.author_ref` migration.
+synthetic messy corpora (table above). The dashboard now carries the
+review loop itself: pending packets, claims held for corroboration, and
+the reject-reason histogram that threshold calibration feeds on.
+Not yet done: Graph/AAD production wiring, live threshold calibration from
+real reject-reason data, periodic task-merge scan.
+
+Two migrations exist for databases created before them --
+`storage/migrate_author_ref.sql` (who said a claim) and
+`access/migrate_sharing.sql` (expiring grants, blocker-implied
+visibility). `scripts/doctor.py` reports whether they are applied.
