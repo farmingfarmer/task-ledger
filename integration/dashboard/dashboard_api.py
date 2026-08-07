@@ -715,6 +715,116 @@ def _outcome(row):
     return "no proposal"
 
 
+@app.route("/api/timeline")
+def timeline():
+    """Every item you can see, as a life on a time axis.
+
+    Three counts tell you how much sits at each stage; they cannot show
+    movement, which is the thing this ledger is uniquely able to record.
+    One row per item — a claim you have heard, a proposal awaiting you, a
+    task on a board — running from the moment it was first SAID to where
+    it stands now, with a marker at every change along the way.
+
+    Scope is the usual: visible_tasks for board rows (status_only excluded,
+    since one blocked-on task is not a life to narrate), plus the viewer's
+    own pooled claims, which are self-only everywhere else and stay so
+    here. So the chart shows your work and the work of people who have
+    shared with you, and nothing else.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+
+    tasks = q("""
+        WITH vis AS (SELECT task_id, access_level FROM visible_tasks(%s)
+                     WHERE access_level <> 'status_only')
+        SELECT t.task_id, t.title, t.user_ref, t.owner_ref, t.status,
+               t.created_at, t.deadline, vis.access_level,
+               (t.deadline IS NOT NULL AND t.deadline < CURRENT_DATE
+                AND t.status NOT IN ('completed','cancelled')) AS overdue
+        FROM vis JOIN tasks_current t USING (task_id)
+        WHERE t.merged_into IS NULL
+        ORDER BY t.created_at""", (v,))
+    ids = [t["task_id"] for t in tasks]
+
+    events, said = {}, {}
+    if ids:
+        for e in q("""
+                SELECT e.task_id, e.event_id, e.event_type, e.occurred_at,
+                       e.actor_type
+                FROM task_events e WHERE e.task_id = ANY(%s)
+                ORDER BY e.task_id, e.board_version""", (ids,)):
+            events.setdefault(e["task_id"], []).append(
+                {"at": e["occurred_at"], "type": e["event_type"],
+                 "actor": e["actor_type"], "event_id": e["event_id"]})
+        # When the work was first SAID, not when it was typed in: the
+        # extraction window behind whatever decision created the task.
+        for r in q("""
+                SELECT e.task_id, min(b.window_start) AS said_at
+                FROM task_events e
+                JOIN decisions d          ON d.decision_id = e.decision_id
+                JOIN proposal_signals ps  ON ps.proposal_id = d.proposal_id
+                JOIN signals s            ON s.signal_id = ps.signal_id
+                JOIN extraction_batches b ON b.batch_id = s.batch_id
+                WHERE e.task_id = ANY(%s)
+                GROUP BY e.task_id""", (ids,)):
+            said[r["task_id"]] = r["said_at"]
+
+    items = []
+    for t in tasks:
+        evs = events.get(t["task_id"], [])
+        done = [e for e in evs
+                if e["type"] in ("completed", "cancelled")]
+        items.append({
+            "kind": "task", "id": t["task_id"], "title": t["title"],
+            "owner": t["owner_ref"] or t["user_ref"],
+            "board": t["user_ref"], "mine": t["user_ref"] == v,
+            "status": t["status"], "overdue": t["overdue"],
+            "deadline": t["deadline"],
+            "first_noted": said.get(t["task_id"]) or t["created_at"],
+            "said_traced": t["task_id"] in said,
+            "ended_at": done[0]["at"] if done else None,
+            "stage": ("done" if t["status"] in ("completed", "cancelled")
+                      else "board"),
+            "events": evs})
+
+    # Claims that never became tasks: they have a beginning and no line
+    # yet, which is exactly what the reader should see.
+    for c in q("""
+            SELECT u.signal_id, u.title, u.signal_type, u.author_ref,
+                   (SELECT min(pe.occurred_at) FROM signal_pool_events pe
+                     WHERE pe.signal_id = u.signal_id
+                       AND pe.user_ref = u.user_ref) AS pooled_at,
+                   (SELECT b.window_start FROM extraction_batches b
+                     WHERE b.batch_id = u.batch_id)  AS said_at
+            FROM v_unconsumed_signals u
+            WHERE u.user_ref = %s""", (v,)):
+        items.append({
+            "kind": "claim", "id": c["signal_id"], "title": c["title"],
+            "owner": c["author_ref"] or v, "board": v, "mine": True,
+            "status": c["signal_type"], "overdue": False, "deadline": None,
+            "first_noted": c["said_at"] or c["pooled_at"],
+            "said_traced": c["said_at"] is not None,
+            "ended_at": None, "stage": "heard", "events": []})
+
+    pend = q("""
+        WITH latest AS (
+          SELECT DISTINCT ON (packet_id) packet_id, state
+          FROM packet_state_events ORDER BY packet_id, event_id DESC)
+        SELECT count(p.proposal_id) - count(d.decision_id) AS n
+        FROM review_packets rp
+        JOIN latest l USING (packet_id)
+        JOIN proposals p USING (packet_id)
+        LEFT JOIN decisions d ON d.proposal_id = p.proposal_id
+        WHERE rp.user_ref = %s
+          AND l.state IN ('draft','delivered','partially_decided')""", (v,))
+    items.sort(key=lambda i: (i["first_noted"] or ""))
+    return jsonify({"items": items,
+                    "awaiting": (pend[0]["n"] if pend else 0) or 0,
+                    "now": datetime.datetime.now(
+                        datetime.timezone.utc).isoformat()})
+
+
 @app.route("/api/metrics")
 def metrics():
     """The measures that need this ledger to exist.

@@ -125,45 +125,38 @@
   .idbox{display:flex;align-items:center;gap:8px;font-size:12.5px;
          color:var(--muted)}
 
-  /* ---- pipeline: bolder, and colour that means progression ------- */
-  .pipe{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;
-        align-items:stretch;margin-top:20px}
-  @media (max-width:840px){
-    .pipe{grid-template-columns:1fr}.pipe .arrow{display:none}
-    .stage{margin-bottom:10px}}
-  .stage{position:relative;overflow:hidden;text-align:left;font:inherit;
-         cursor:pointer;border-radius:var(--r2);padding:0;
-         border:1px solid var(--edge);border-bottom-color:var(--edge-deep);
-         background:linear-gradient(180deg,#FFFFFF 0%,#F4F8FC 55%,
-                    #E9F0F8 100%);box-shadow:var(--sh-raise);
-         transition:box-shadow .13s ease,transform .13s ease}
-  .stage:hover{transform:translateY(-2px);box-shadow:var(--sh-hover)}
-  .stage:active{transform:translateY(1px);box-shadow:var(--sh-press)}
-  .stage[aria-expanded="true"]{border-color:var(--brand);
-         background:linear-gradient(180deg,#FFFFFF,var(--tint));
-         box-shadow:inset 0 1px 0 rgba(255,255,255,.9),
-                    0 0 0 3px rgba(28,92,171,.16),
-                    0 6px 16px rgba(20,30,45,.16)}
-  .stage .band{height:7px;background:var(--step);position:relative;z-index:1}
-  .stage .inner{padding:14px 16px 15px;position:relative;z-index:1}
-  .stage .k{font-size:11px;font-weight:800;color:var(--brand);
-            text-transform:uppercase;letter-spacing:.1em}
-  .stage .v{font-size:38px;font-weight:800;letter-spacing:-.04em;
-            line-height:1;margin:6px 0 3px;color:var(--ink);
-            font-variant-numeric:tabular-nums}
-  .stage .n{font-size:12.5px;color:var(--faint);line-height:1.4}
-  .stage .go{font-size:12px;color:var(--brand);margin-top:8px;font-weight:700}
-  .stage.act .v{color:var(--brick)}
-  .arrow{display:flex;align-items:center;justify-content:center;padding:0 14px;
-         color:var(--edge);font-size:26px;user-select:none}
+  /* ---- timeline: the hero visual --------------------------------
+     Three counts became a strip of small controls above one chart: the
+     counts are still the way into each stage, but they no longer take a
+     third of the screen each to say a single number. */
+  .tlwrap{margin-top:18px;background:var(--panel);border:1px solid var(--line);
+          border-radius:var(--r2);box-shadow:var(--sh-panel);overflow:hidden}
+  .tlbar{display:flex;flex-wrap:wrap;gap:9px;padding:12px 16px;
+         border-bottom:1px solid var(--line);
+         background:linear-gradient(180deg,var(--tint),#F6FAFF)}
+  .tlstage{display:inline-flex;align-items:baseline;gap:8px;font:inherit;
+           cursor:pointer;border-radius:999px;padding:6px 15px 6px 12px;
+           border:1px solid var(--edge);border-bottom-color:var(--edge-deep);
+           background:linear-gradient(180deg,#FFFFFF,#EFF4FA);
+           box-shadow:var(--sh-raise);transition:all .13s ease}
+  .tlstage:hover{transform:translateY(-1px);box-shadow:var(--sh-hover)}
+  .tlstage:active{transform:translateY(1px);box-shadow:var(--sh-press)}
+  .tlstage .dot{width:10px;height:10px;border-radius:50%;background:var(--step);
+                align-self:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
+  .tlstage .n{font-size:16px;font-weight:800;color:var(--ink);
+              font-variant-numeric:tabular-nums}
+  .tlstage .l{font-size:12px;font-weight:700;color:var(--muted);
+              text-transform:uppercase;letter-spacing:.06em}
+  .tlstage.on{border-color:var(--brand);
+              background:linear-gradient(180deg,#FFFFFF,var(--tint));
+              box-shadow:var(--sh-press),0 0 0 3px rgba(28,92,171,.16)}
+  .tlstage.act .n{color:var(--brick)}
+  .tlchart{padding:14px 16px 6px}
+  .tlchart svg{display:block;width:100%;height:auto;overflow:visible}
 
   .drawer{position:relative;margin-top:14px;background:var(--panel);
           border:1px solid var(--line);border-radius:var(--r2);
           box-shadow:var(--sh-drawer);overflow:hidden}
-  .drawer-nose{position:absolute;top:-7px;width:13px;height:13px;
-               background:var(--tint);border-left:1px solid var(--brand);
-               border-top:1px solid var(--brand);transform:rotate(45deg);
-               border-radius:3px 0 0 0}
   .drawer-head{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap;
                padding:14px 18px;border-bottom:1px solid var(--line);
                background:linear-gradient(180deg,var(--tint),#F4F9FF)}
@@ -244,6 +237,18 @@
   .deadline.overdue{color:var(--brick);font-weight:700}
 
   /* ---- lists ----------------------------------------------------- */
+  .dep{padding:11px 0;border-bottom:1px solid var(--line);font-size:13.5px}
+  .dep:last-child{border-bottom:none}
+  .dep .who{font-weight:700}
+  .dep .via{font-family:var(--mono);font-size:11.5px;color:var(--faint);
+            margin-top:4px}
+  .claims{background:var(--well-lit);border-top:1px solid var(--line);
+          border-bottom:1px solid var(--line);padding:4px 0}
+  .drill-head{padding:12px 0;border-bottom:1px solid var(--line)}
+  .drill-head .t{font-size:15px;font-weight:700}
+  .drill-head .tid{font-family:var(--mono);font-size:11px;color:var(--faint)}
+  td .title{font-weight:600}
+  td .tid{font-family:var(--mono);font-size:11px;color:var(--faint)}
   .row{padding:12px 0;border-bottom:1px solid var(--line);font-size:13.5px}
   .row:last-child{border-bottom:none}
   .row .who{font-weight:700}
@@ -439,7 +444,10 @@
       </div>
     </div>
 
-    <div class="pipe" id="pipe"></div>
+    <div class="tlwrap">
+      <div class="tlbar" id="tlbar"></div>
+      <div class="tlchart viz" id="timeline"></div>
+    </div>
     <div class="pipe-foot" id="pipefoot"></div>
     <section class="drawer" id="drawer" aria-live="polite"></section>
 
@@ -606,6 +614,7 @@
     STATE.work = STATE.pending = STATE.held = null;
     paintPipe(); paintDrawer();
     loadWork(); loadPending(); loadHeld(); loadMetrics();
+    loadTimeline();
     loadTeam(); loadShares(); loadCalibration();
     loadProjects(); loadRecent(); loadMeetings();
     document.getElementById("askout").innerHTML =
@@ -782,35 +791,42 @@
   }
 
   function paintPipe(){
-    var box = document.getElementById("pipe");
-    box.innerHTML = "";
-    STAGES.forEach(function(st, i){
-      if(i) box.appendChild(el("div","arrow","\u203a"));
+    var bar = document.getElementById("tlbar");
+    bar.innerHTML = "";
+    STAGES.forEach(function(st){
       var count = st.key === "held" ? HERO.held
                 : st.key === "pending" ? HERO.pending : HERO.active;
-      var b = el2("button", "stage" +
+      var b = el2("button", "tlstage" +
+        (STATE.stage === st.key ? " on" : "") +
         (st.key === "pending" && HERO.pending > 0 ? " act" : ""));
       b.type = "button";
-      b.style.setProperty("--step", STEP[st.idx]);
       b.setAttribute("aria-expanded", String(STATE.stage === st.key));
       b.setAttribute("aria-controls", "drawer");
-      b.appendChild(el("div","band"));
-      var inner = el2("div","inner");
-      inner.appendChild(el("div","k", st.label));
-      inner.appendChild(el("div","v", count == null ? "\u2014" : String(count)));
-      inner.appendChild(el("div","n", st.key === "work" && HERO.activeNote
-                                      ? HERO.activeNote : st.note));
-      inner.appendChild(el("div","go", (STATE.stage === st.key
-                                        ? "\u2713 showing" : st.go)));
-      b.appendChild(inner);
+      b.style.setProperty("--step", STEP[st.idx]);
+      b.appendChild(el("span","dot"));
+      b.appendChild(el("span","n", count == null ? "—" : String(count)));
+      b.appendChild(el("span","l", st.label));
       b.addEventListener("click", function(){
-        STATE.stage = st.key;
-        paintPipe();
-        paintDrawer();
-      });
-      box.appendChild(b);
+        STATE.stage = st.key; paintPipe(); paintDrawer(); });
+      bar.appendChild(b);
     });
     paintFoot();
+  }
+
+  function loadTimeline(){
+    var box = document.getElementById("timeline");
+    get("/api/timeline").then(function(d){
+      HERO.awaiting = d.awaiting;
+      timelineChart(box, d.items, d.now);
+    }).catch(function(e){ fail(box, e, loadTimeline); });
+  }
+
+  // A row in the chart opens the same detail its stage would.
+  function openItem(it){
+    STATE.stage = it.kind === "claim" ? "held" : "work";
+    if(it.kind !== "claim") STATE.filter = "all";
+    paintPipe();
+    paintDrawer();
   }
 
   function paintFoot(){
@@ -836,10 +852,6 @@
     var st = stageByKey(STATE.stage);
     var box = document.getElementById("drawer");
     box.innerHTML = "";
-    var nose = el2("div","drawer-nose");
-    nose.style.left = ((st.idx * 2 + 1) / 6 * 100) + "%";
-    box.appendChild(nose);
-
     var head = el2("div","drawer-head");
     head.appendChild(el("h2", null, st.head));
     head.appendChild(el("span","sub", st.sub));
@@ -1838,6 +1850,172 @@
         renderAnswer(box, a);
       }).catch(function(e){ fail(box, e); });
     });
+  }
+
+  // ==================================================================
+  // The timeline: every item you can see, as a life on a time axis.
+  //
+  // Counts say how much sits where; a timeline says what MOVED, which is
+  // the thing this ledger alone can record. Each row runs from the moment
+  // the work was first said to where it stands now, with a marker at
+  // every change.
+  //
+  // Two encoding channels, deliberately:
+  //   colour  the ordinal pipeline ramp (heard -> on board), plus the
+  //           documented status colours for done and blocked
+  //   shape   circle = a change, diamond = finished, square = stuck
+  // so state never rests on colour alone. The chroma floor rejected an
+  // all-colour version of this, which is how the shapes got here.
+  // ==================================================================
+  var TL = {
+    heard:   {fill: "#86b6ef", label: "Heard, unconfirmed"},
+    board:   {fill: "#1c5cab", label: "On a board"},
+    done:    {fill: "#0ca30c", label: "Completed"},
+    blocked: {fill: "#d03b3b", label: "Blocked"}
+  };
+
+  function lifeStage(it){
+    if(it.stage === "heard") return "heard";
+    if(it.stage === "done") return "done";
+    return it.status === "blocked" ? "blocked" : "board";
+  }
+
+  function timelineChart(node, items, nowIso){
+    node.innerHTML = "";
+    if(!items.length){
+      node.appendChild(el("div","empty",
+        "Nothing to plot yet. Items appear here the moment a conversation " +
+        "is processed."));
+      return;
+    }
+    var W = 1080, LAB = 210, PAD_R = 26, ROW = 27, TOP = 26;
+    var H = TOP + items.length * ROW + 34;
+    var plotW = W - LAB - PAD_R;
+    var now = Date.parse(nowIso) || Date.now();
+    var lo = now, hi = now;
+    items.forEach(function(i){
+      var t = Date.parse(i.first_noted);
+      if(!isNaN(t) && t < lo) lo = t;
+    });
+    if(hi - lo < 86400000) lo = hi - 86400000 * 3;
+    var span = hi - lo;
+    function x(ms){ return LAB + ((ms - lo) / span) * plotW; }
+
+    var svg = sv("svg", {viewBox: "0 0 " + W + " " + H, role: "img",
+      "aria-label": "Timeline of every item you can see, from first "
+                    + "mention to current state"});
+
+    // Date grid: hairline, solid, recessive.
+    var ticks = 5;
+    for(var k = 0; k <= ticks; k++){
+      var ms = lo + (span * k / ticks), xx = x(ms);
+      svg.appendChild(sv("line", {x1: xx, x2: xx, y1: TOP - 8,
+        y2: H - 26, stroke: "var(--grid)", "stroke-width": 1}));
+      svg.appendChild(sv("text", {x: xx, y: H - 10, "text-anchor": "middle",
+        fill: "var(--muted)", "font-size": 10}))
+        .textContent = new Date(ms).toISOString().slice(5, 10);
+    }
+    // Today, named rather than implied.
+    svg.appendChild(sv("line", {x1: x(now), x2: x(now), y1: TOP - 14,
+      y2: H - 26, stroke: "#9AA8B6", "stroke-width": 1}));
+    svg.appendChild(sv("text", {x: x(now), y: TOP - 18,
+      "text-anchor": "end", fill: "var(--muted)", "font-size": 10,
+      "font-weight": 600})).textContent = "today";
+
+    items.forEach(function(it, i){
+      var y = TOP + i * ROW + ROW / 2;
+      var st = TL[lifeStage(it)];
+      var start = Date.parse(it.first_noted);
+      if(isNaN(start)) start = lo;
+      var end = it.ended_at ? Date.parse(it.ended_at) : now;
+      if(isNaN(end)) end = now;
+
+      // Label column: title, and whose it is when it is not yours.
+      var label = it.title.length > 30 ? it.title.slice(0, 29) + "…"
+                                       : it.title;
+      svg.appendChild(sv("text", {x: 0, y: y + 4, fill: "var(--ink)",
+        "font-size": 12, "font-weight": it.mine ? 600 : 400}))
+        .textContent = label;
+      if(!it.mine)
+        svg.appendChild(sv("text", {x: LAB - 8, y: y + 4,
+          "text-anchor": "end", fill: "var(--faint)", "font-size": 10}))
+          .textContent = it.board;
+
+      // The life: from first said to now, or to the day it finished.
+      svg.appendChild(sv("line", {x1: x(start), x2: Math.max(x(end),
+        x(start) + 2), y1: y, y2: y, stroke: st.fill, "stroke-width": 3,
+        "stroke-linecap": "round", opacity: it.stage === "done" ? .55 : 1}));
+
+      // Where it was first said: an open marker, because nothing had been
+      // confirmed at that point.
+      svg.appendChild(sv("circle", {cx: x(start), cy: y, r: 4.5,
+        fill: "var(--surface)", stroke: st.fill, "stroke-width": 2}));
+
+      it.events.forEach(function(ev){
+        var t = Date.parse(ev.at);
+        if(isNaN(t)) return;
+        var shape;
+        if(ev.type === "completed" || ev.type === "cancelled"){
+          shape = sv("path", {d: diamond(x(t), y, 5),
+            fill: TL.done.fill, stroke: "var(--surface)", "stroke-width": 2});
+        } else if(ev.type === "blocker_added"){
+          shape = sv("rect", {x: x(t) - 4, y: y - 4, width: 8, height: 8,
+            rx: 1.5, fill: TL.blocked.fill, stroke: "var(--surface)",
+            "stroke-width": 2});
+        } else {
+          shape = sv("circle", {cx: x(t), cy: y, r: 4,
+            fill: st.fill, stroke: "var(--surface)", "stroke-width": 2});
+        }
+        tipFor(shape, "<b>" + it.title + "</b><br>" +
+          (ev.type || "").replace(/_/g, " ") + " · " +
+          (ev.at || "").slice(0, 10) +
+          (ev.actor ? "<br>" + ev.actor.replace(/_/g, " ") : ""));
+        svg.appendChild(shape);
+      });
+
+      // A generous hit band: the row, not the 8px mark.
+      var hit = sv("rect", {x: 0, y: y - ROW / 2, width: W, height: ROW,
+        fill: "transparent", style: "cursor:pointer"});
+      tipFor(hit, "<b>" + it.title + "</b><br>" +
+        (it.kind === "claim" ? "heard " : "first said ") +
+        (it.first_noted || "").slice(0, 10) +
+        (it.said_traced ? "" : " (creation date; not traced to a conversation)") +
+        "<br>now: " + (it.status || "").replace(/_/g, " ") +
+        (it.mine ? "" : "<br>on " + it.board + "'s board"));
+      hit.addEventListener("click", function(){ openItem(it); });
+      svg.appendChild(hit);
+    });
+
+    node.appendChild(svg);
+    tlLegend(node);
+    tableTwin(node,
+      ["Item", "Whose", "First said", "Now", "Changes"],
+      items.map(function(i){
+        return [i.title, i.board, (i.first_noted || "").slice(0, 10),
+                (i.status || "").replace(/_/g, " "), i.events.length]; }));
+  }
+
+  function diamond(cx, cy, r){
+    return "M" + cx + "," + (cy - r) + "L" + (cx + r) + "," + cy +
+           "L" + cx + "," + (cy + r) + "L" + (cx - r) + "," + cy + "Z";
+  }
+
+  function tlLegend(node){
+    var l = el2("div","lgd");
+    ["heard","board","blocked","done"].forEach(function(k){
+      var s = el2("span", null);
+      var key = el2("span","k");
+      key.style.background = TL[k].fill;
+      s.appendChild(key);
+      s.appendChild(document.createTextNode(TL[k].label));
+      l.appendChild(s);
+    });
+    var shapes = el2("span", null);
+    shapes.appendChild(document.createTextNode(
+      "○ first said · ● a change · ■ blocked " +
+      "· ◆ finished"));
+    l.appendChild(shapes);
+    node.appendChild(l);
   }
 
   // ---- meeting follow-through ----

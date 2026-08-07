@@ -22,8 +22,16 @@ var code = js
   .replace(/\/(?:[^\/\\\n\[]|\\.|\[[^\]]*\])+\/[gimsuy]*/g, "/re/");
 
 var declared = Object.create(null);
-[/\bvar\s+([A-Za-z_$][\w$]*)/g, /\bfunction\s+([A-Za-z_$][\w$]*)/g].forEach(
-  function (re) { var m; while ((m = re.exec(code))) declared[m[1]] = true; });
+// `var a = 1, b = 2, c;` declares three names. Reading only the first is
+// how this checker cried wolf over a chart's layout constants.
+var vre = /\bvar\s+([^;{}]+)/g, vm;
+while ((vm = vre.exec(code)))
+  vm[1].split(",").forEach(function (part) {
+    var name = part.trim().split(/[=\s]/)[0];
+    if (/^[A-Za-z_$][\w$]*$/.test(name)) declared[name] = true;
+  });
+var fre = /\bfunction\s+([A-Za-z_$][\w$]*)/g, fm;
+while ((fm = fre.exec(code))) declared[fm[1]] = true;
 var pre = /function\s*[A-Za-z_$\w]*\s*\(([^)]*)\)/g, pm;
 while ((pm = pre.exec(code)))
   pm[1].split(",").forEach(function (a) {

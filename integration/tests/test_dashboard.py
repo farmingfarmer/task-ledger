@@ -461,6 +461,30 @@ def main():
                             if x["source_ref"] == "dash-fixture"],
        "a stranger learns nothing about someone else's conversations")
 
+    print("timeline")
+    code, tl = as_viewer(client, "/api/timeline", OWNER)
+    mine = [i for i in tl["items"] if i["id"] == TASK]
+    ok(code == 200 and mine and mine[0]["kind"] == "task"
+       and mine[0]["events"],
+       "a task appears as a life with its changes on it")
+    ok(mine[0]["first_noted"] is not None and mine[0]["said_traced"] is True,
+       "first-noted traces back to the conversation, not the row's "
+       "created_at")
+    claims = [i for i in tl["items"] if i["kind"] == "claim"]
+    ok(any(c["id"] == SIGNAL for c in claims),
+       "an unconfirmed claim is on the same axis, marked as heard")
+    code, theirs = as_viewer(client, "/api/timeline", STRANGER)
+    ok(code == 200 and not [i for i in theirs["items"] if i["id"] == TASK]
+       and not theirs["items"],
+       "a stranger's timeline is empty: it is scoped through visible_tasks "
+       "like everything else")
+    code, mate = as_viewer(client, "/api/timeline", MATE)
+    ok(any(i["id"] == TASK and i["mine"] is False for i in mate["items"]),
+       "a grantee sees the shared work on the same axis, flagged as not "
+       "theirs")
+    ok(not [i for i in mate["items"] if i["kind"] == "claim"],
+       "but not the owner's unconfirmed claims: those stay self-only")
+
     print("measures")
     code, mx = as_viewer(client, "/api/metrics", OWNER)
     ok(code == 200 and mx["tiles"]["traced_tasks"] >= 1
