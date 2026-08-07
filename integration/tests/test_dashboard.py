@@ -361,6 +361,24 @@ def main():
        "author travels with every provenance row, NULL where unrecorded "
        "(append-only signals predating the migration are never backfilled)")
 
+    print("work card fields")
+    code, board = as_viewer(client, "/api/board/" + OWNER, OWNER)
+    row = [t for t in board if t["task_id"] == TASK][0]
+    ok(row["last_noted"] is not None
+       and row["last_noted"]["event_type"] == "deadline_changed",
+       "a task carries the last thing the ledger noted about it")
+    ok(row["last_noted"]["on_whose_word"] == "dash-speaker",
+       "and on whose word, from the signals behind that decision")
+    ok(any(w["ref"] == BLOCKED and w["relation"] == "waiting on this"
+           for w in row["with"]),
+       "collaborators are on the card: who is waiting on this work")
+    code, board = as_viewer(client, "/api/board/" + OWNER, STAKE)
+    row = [t for t in board if t["task_id"] == TASK][0]
+    ok(row["last_noted"] is not None
+       and row["last_noted"]["on_whose_word"] is None,
+       "progress level keeps WHAT changed and drops on whose word: the "
+       "speaker is provenance")
+
     print("evidence integrity")
     code, prov = as_viewer(client, "/api/event/{0}/provenance".format(EVENT[0]),
                            OWNER)

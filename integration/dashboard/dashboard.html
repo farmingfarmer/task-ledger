@@ -33,9 +33,62 @@
   .viewer select{border:1px solid var(--line);border-radius:6px;
                  background:var(--panel);padding:4px 8px}
 
-  .wrap{display:grid;grid-template-columns:minmax(420px,1.1fr) minmax(380px,1fr);
-        gap:20px;padding:20px 28px;align-items:start}
-  @media (max-width:960px){.wrap{grid-template-columns:1fr}}
+  /* ---- page rhythm -------------------------------------------------
+     One column of ranked zones. The order IS the argument: what you own,
+     then what needs you, then what the ledger has measured, then
+     everything else folded away. */
+  main{padding:0 28px 40px;max-width:1180px;margin:0 auto}
+  .zone{margin:26px 0 0}
+  .zone > h2{font-size:15px;font-weight:600;letter-spacing:-.01em;
+             color:var(--ink);text-transform:none;padding:0 0 8px;
+             border:0;border-bottom:1px solid var(--line);margin-bottom:14px;
+             display:flex;flex-wrap:wrap;align-items:baseline;gap:10px}
+  .zsub{font-size:12.5px;font-weight:400;color:var(--muted)}
+  .zone h3{font-size:11px;font-weight:600;letter-spacing:.07em;
+           text-transform:uppercase;color:var(--muted);margin:16px 0 6px}
+  .zone h3:first-child{margin-top:0}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+  @media (max-width:900px){.split{grid-template-columns:1fr}}
+  .col > div{background:var(--panel);border:1px solid var(--line);
+             border-radius:8px;overflow:hidden}
+
+  /* ---- masthead: what this is, before anything else ---------------- */
+  .mast{padding:22px 28px 0;max-width:1180px;margin:0 auto}
+  .mast-top{display:flex;justify-content:space-between;align-items:flex-start;
+            gap:20px;flex-wrap:wrap}
+  .mast h1{font-weight:800;font-size:20px;letter-spacing:-.02em}
+  .mission{color:var(--muted);font-size:13.5px;margin-top:3px;max-width:52ch}
+  .hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));
+        gap:1px;background:var(--line);border:1px solid var(--line);
+        border-radius:8px;overflow:hidden;margin:16px 0 0}
+  .hstat{background:var(--panel);padding:12px 14px}
+  .hstat .v{font-size:24px;font-weight:600;letter-spacing:-.02em;
+            line-height:1.15}
+  .hstat .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;
+            letter-spacing:.07em;margin-bottom:3px}
+  .hstat .n{font-size:11.5px;color:var(--quiet);margin-top:2px}
+  .hstat.act .v{color:var(--brick)}
+
+  /* ---- the work card: the page's centre of gravity ----------------- */
+  .workcard{background:var(--panel);border:1px solid var(--line);
+            border-radius:8px;padding:14px 16px;margin-bottom:10px}
+  .workcard.blocked{border-left:3px solid var(--brick)}
+  .workcard.overdue{border-left:3px solid var(--brick)}
+  .workcard.in_progress{border-left:3px solid var(--pine)}
+  .workcard.proposed{border-left:3px solid var(--slate)}
+  .wc-top{display:flex;justify-content:space-between;gap:14px;
+          align-items:baseline;flex-wrap:wrap}
+  .wc-title{font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .wc-meta{font-family:var(--mono);font-size:11px;color:var(--muted)}
+  .wc-noted{margin-top:8px;font-size:13px;color:var(--ink)}
+  .wc-noted .lead{color:var(--muted)}
+  .wc-with{margin-top:6px;font-size:12.5px;color:var(--muted);
+           display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .who-chip{display:inline-block;background:var(--bg);border:1px solid
+            var(--line);border-radius:20px;padding:1px 9px;font-size:11.5px}
+  .who-chip b{font-weight:600}
+  .wc-actions{margin-top:10px;display:flex;gap:8px;align-items:center}
+  .wc-rail{margin-top:10px;border-top:1px dashed var(--line);padding-top:8px}
 
   .panel{background:var(--panel);border:1px solid var(--line);
          border-radius:8px;overflow:hidden;margin-bottom:20px}
@@ -220,108 +273,106 @@
 </style>
 </head>
 <body>
-<header>
-  <h1>Task ledger</h1>
-  <p>Confirmed work state. You see the boards and projects shared with you.</p>
-  <div class="viewer">
-    <label for="viewer-sel">Viewing as</label>
-    <select id="viewer-sel" aria-label="Viewing as"></select>
-    <input id="viewer-txt" aria-label="Viewing as (type an identity)"
-           placeholder="or type a ref" size="14">
+<header class="mast">
+  <div class="mast-top">
+    <div>
+      <h1>Task ledger</h1>
+      <p class="mission">Your work, as the conversations recorded it &mdash;
+        every fact traceable to the sentence that produced it.</p>
+    </div>
+    <div class="viewer">
+      <label for="viewer-sel">Viewing as</label>
+      <select id="viewer-sel" aria-label="Viewing as"></select>
+      <input id="viewer-txt" aria-label="Viewing as (type an identity)"
+             placeholder="or type a ref" size="12">
+    </div>
   </div>
+
+  <div class="hero" id="hero"></div>
+
+  <form id="askform" class="askbar">
+    <input id="askq" type="search" autocomplete="off"
+           aria-label="Ask the ledger"
+           placeholder="Ask: what is blocked &middot; status of the intake work &middot; what came out of the scrum">
+    <button type="submit">Ask</button>
+  </form>
+  <div id="askout"></div>
 </header>
 
-<div class="wrap">
-  <div>
-    <section class="panel" id="panel-pending">
-      <h2>Waiting for your review</h2>
-      <div id="pending"></div>
-    </section>
+<main>
+  <section class="zone">
+    <h2>Your work
+      <span class="zsub">what you own, where each item was last noted, and
+        who else is attached to it</span></h2>
+    <div id="work"></div>
+  </section>
 
-    <section class="panel" id="panel-held">
-      <h2>Waiting for corroboration</h2>
-      <div id="held"></div>
-    </section>
+  <section class="zone">
+    <h2>Needs you
+      <span class="zsub">nothing here changes the board until you say so</span></h2>
+    <div class="split">
+      <div class="col">
+        <h3>Proposals awaiting your review</h3>
+        <div id="pending"></div>
+      </div>
+      <div class="col">
+        <h3>Heard, not yet confirmed</h3>
+        <div id="held"></div>
+      </div>
+    </div>
+  </section>
 
-    <section class="panel">
-      <h2>Boards shared with you</h2>
+  <section class="zone">
+    <h2>Signals over time
+      <span class="zsub">what the ledger has measured about your work and
+        about itself</span></h2>
+    <div id="tiles" class="tiles"></div>
+    <div class="charts">
+      <figure class="fig" id="fig-latency"></figure>
+      <figure class="fig" id="fig-confirmed"></figure>
+      <figure class="fig" id="fig-friction"></figure>
+      <figure class="fig" id="fig-queue"></figure>
+    </div>
+  </section>
+
+  <details class="zone more">
+    <summary>More &mdash; conversations, projects, sharing, other boards</summary>
+    <div class="more-body">
+      <div class="split">
+        <div class="col">
+          <h3>Meeting follow-through</h3>
+          <div id="meetings"></div>
+        </div>
+        <div class="col">
+          <h3>Projects</h3>
+          <div id="projects"></div>
+          <h3>Access you have granted</h3>
+          <div id="shares"></div>
+          <h3>Confirmed by you</h3>
+          <div id="recent"></div>
+        </div>
+      </div>
+
+      <h3>Other boards shared with you</h3>
       <div class="team" id="team"></div>
-    </section>
-
-    <section class="panel">
-      <h2 id="board-title">Board</h2>
+      <h3 id="board-title">Board</h3>
       <table>
         <thead><tr><th>Task</th><th>Status</th><th>Deadline</th></tr></thead>
         <tbody id="board"></tbody>
       </table>
-    </section>
-
-    <section class="panel">
-      <h2>Waiting on this board</h2>
-      <div id="deps"></div>
-    </section>
-
-    <section class="panel">
-      <h2>What you are waiting for</h2>
-      <div id="waiting"></div>
-    </section>
-
-    <section class="panel">
-      <h2>Projects</h2>
-      <div id="projects"></div>
-    </section>
-
-    <section class="panel">
-      <h2>Access you have granted</h2>
-      <div id="shares"></div>
-    </section>
-
-    <section class="panel">
-      <h2>Confirmed by you</h2>
-      <div id="recent"></div>
-    </section>
-
-    <section class="panel" id="panel-cal">
-      <h2>Calibration</h2>
+      <div class="split">
+        <div class="col"><h3>Waiting on this board</h3><div id="deps"></div></div>
+        <div class="col"><h3>What they are waiting for</h3><div id="waiting"></div></div>
+      </div>
+      <h3>History</h3>
+      <div id="drill"><div class="empty">Select a task above to see its
+        history and, where you have full-trace access, the sources behind
+        each change.</div></div>
+      <h3>Calibration</h3>
       <div id="cal"></div>
-    </section>
-  </div>
-
-  <section class="panel">
-    <h2>History</h2>
-    <div id="drill"><div class="empty">Select a task to see its history and,
-      where you have full-trace access, the sources behind each change.</div></div>
-  </section>
-</div>
-
-<div class="wide">
-  <section class="panel">
-    <h2>Ask the ledger</h2>
-    <form id="askform" class="askbar">
-      <input id="askq" type="search" autocomplete="off"
-             aria-label="Ask the ledger"
-             placeholder="what is blocked \u00b7 status of the intake work \u00b7 what came out of the scrum">
-      <button type="submit">Ask</button>
-    </form>
-    <div id="askout"></div>
-  </section>
-
-  <section class="panel">
-    <h2>Meeting follow-through</h2>
-    <div id="meetings"></div>
-  </section>
-
-  <section class="panel">
-    <h2>Measures</h2>
-    <div id="tiles" class="tiles"></div>
-    <div class="charts">
-      <figure class="fig" id="fig-confirmed"></figure>
-      <figure class="fig" id="fig-friction"></figure>
-      <figure class="fig" id="fig-latency"></figure>
-      <figure class="fig" id="fig-queue"></figure>
     </div>
-  </section>
-</div>
+  </details>
+</main>
 
 <script>
 (function(){
@@ -401,8 +452,9 @@
   function boot(){
     document.getElementById("drill").innerHTML =
       '<div class="empty">Select a task to see its history.</div>';
-    loadTeam(); loadShares(); loadPending(); loadHeld(); loadCalibration();
-    loadProjects(); loadRecent(); loadMetrics(); loadMeetings();
+    loadWork(); loadPending(); loadHeld(); loadMetrics();
+    loadTeam(); loadShares(); loadCalibration();
+    loadProjects(); loadRecent(); loadMeetings();
     document.getElementById("askout").innerHTML =
       '<div class="empty">Answers come from confirmed board state, with their receipts. Unconfirmed claims are labelled as such, never asserted.</div>';
   }
@@ -461,11 +513,16 @@
   // ---- your own review loop (Q6): self-only, never widened by a grant ----
   function loadPending(){
     panel("pending", "/api/pending", function(box, d){
+      HERO.pending = d.undecided; paintHero();
       if(!d.undecided){
         box.appendChild(el("div","empty",
           "Nothing waiting. Proposals appear here after a cadence run."));
         return;
       }
+      HERO.pending = d.undecided;
+      HERO.pendingNote = d.conflicts ? d.conflicts + " flagged" :
+                                       "proposals, nothing applied yet";
+      paintHero();
       var head = el("div","loud",
         d.undecided + " proposal" + (d.undecided===1?"":"s") + " awaiting you" +
         (d.conflicts ? " \u00b7 " + d.conflicts + " flagged" : ""));
@@ -487,6 +544,7 @@
   // ---- claims the gates are holding, not guessing at ----
   function loadHeld(){
     panel("held", "/api/held", function(box, rows){
+      HERO.held = rows.length; paintHero();
       if(!rows.length){
         box.appendChild(el("div","empty",
           "No claims are waiting. Anything the gates hold shows up here."));
@@ -554,6 +612,163 @@
         });
       }
     });
+  }
+
+  // ==================================================================
+  // Your work: the card that answers "what am I on, where did it get
+  // to, and who else is attached" without a click. Everything on it
+  // comes from one board row -- status, the last thing the ledger
+  // noted, the people the work touches, and the receipts underneath.
+  // ==================================================================
+  var HERO = {};
+
+  function paintHero(){
+    var box = document.getElementById("hero");
+    box.innerHTML = "";
+    function stat(k, v, n, urgent){
+      var d = el2("div", "hstat" + (urgent ? " act" : ""));
+      d.appendChild(el("div","k", k));
+      d.appendChild(el("div","v", v == null ? "\u2014" : String(v)));
+      if(n) d.appendChild(el("div","n", n));
+      box.appendChild(d);
+    }
+    stat("In progress", HERO.active, HERO.activeNote);
+    stat("Needs your review", HERO.pending,
+         HERO.pendingNote || "proposals, nothing applied yet",
+         HERO.pending > 0);
+    stat("Heard, unconfirmed", HERO.held,
+         "claims waiting on a second source");
+    stat("Said \u2192 tracked", HERO.lag,
+         HERO.lagNote || "median, conversation to confirmed fact");
+  }
+
+  var NOTED = {
+    created: "created", status_changed: "moved to", completed: "completed",
+    cancelled: "cancelled", reopened: "reopened",
+    deadline_changed: "re-dated to", reassigned: "handed to",
+    blocker_added: "reported blocked", blocker_resolved: "unblocked",
+    alias_added: "also called", project_assigned: "filed under",
+    merged_into: "merged into"
+  };
+
+  function notedLine(t){
+    var ln = t.last_noted;
+    if(!ln) return "No board activity recorded yet.";
+    var p = ln.payload || {};
+    var what = NOTED[ln.event_type] || ln.event_type.replace(/_/g," ");
+    var detail = p.to_status || p.to_deadline || p.to_owner_ref ||
+                 p.project_id || "";
+    var when = (ln.occurred_at || "").slice(0,10);
+    var days = daysSince(ln.occurred_at);
+    var out = what + (detail ? " " + String(detail).replace(/_/g," ") : "") +
+              " \u00b7 " + when + (days != null ? " (" + days + "d ago)" : "");
+    if(ln.on_whose_word) out += " \u00b7 on " + ln.on_whose_word + "'s word";
+    else if(ln.actor_type === "manual_edit") out += " \u00b7 typed by hand";
+    else if(ln.actor_type === "user_decision") out += " \u00b7 you confirmed it";
+    return out;
+  }
+
+  function daysSince(iso){
+    if(!iso) return null;
+    var t = Date.parse(iso);
+    if(isNaN(t)) return null;
+    return Math.max(0, Math.round((Date.now() - t) / 86400000));
+  }
+
+  function loadWork(){
+    panel("work", "/api/board/" + encodeURIComponent(state.viewer),
+      function(box, rows){
+        var open = rows.filter(function(r){
+          return r.status !== "completed" && r.status !== "cancelled"; });
+        HERO.active = open.length;
+        HERO.activeNote = rows.length + " task(s) on your board";
+        paintHero();
+        if(!rows.length){
+          box.appendChild(emptyEl(
+            "Nothing on your board yet. Work appears here once a proposal " +
+            "from a conversation is accepted.", "empty-board.png"));
+          return;
+        }
+        open.sort(function(a, b){
+          return (b.overdue - a.overdue) ||
+                 ((a.status === "blocked" ? 0 : 1) -
+                  (b.status === "blocked" ? 0 : 1)); });
+        open.forEach(function(t){ box.appendChild(workCard(t)); });
+      });
+  }
+
+  function workCard(t){
+    var card = el2("div", "workcard " + (t.overdue ? "overdue" : t.status));
+    var top = el2("div","wc-top");
+    var left = el2("div");
+    left.appendChild(el("div","wc-title", t.title));
+    left.appendChild(el("div","wc-meta", t.task_id +
+      (t.project_name ? " \u00b7 " + t.project_name : "") +
+      (t.sources ? " \u00b7 " + t.sources + " source(s)" : "")));
+    top.appendChild(left);
+    var right = el2("div");
+    right.appendChild(el("span","status s-" + t.status,
+      (t.status || "").replace(/_/g," ")));
+    if(t.deadline)
+      right.appendChild(el("div","deadline" + (t.overdue ? " overdue" : ""),
+        "due " + t.deadline + (t.overdue ? " \u00b7 overdue" : "")));
+    if(t.deadline_raw)
+      right.appendChild(el("div","rawdate", "\u201c" + t.deadline_raw + "\u201d"));
+    top.appendChild(right);
+    card.appendChild(top);
+
+    var noted = el2("div","wc-noted");
+    noted.appendChild(el("span","lead","Last noted: "));
+    noted.appendChild(document.createTextNode(notedLine(t)));
+    card.appendChild(noted);
+    if(t.quiet_days >= 14)
+      card.appendChild(el("div","quiet",
+        "no change in " + t.quiet_days + " days"));
+
+    if(t.with && t.with.length){
+      var w = el2("div","wc-with");
+      w.appendChild(document.createTextNode("With:"));
+      t.with.forEach(function(x){
+        var chip = el2("span","who-chip");
+        chip.appendChild(el("b", null, x.ref));
+        chip.appendChild(document.createTextNode(" \u00b7 " + x.relation));
+        w.appendChild(chip);
+      });
+      card.appendChild(w);
+    }
+
+    var actions = el2("div","wc-actions");
+    var btn = el2("button","trace-btn");
+    btn.textContent = "Receipts";
+    var rail = el2("div","wc-rail");
+    rail.style.display = "none";
+    btn.addEventListener("click", function(){
+      if(rail.style.display === "none"){
+        rail.style.display = "block";
+        btn.textContent = "Hide receipts";
+        if(!rail.firstChild) fillRail(rail, t);
+      } else {
+        rail.style.display = "none";
+        btn.textContent = "Receipts";
+      }
+    });
+    actions.appendChild(btn);
+    card.appendChild(actions);
+    card.appendChild(rail);
+    return card;
+  }
+
+  function fillRail(rail, t){
+    rail.appendChild(el("div","empty loading","Loading\u2026"));
+    get("/api/task/" + encodeURIComponent(t.task_id) + "/history")
+    .then(function(res){
+      rail.innerHTML = "";
+      if(res.access_level === "progress") rail.appendChild(legend());
+      var r = el2("div","rail");
+      res.events.slice().reverse().forEach(function(ev){
+        r.appendChild(eventRow(ev)); });
+      rail.appendChild(r);
+    }).catch(function(e){ fail(rail, e); });
   }
 
   // ---- boards visible to the viewer ----
@@ -1196,6 +1411,12 @@
     get("/api/metrics").then(function(d){
       tiles.innerHTML = "";
       var t = d.tiles || {};
+      HERO.lag = t.median_lag_hours == null ? null
+        : num(t.median_lag_hours / 24) + "d";
+      HERO.lagNote = t.traced_tasks
+        ? "median across " + t.traced_tasks + " traced task(s)"
+        : "no traced tasks yet";
+      paintHero();
       tile(tiles, "Said \u2192 tracked",
         t.median_lag_hours == null ? "\u2014"
           : num(t.median_lag_hours / 24) + "d",
@@ -1211,15 +1432,17 @@
         "'done' claims still waiting on corroboration");
 
       var f = figure(document.getElementById("fig-confirmed"),
-        "Confirmed per week",
-        "Board changes a person accepted, by week");
+        "Work confirmed each week",
+        "Tasks created and completed on the boards you can see. Counts " +
+        "board events, so every bar is something a human accepted.");
       columns(f, {title: "Confirmed per week", names: ["Created", "Completed"],
         rows: d.confirmed.map(function(r){
           return {label: shortWeek(r.wk), values: [r.created, r.completed]}; })});
 
       var fr = figure(document.getElementById("fig-friction"),
-        "Friction per week",
-        "Blockers raised, deadlines moved, work cancelled");
+        "Friction each week",
+        "Blockers raised, deadlines moved, work cancelled \u2014 the three " +
+        "ways plans change after they are agreed.");
       columns(fr, {title: "Friction per week", stacked: true,
         names: ["Blocked", "Deadline moved", "Cancelled"],
         rows: d.friction.map(function(r){
@@ -1227,8 +1450,10 @@
                   values: [r.blocked, r.moved, r.cancelled]}; })});
 
       var l = figure(document.getElementById("fig-latency"),
-        "Said \u2192 tracked, by week",
-        "Median time from the words to a confirmed board fact");
+        "From said to tracked",
+        "Median time between someone saying the work exists and it being " +
+        "confirmed on a board. No other tracker can measure this: its " +
+        "clock starts when you type.");
       if(d.latency.length){
         lineChart(l, {title: "Said to tracked", unit: "hours",
           points: d.latency.map(function(r){
@@ -1240,7 +1465,8 @@
 
       var qf = figure(document.getElementById("fig-queue"),
         "Where the queue forms",
-        "Days of blocked time, by who or what it waits on");
+        "Days of blocked time, grouped by who or what the work waits on. " +
+        "Longest bar is where your org actually queues.");
       if(d.queue.length){
         hbars(qf, {title: "Blocked days by party", dim: "Waiting on",
           unit: "days", rows: d.queue.map(function(r){

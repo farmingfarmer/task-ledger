@@ -331,6 +331,8 @@ def board(user_ref):
         WHERE t.user_ref = %s AND t.merged_into IS NULL
         ORDER BY overdue DESC, t.status, t.deadline NULLS LAST""",
         (v, user_ref))
+    _add_last_noted(rows, v)
+    _add_collaborators(rows, user_ref)
     out = []
     for r in rows:
         # A raw deadline phrase is a quote, and a source count is a fact
@@ -339,6 +341,9 @@ def board(user_ref):
         if r["access_level"] != "full_trace":
             r["deadline_raw"] = None
             r["sources"] = None
+            # Who said it is provenance; THAT it changed is progress.
+            if r.get("last_noted"):
+                r["last_noted"]["on_whose_word"] = None
         if r["access_level"] == "status_only":
             # Visible because it blocks the viewer's own work. They get the
             # title and whether it is moving -- not the deadline, project,
@@ -348,6 +353,94 @@ def board(user_ref):
                  "blocking_you": True}
         out.append(r)
     return jsonify(out)
+
+
+def _add_last_noted(rows, viewer_ref):
+    """When each task was last moved, by what, and on whose word.
+
+    The single most useful line on a task card and the one thing only this
+    system can say: not "updated 3 days ago" but "reported blocked, on
+    Priya's word, in Tuesday's standup". Speaker comes from the signals
+    behind the decision, so it is absent for anything confirmed before the
+    author_ref migration -- the card degrades to the event alone rather
+    than inventing a name.
+    """
+    ids = [r["task_id"] for r in rows]
+    if not ids:
+        return
+    events = q("""
+        SELECT DISTINCT ON (e.task_id)
+               e.task_id, e.event_id, e.event_type, e.actor_type,
+               e.occurred_at, e.payload,
+               d.decided_by,
+               (SELECT string_agg(DISTINCT s.author_ref, ', ')
+                  FROM proposal_signals ps
+                  JOIN signals s ON s.signal_id = ps.signal_id
+                 WHERE ps.proposal_id = d.proposal_id
+                   AND s.author_ref IS NOT NULL) AS on_whose_word
+        FROM task_events e
+        LEFT JOIN decisions d ON d.decision_id = e.decision_id
+        WHERE e.task_id = ANY(%s)
+        ORDER BY e.task_id, e.board_version DESC""", (ids,))
+    by_task = {e["task_id"]: e for e in events}
+    for r in rows:
+        e = by_task.get(r["task_id"])
+        r["last_noted"] = None if not e else {
+            "event_type": e["event_type"], "occurred_at": e["occurred_at"],
+            "actor_type": e["actor_type"], "event_id": e["event_id"],
+            "payload": e["payload"], "decided_by": e["decided_by"],
+            "on_whose_word": e["on_whose_word"]}
+
+
+def _add_collaborators(rows, board_ref):
+    """Who else is attached to each task, and how.
+
+    Three relations, in the order a person cares about them: someone whose
+    work this is blocking, someone this is waiting on, and someone sharing
+    the project. All of it is already visible on the board -- this only
+    says it on the card instead of three panels away.
+    """
+    ids = [r["task_id"] for r in rows]
+    if not ids:
+        return
+    linked = {}
+
+    def add(task_id, ref, relation):
+        if not ref or ref == board_ref:
+            return
+        bucket = linked.setdefault(task_id, [])
+        if not any(x["ref"] == ref and x["relation"] == relation
+                   for x in bucket):
+            bucket.append({"ref": ref, "relation": relation})
+
+    for b in q("""
+            SELECT b.blocking_task_id AS on_task, w.user_ref AS waiter
+            FROM task_blockers b
+            JOIN tasks_current w ON w.task_id = b.task_id
+            WHERE b.blocking_task_id = ANY(%s)
+              AND b.resolved_event_id IS NULL""", (ids,)):
+        # Keyed to the task being waited ON, not the one doing the waiting.
+        add(b["on_task"], b["waiter"], "waiting on this")
+    for b in q("""
+            SELECT b.task_id, blk.user_ref AS blocker_owner,
+                   b.blocking_party
+            FROM task_blockers b
+            LEFT JOIN tasks_current blk ON blk.task_id = b.blocking_task_id
+            WHERE b.task_id = ANY(%s) AND b.resolved_event_id IS NULL""",
+            (ids,)):
+        add(b["task_id"], b["blocker_owner"] or b["blocking_party"],
+            "you are blocked on them")
+    for p in q("""
+            SELECT mine.task_id, peer.user_ref
+            FROM tasks_current mine
+            JOIN tasks_current peer ON peer.project_id = mine.project_id
+                                   AND peer.user_ref <> mine.user_ref
+            WHERE mine.task_id = ANY(%s) AND mine.project_id IS NOT NULL
+              AND peer.merged_into IS NULL""", (ids,)):
+        add(p["task_id"], p["user_ref"], "shares the project")
+
+    for r in rows:
+        r["with"] = linked.get(r["task_id"], [])
 
 
 @app.route("/api/task/<task_id>/history")
