@@ -48,14 +48,15 @@ def write_batch(dsn, batch, fallback_users):
                           (signal_id, batch_id, signal_type, title, description,
                            status_signal, confidence, deadline_date,
                            deadline_precision, deadline_raw, blocker_desc,
-                           blocker_party, owner_candidates, raw)
-                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                           blocker_party, author_ref, owner_candidates, raw)
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
                         ON CONFLICT (signal_id) DO NOTHING""",
                         (s["signal_id"], batch["batch_id"], s["type"],
                          s["title"], s.get("description"),
                          s.get("status_signal"), s["confidence"],
                          d.get("date"), d.get("precision"), d.get("raw_text"),
                          b.get("description"), b.get("blocking_party_ref"),
+                         s.get("author_ref"),
                          json.dumps(s.get("owner_candidates") or []),
                          json.dumps(s)))
                     if cur.rowcount == 0:

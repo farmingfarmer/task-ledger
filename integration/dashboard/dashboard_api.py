@@ -397,7 +397,7 @@ def provenance(event_id):
     rows = q("""
         SELECT p.proposal_id, p.op, p.rationale, p.confidence,
                s.signal_id, s.signal_type, s.title AS signal_title,
-               s.confidence AS signal_confidence,
+               s.confidence AS signal_confidence, s.author_ref,
                ev.ordinal, ev.source_type, ev.resource_id,
                ev.span_start, ev.span_end, ev.content_hash
         FROM task_events e

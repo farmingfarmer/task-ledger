@@ -198,10 +198,13 @@ class ExtractionWorker(object):
 
         cited = sig.get("evidence_items") or []
         evidence = []
+        primary = None
         for n in cited:
             it = by_no.get(n if isinstance(n, int) else _int_or_none(n))
             if it is None:
                 continue
+            if primary is None:
+                primary = it
             evidence.append({
                 "source_type": ev_type,
                 "resource_id": it["resource_id"],
@@ -210,6 +213,13 @@ class ExtractionWorker(object):
             })
         if not evidence:
             return None, "no_valid_evidence"
+        # Who SAID it, as opposed to who the work is for. The speaker comes
+        # from the window item, never from the model -- authorship is a
+        # transport fact and must not be something a model can hallucinate.
+        author_ref = None
+        if primary is not None:
+            author_ref = (primary.get("author_ref")
+                          or self.directory.get(primary.get("author_name")))
 
         status = sig.get("status_signal")
         if status == "null":
@@ -226,6 +236,7 @@ class ExtractionWorker(object):
             "signal_id": signal_id,
             "type": stype,
             "title": title,
+            "author_ref": author_ref,
             "description": (sig.get("description") or None),
             "owner_candidates": owners,
             "status_signal": status,

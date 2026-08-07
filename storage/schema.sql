@@ -68,6 +68,9 @@ CREATE TABLE signals (
   deadline_raw    text,
   blocker_desc    text,
   blocker_party   text,
+  author_ref      text,                      -- who SAID it (speaker of the
+                                             -- primary evidence); owner_
+                                             -- candidates is who it is FOR
   owner_candidates jsonb NOT NULL DEFAULT '[]'::jsonb,
   raw             jsonb NOT NULL             -- full ExtractedSignal as emitted
 );

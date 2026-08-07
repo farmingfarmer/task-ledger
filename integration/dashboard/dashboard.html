@@ -587,7 +587,14 @@
       s.appendChild(el("div","st",
         first.signal_type.replace("_"," ") + ": \u201c" +
         first.signal_title + "\u201d"));
-      s.appendChild(el("div","sm", sid + " \u00b7 extracted at " +
+      // Who said it. "On whose word" is half of what a reviewer asks, and
+      // signals captured before the author_ref migration cannot answer it
+      // -- the extraction record is append-only, so it says so plainly
+      // rather than guessing.
+      s.appendChild(el("div","sm",
+        (first.author_ref ? "said by " + first.author_ref
+                          : "speaker not recorded (pre-migration signal)") +
+        " \u00b7 " + sid + " \u00b7 extracted at " +
         Math.round(first.signal_confidence*100) + "% confidence"));
       group.forEach(function(r){
         var chip = el("a","src",

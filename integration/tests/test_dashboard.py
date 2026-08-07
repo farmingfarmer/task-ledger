@@ -111,9 +111,9 @@ def seed(conn):
             # something real to count.
             cur.execute("""
                 INSERT INTO signals (signal_id, batch_id, signal_type, title,
-                  confidence, deadline_raw, raw)
+                  confidence, deadline_raw, author_ref, raw)
                 VALUES (%s, %s, 'deadline_signal', 'Fixture deadline claim',
-                        0.90, 'end of next sprint', '{}')
+                        0.90, 'end of next sprint', 'dash-speaker', '{}')
                 ON CONFLICT (signal_id) DO NOTHING""", (SIGNAL_ACCEPTED, BATCH))
             cur.execute("""
                 INSERT INTO evidence_refs (signal_id, ordinal, source_type,
@@ -130,8 +130,17 @@ def seed(conn):
                 VALUES ('prop-dash-rejected',%s,'reject','duplicate',%s,now())
                 ON CONFLICT (proposal_id, decided_by) DO NOTHING""",
                 (PACKET, OWNER))
-            # The accepted one becomes a board event through the only writer,
-            # carrying the raw phrase the reviewer saw.
+            for who, level in ((MATE, "full_trace"), (STAKE, "progress")):
+                cur.execute("""
+                    SELECT 1 FROM v_current_grants
+                    WHERE grantee_ref = %s AND subject_type = 'user'
+                      AND subject_id = %s AND level = %s""",
+                    (who, OWNER, level))
+                if cur.fetchone() is None:
+                    cur.execute("SELECT grant_access(%s,%s,'user',%s,%s,%s)",
+                                (OWNER, who, OWNER, level, "dashboard test"))
+            # The accepted proposal becomes a board event through the only
+            # writer, carrying the raw phrase the reviewer saw.
             cur.execute("""
                 SELECT event_id FROM task_events
                 WHERE task_id = %s AND event_type = 'deadline_changed'
@@ -158,15 +167,6 @@ def seed(conn):
                 WHERE task_id = %s AND event_type = 'deadline_changed'
                 ORDER BY event_id LIMIT 1""", (TASK,))
             return cur.fetchone()[0]
-            for who, level in ((MATE, "full_trace"), (STAKE, "progress")):
-                cur.execute("""
-                    SELECT 1 FROM v_current_grants
-                    WHERE grantee_ref = %s AND subject_type = 'user'
-                      AND subject_id = %s AND level = %s""",
-                    (who, OWNER, level))
-                if cur.fetchone() is None:
-                    cur.execute("SELECT grant_access(%s,%s,'user',%s,%s,%s)",
-                                (OWNER, who, OWNER, level, "dashboard test"))
 
 
 def as_viewer(client, path, who=None):
@@ -265,6 +265,15 @@ def main():
        and row["quiet_days"] is not None,
        "progress level keeps quiet-since but not the quote or the "
        "source count")
+
+    print("provenance authorship")
+    code, prov = as_viewer(client, "/api/event/{0}/provenance".format(EVENT[0]),
+                           OWNER)
+    ok(code == 200 and prov[0]["author_ref"] == "dash-speaker",
+       "the rail says who spoke, not just which message")
+    ok(all("author_ref" in r for r in prov),
+       "author travels with every provenance row, NULL where unrecorded "
+       "(append-only signals predating the migration are never backfilled)")
 
     print("evidence integrity")
     code, prov = as_viewer(client, "/api/event/{0}/provenance".format(EVENT[0]),

@@ -73,6 +73,10 @@
           "description": "Normalized short imperative, e.g. 'Migrate readmission model to Fargate'. Written by the extractor, not quoted from source."
         },
         "description": { "type": "string" },
+        "author_ref": {
+          "type": ["string", "null"],
+          "description": "Who MADE this claim: the speaker of the primary cited evidence, resolved through the directory. Not part of signal_id, so adding it changed no existing id. Distinct from owner_candidates, which is who the work is FOR -- 'Priya said Dev finished it' has author Priya and owner Dev, and that difference is exactly what the corroboration rule means by independent speakers."
+        },
         "owner_candidates": {
           "type": "array",
           "description": "Who this signal appears to belong to. Multiple candidates allowed; reconciliation resolves. Empty array = extractor could not attribute.",

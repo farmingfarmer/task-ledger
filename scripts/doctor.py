@@ -79,6 +79,17 @@ def check_schema(conn):
                    " (load storage/schema.sql + access/access_control.sql)")
             return
         report("PASS", "schema present ({0} core tables)".format(len(need)))
+        # Pending migrations fail at write time with an UndefinedColumn deep
+        # in the store, which is a poor way to learn about them.
+        cur.execute("""
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'signals' AND column_name = 'author_ref'""")
+        if cur.fetchone() is None:
+            report("WARN", "migration pending: signals.author_ref",
+                   "extraction writes will fail; apply "
+                   "storage/migrate_author_ref.sql")
+        else:
+            report("PASS", "migrations applied", "signals.author_ref present")
         cur.execute("SELECT count(*) FROM v_unconsumed_signals")
         pool = cur.fetchone()[0]
         cur.execute("""

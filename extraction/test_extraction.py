@@ -154,6 +154,16 @@ def test_golden():
        "blocker carried; unknown party stays null")
     ok(by_type["proposal"]["owner_candidates"] == [],
        "unowned proposal keeps empty candidate list")
+    # Author is who SAID it; owner is who it is FOR. The assignment is
+    # spoken by Alex (utt-004) about work for Dev, and conflating the two
+    # would make a third-party claim look like a self-report.
+    ok(a["author_ref"] == "aad-alex"
+       and a["owner_candidates"][0]["person_ref"] == "aad-dev",
+       "author (speaker) recorded independently of owner")
+    ok(all("author_ref" in s for s in batch["signals"]),
+       "every signal carries an author field")
+    ok(by_type["completion_claim"]["author_ref"] == "aad-dev",
+       "author comes from the cited utterance, not the model")
 
 
 def test_determinism():
