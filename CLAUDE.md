@@ -73,6 +73,7 @@ Doc generators (self-checking, regenerate rather than hand-edit their output):
 ```zsh
 python3 scripts/build_system_map.py   # -> docs/system_map.html   (fails on symbol/narrative drift)
 python3 scripts/build_presenter.py    # -> docs/presenter_companion.html (asserts 8 domains, deep-node/FAQ counts, ES5-only JS)
+node integration/dashboard/check_js.js integration/dashboard/dashboard.html   # undeclared constants in the inline JS
 python3 scripts/copilot_ingest.py paste.txt --out ~/task-ledger-inbox [--dry-run]
 ```
 

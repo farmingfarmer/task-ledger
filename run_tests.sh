@@ -11,5 +11,11 @@ cd "$(dirname "$0")"
 ( cd ask && python3 test_ask.py )
 ( cd eval && python3 test_eval.py )
 ( cd integration/tests && python3 test_dashboard.py )
+# The dashboard's JS is inline and untested by the Python suites; this
+# catches a constant deleted along with the function above it, which is
+# how REASON_ROUTE and NOTED both reached the browser as runtime errors.
+command -v node >/dev/null && node integration/dashboard/check_js.js \
+  integration/dashboard/dashboard.html || \
+  echo "skipped: node not installed (dashboard JS check)"
 python3 scripts/build_system_map.py
 echo "ALL SUITES COMPLETE"

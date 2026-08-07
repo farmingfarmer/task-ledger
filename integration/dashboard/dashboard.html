@@ -613,6 +613,18 @@
     });
   }
 
+  // Which stage a rejection points at: the reject menu is the calibration
+  // loop's input, and this is what turns a reason into somewhere to look.
+  var REASON_ROUTE = {
+    duplicate: "matching thresholds",
+    wrong_task_match: "auto-link threshold",
+    bad_date_resolution: "extraction",
+    not_a_task: "extraction",
+    wrong_owner: "attribution",
+    wrong_status: "status gates",
+    stale: "cadence latency"
+  };
+
   function loadCalibration(){
     panel("cal", "/api/calibration", function(box, d){
       if(!d.decisions_total){
@@ -871,6 +883,17 @@
         fail(document.getElementById("drawer"), e, loadWork);
     });
   }
+
+  // Board events in the words a person would use. "moved to blocked"
+  // rather than "status_changed", because the card is read, not parsed.
+  var NOTED = {
+    created: "created", status_changed: "moved to", completed: "completed",
+    cancelled: "cancelled", reopened: "reopened",
+    deadline_changed: "re-dated to", reassigned: "handed to",
+    blocker_added: "reported blocked", blocker_resolved: "unblocked",
+    alias_added: "also called", project_assigned: "filed under",
+    merged_into: "merged into"
+  };
 
   function notedLine(t){
     var ln = t.last_noted;

@@ -1,0 +1,42 @@
+// Static check for the dashboard's inline JS.
+//
+// `node --check` proves the file parses; it says nothing about a variable
+// that was deleted along with the function above it. That is exactly how
+// REASON_ROUTE reached the browser as "Can't find variable" while every
+// test passed and the page rendered. This catches the class.
+//
+//   node integration/dashboard/check_js.js integration/dashboard/dashboard.html
+var fs = require("fs");
+
+var file = process.argv[2] || "integration/dashboard/dashboard.html";
+var html = fs.readFileSync(file, "utf8");
+var js = html.split("<script>")[1].split("</script>")[0];
+
+// Comments and string literals are not code: an identifier inside either
+// is prose, and scanning them is how a checker cries wolf.
+var code = js
+  .replace(/\/\*[\s\S]*?\*\//g, " ")
+  .replace(/(^|[^:])\/\/[^\n]*/g, "$1 ")
+  .replace(/"(?:[^"\\]|\\.)*"/g, '""')
+  .replace(/'(?:[^'\\]|\\.)*'/g, "''")
+  .replace(/\/(?:[^\/\\\n\[]|\\.|\[[^\]]*\])+\/[gimsuy]*/g, "/re/");
+
+var declared = Object.create(null);
+[/\bvar\s+([A-Za-z_$][\w$]*)/g, /\bfunction\s+([A-Za-z_$][\w$]*)/g].forEach(
+  function (re) { var m; while ((m = re.exec(code))) declared[m[1]] = true; });
+var pre = /function\s*[A-Za-z_$\w]*\s*\(([^)]*)\)/g, pm;
+while ((pm = pre.exec(code)))
+  pm[1].split(",").forEach(function (a) {
+    a = a.trim(); if (a) declared[a] = true; });
+
+// SCREAMING_CASE identifiers are module constants by convention here, so a
+// missing one is unambiguous -- no guessing about scope or hoisting.
+var used = Object.create(null), ure = /\b([A-Z][A-Z0-9_]{2,})\b/g, um;
+while ((um = ure.exec(code))) used[um[1]] = true;
+
+var missing = Object.keys(used).filter(function (u) { return !declared[u]; });
+if (missing.length) {
+  console.error("UNDECLARED: " + missing.join(", "));
+  process.exit(1);
+}
+console.log("dashboard JS: no undeclared module constants");
