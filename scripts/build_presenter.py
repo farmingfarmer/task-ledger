@@ -79,6 +79,23 @@ P = {
          "are patched with deterministic code guards, and anything "
          "uncertain is held rather than guessed. The design principle "
          "throughout: trust proportional to blast radius."],
+        ["Why not just a Copilot agent with good prompts?",
+         "Copilot extracts well -- well enough that it produced the "
+         "meeting quotes this system's first live run ingested. "
+         "Extraction is the part it does well, and this product starts "
+         "downstream of it. A chat agent retells a meeting; it holds no "
+         "reconciled state across weeks, so it cannot match today's "
+         "claim to a task from three meetings ago, or notice the same "
+         "work proposed twice in one day. Its answers are regenerable "
+         "prose -- ask twice, get two phrasings. Here every fact carries "
+         "a receipt: decision, to proposal, to the hash of the utterance "
+         "that produced it. The human gate is structural, not "
+         "instructed: there is no code path from model output to a board "
+         "mutation, and the dashboard's database session is read-only at "
+         "the connection level. And local models let me measure the "
+         "failure modes instead of trusting them. Copilot is a brilliant "
+         "witness; task-ledger is the court record -- and Copilot "
+         "testifies into it."],
     ],
     "domains": [
         {"id": "capture", "name": "01 Capture", "color": "#7FA6C9",
