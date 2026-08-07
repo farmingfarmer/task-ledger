@@ -52,22 +52,58 @@
   .col > div{background:var(--panel);border:1px solid var(--line);
              border-radius:8px;overflow:hidden}
 
-  /* ---- masthead: what this is, before anything else ---------------- */
-  .mast{padding:22px 28px 0;max-width:1180px;margin:0 auto}
-  .mast-top{display:flex;justify-content:space-between;align-items:flex-start;
-            gap:20px;flex-wrap:wrap}
-  .mast h1{font-weight:800;font-size:20px;letter-spacing:-.02em}
-  .mission{color:var(--muted);font-size:13.5px;margin-top:3px;max-width:52ch}
-  .hero{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));
-        gap:1px;background:var(--line);border:1px solid var(--line);
-        border-radius:8px;overflow:hidden;margin:16px 0 0}
-  .hstat{background:var(--panel);padding:12px 14px}
-  .hstat .v{font-size:24px;font-weight:600;letter-spacing:-.02em;
+  /* ---- masthead: one tight band, no dead space --------------------
+     Title, mission and identity share a single baseline row; the stats
+     sit directly under it as a full-width strip. An earlier version put
+     the title block and the identity control at opposite ends of a
+     space-between row, which opened a hole across the middle. */
+  .mast{padding:18px 28px 0;max-width:1180px;margin:0 auto}
+  .mast-top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .mast h1{font-weight:800;font-size:19px;letter-spacing:-.02em;
+           white-space:nowrap}
+  .mission{color:var(--muted);font-size:13px;flex:1;min-width:260px}
+  .mast .viewer{margin-left:auto}
+
+  /* Stat strip: each one is a control that takes you to the detail. */
+  .hero{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;
+        background:var(--line);border:1px solid var(--line);
+        border-radius:8px;overflow:hidden;margin:12px 0 0}
+  @media (max-width:820px){.hero{grid-template-columns:repeat(2,1fr)}}
+  .hstat{background:var(--panel);padding:11px 14px;text-align:left;
+         border:0;font:inherit;cursor:pointer;display:block;width:100%}
+  .hstat:hover{background:#F6F8FA}
+  .hstat:focus-visible{outline:2px solid var(--ink);outline-offset:-2px}
+  .hstat .v{font-size:23px;font-weight:600;letter-spacing:-.02em;
             line-height:1.15}
   .hstat .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;
-            letter-spacing:.07em;margin-bottom:3px}
+            letter-spacing:.07em;margin-bottom:2px}
   .hstat .n{font-size:11.5px;color:var(--quiet);margin-top:2px}
+  .hstat .go{font-size:11px;color:var(--muted);margin-top:4px;
+             visibility:hidden}
+  .hstat:hover .go,.hstat:focus-visible .go{visibility:visible}
   .hstat.act .v{color:var(--brick)}
+
+  .askbar{display:flex;gap:8px;margin:12px 0 0;padding:0;border:0}
+  .askbar input{flex:1;border:1px solid var(--line);border-radius:6px;
+                padding:8px 11px;font:inherit;background:var(--panel)}
+  .askbar button{border:1px solid var(--ink);background:var(--ink);
+                 color:#fff;border-radius:6px;padding:8px 18px;
+                 font-weight:500}
+  #askout:not(:empty){background:var(--panel);border:1px solid var(--line);
+                      border-radius:8px;margin-top:10px;overflow:hidden}
+
+  /* Where a stat sends you, briefly marked so the jump is legible. */
+  .flash{animation:flash 1.2s ease-out}
+  @keyframes flash{from{background:#FBF3E2}to{background:transparent}}
+  @media (prefers-reduced-motion: reduce){.flash{animation:none;
+    outline:2px solid var(--evidence);outline-offset:4px}}
+
+  .filters{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+  .filters button{border:1px solid var(--line);background:var(--panel);
+                  border-radius:20px;padding:3px 12px;font-size:12px;
+                  color:var(--muted)}
+  .filters button[aria-pressed="true"]{background:var(--ink);color:#fff;
+                                       border-color:var(--ink)}
 
   /* ---- the work card: the page's centre of gravity ----------------- */
   .workcard{background:var(--panel);border:1px solid var(--line);
@@ -275,11 +311,9 @@
 <body>
 <header class="mast">
   <div class="mast-top">
-    <div>
-      <h1>Task ledger</h1>
-      <p class="mission">Your work, as the conversations recorded it &mdash;
-        every fact traceable to the sentence that produced it.</p>
-    </div>
+    <h1>Task ledger</h1>
+    <p class="mission">Your work, as the conversations recorded it &mdash;
+      every fact traceable to the sentence that produced it.</p>
     <div class="viewer">
       <label for="viewer-sel">Viewing as</label>
       <select id="viewer-sel" aria-label="Viewing as"></select>
@@ -300,14 +334,14 @@
 </header>
 
 <main>
-  <section class="zone">
+  <section class="zone" id="zone-work">
     <h2>Your work
       <span class="zsub">what you own, where each item was last noted, and
         who else is attached to it</span></h2>
     <div id="work"></div>
   </section>
 
-  <section class="zone">
+  <section class="zone" id="zone-needs">
     <h2>Needs you
       <span class="zsub">nothing here changes the board until you say so</span></h2>
     <div class="split">
@@ -322,7 +356,7 @@
     </div>
   </section>
 
-  <section class="zone">
+  <section class="zone" id="zone-signals">
     <h2>Signals over time
       <span class="zsub">what the ledger has measured about your work and
         about itself</span></h2>
@@ -622,24 +656,115 @@
   // ==================================================================
   var HERO = {};
 
+  // Each headline number is a control: it takes you to the layer of
+  // detail behind it, rather than making you find the panel yourself.
+  // A number you cannot follow is a number you cannot act on.
   function paintHero(){
     var box = document.getElementById("hero");
     box.innerHTML = "";
-    function stat(k, v, n, urgent){
-      var d = el2("div", "hstat" + (urgent ? " act" : ""));
-      d.appendChild(el("div","k", k));
-      d.appendChild(el("div","v", v == null ? "\u2014" : String(v)));
-      if(n) d.appendChild(el("div","n", n));
-      box.appendChild(d);
+    function stat(k, v, n, go, onClick, urgent){
+      var b = el2("button", "hstat" + (urgent ? " act" : ""));
+      b.type = "button";
+      b.appendChild(el("div","k", k));
+      b.appendChild(el("div","v", v == null ? "\u2014" : String(v)));
+      if(n) b.appendChild(el("div","n", n));
+      b.appendChild(el("div","go", go));
+      b.addEventListener("click", onClick);
+      box.appendChild(b);
     }
-    stat("In progress", HERO.active, HERO.activeNote);
+    stat("In progress", HERO.active, HERO.activeNote,
+         "see the open items \u2193",
+         function(){ setWorkFilter("open"); focusZone("zone-work"); });
     stat("Needs your review", HERO.pending,
          HERO.pendingNote || "proposals, nothing applied yet",
+         "see what is waiting \u2193",
+         function(){ focusZone("zone-needs", "pending"); },
          HERO.pending > 0);
     stat("Heard, unconfirmed", HERO.held,
-         "claims waiting on a second source");
+         "claims waiting on a second source",
+         "see the claims \u2193",
+         function(){ focusZone("zone-needs", "held"); });
     stat("Said \u2192 tracked", HERO.lag,
-         HERO.lagNote || "median, conversation to confirmed fact");
+         HERO.lagNote || "median, conversation to confirmed fact",
+         "see it week by week \u2193",
+         function(){ focusZone("zone-signals", "fig-latency"); openTable(
+             document.getElementById("fig-latency")); });
+  }
+
+  // Scroll to the zone, then mark the thing worth looking at.
+  function focusZone(zoneId, innerId){
+    var zone = document.getElementById(zoneId);
+    if(!zone) return;
+    zone.scrollIntoView({behavior: "smooth", block: "start"});
+    var target = innerId ? document.getElementById(innerId) : zone;
+    if(!target) target = zone;
+    target.classList.remove("flash");
+    void target.offsetWidth;                 // restart the animation
+    target.classList.add("flash");
+  }
+
+  // The next layer for a chart is its numbers, so open the table twin.
+  function openTable(fig){
+    if(!fig) return;
+    var buttons = fig.getElementsByTagName("button");
+    for(var i = 0; i < buttons.length; i++){
+      if(buttons[i].className === "tbl-btn"
+         && buttons[i].textContent.indexOf("Show") === 0){
+        buttons[i].click();
+        return;
+      }
+    }
+  }
+
+  // Filter chips over the work list: the drill-down for "in progress".
+  var WORK = {rows: [], filter: "open"};
+  var FILTERS = [
+    ["open", "Open", function(r){ return r.status !== "completed"
+                                     && r.status !== "cancelled"; }],
+    ["blocked", "Blocked", function(r){ return r.status === "blocked"; }],
+    ["overdue", "Overdue", function(r){ return !!r.overdue; }],
+    ["quiet", "Gone quiet", function(r){ return r.quiet_days >= 14
+                                          && r.status !== "completed"; }],
+    ["all", "Everything", function(){ return true; }]
+  ];
+
+  function setWorkFilter(key){
+    WORK.filter = key;
+    paintWork();
+  }
+
+  function paintWork(){
+    var box = document.getElementById("work");
+    box.innerHTML = "";
+    var chips = el2("div","filters");
+    FILTERS.forEach(function(f){
+      var b = el2("button", null);
+      b.type = "button";
+      b.textContent = f[1];
+      b.setAttribute("aria-pressed", String(WORK.filter === f[0]));
+      b.addEventListener("click", function(){ setWorkFilter(f[0]); });
+      chips.appendChild(b);
+    });
+    box.appendChild(chips);
+
+    var test = FILTERS.filter(function(f){ return f[0] === WORK.filter; })[0][2];
+    var rows = WORK.rows.filter(test);
+    if(!WORK.rows.length){
+      box.appendChild(emptyEl(
+        "Nothing on your board yet. Work appears here once a proposal " +
+        "from a conversation is accepted.", "empty-board.png"));
+      return;
+    }
+    if(!rows.length){
+      box.appendChild(el("div","empty",
+        "Nothing matches that filter right now."));
+      return;
+    }
+    rows.sort(function(a, b){
+      return (b.overdue - a.overdue) ||
+             ((a.status === "blocked" ? 0 : 1) -
+              (b.status === "blocked" ? 0 : 1)); });
+    rows.forEach(function(t){ box.appendChild(workCard(t)); });
   }
 
   var NOTED = {
@@ -678,22 +803,13 @@
   function loadWork(){
     panel("work", "/api/board/" + encodeURIComponent(state.viewer),
       function(box, rows){
+        WORK.rows = rows;
         var open = rows.filter(function(r){
           return r.status !== "completed" && r.status !== "cancelled"; });
         HERO.active = open.length;
         HERO.activeNote = rows.length + " task(s) on your board";
         paintHero();
-        if(!rows.length){
-          box.appendChild(emptyEl(
-            "Nothing on your board yet. Work appears here once a proposal " +
-            "from a conversation is accepted.", "empty-board.png"));
-          return;
-        }
-        open.sort(function(a, b){
-          return (b.overdue - a.overdue) ||
-                 ((a.status === "blocked" ? 0 : 1) -
-                  (b.status === "blocked" ? 0 : 1)); });
-        open.forEach(function(t){ box.appendChild(workCard(t)); });
+        paintWork();
       });
   }
 
