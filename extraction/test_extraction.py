@@ -228,6 +228,98 @@ def test_empty_window():
        "empty window yields schema-valid empty batch, zero LLM calls")
 
 
+def test_self_commitment_guard():
+    """When the model attributes nobody and the speaker committed
+    themselves, the speaker is the owner.
+
+    Measured on the first live run: no owner candidates at all in 18 of 22
+    rejected creates. Sentence shapes below follow those cases; the wording
+    is invented.
+    """
+    print("self-commitment guard")
+    import extraction_worker as w
+
+    fires = ["And I'll work with Dana on the migration",
+             "I'm going to have the file, so I'll update the tracker too",
+             "let me pull those numbers together",
+             "I've started on the loader rewrite"]
+    for text in fires:
+        got = w._self_commitment_owner({"text": text}, "aad-speaker")
+        ok(got and got[0]["person_ref"] == "aad-speaker"
+           and got[0]["basis"] == "self_reference",
+           "a speaker committing themselves owns the work: {0!r}".format(
+               text[:38]))
+
+    elided = ["would also like to start on the prompt library",
+              "Will start on the parser next week"]
+    for text in elided:
+        ok(w._self_commitment_owner({"text": text}, "aad-speaker"),
+           "elided first person still commits: {0!r}".format(text[:38]))
+
+    silent = ["can we prioritise the readme instead?",
+              "Maybe part of onboarding could be a demo session",
+              "I agree, I think let\'s have a basic lesson on this",
+              "Did we have a meeting scheduled, Dana or Sam?",
+              "Can you, one of you, reply to that thread?",
+              "we should probably rewrite the loader"]
+    for text in silent:
+        ok(w._self_commitment_owner({"text": text}, "aad-speaker") == [],
+           "names nobody, so the guard stays silent: {0!r}".format(
+               text[:38]))
+
+    ok(w._self_commitment_owner({"text": "I'll do it"}, None) == [],
+       "no recorded speaker, no guess")
+    ok(w._self_commitment_owner({"text": ""}, "aad-speaker") == [],
+       "no text, no guess")
+
+
+def test_guard_end_to_end():
+    print("guard through the worker")
+    spec = {
+        "job": {"source_type": "meeting_transcript",
+                "source_ref": "guard-window",
+                "window_start": "2026-08-07T09:00:00Z",
+                "window_end": "2026-08-07T10:00:00Z"},
+        "directory": {"Dana": "aad-dana"},
+        "items": [{"resource_id": "g-1", "author_name": "Dana",
+                   "author_ref": "aad-dana",
+                   "timestamp": "2026-08-07T09:05:00Z",
+                   "text": "I'll take the loader rewrite this week"},
+                  {"resource_id": "g-2", "author_name": "Dana",
+                   "author_ref": "aad-dana",
+                   "timestamp": "2026-08-07T09:06:00Z",
+                   "text": "can we also look at the docs?"}],
+    }
+    # The model attributes nobody -- the shape the live run produced.
+    response = [
+        {"type": "assignment", "title": "Rewrite the loader",
+         "owner_candidates": [], "status_signal": None, "deadline": None,
+         "blocker": None, "confidence": 0.8, "evidence_items": [1]},
+        {"type": "proposal", "title": "Look at the docs",
+         "owner_candidates": [], "status_signal": None, "deadline": None,
+         "blocker": None, "confidence": 0.7, "evidence_items": [2]},
+    ]
+
+    def llm(messages):
+        return json.dumps(response)
+
+    worker = extraction_worker.ExtractionWorker(
+        fetcher=lambda job: spec["items"], llm=llm,
+        directory=spec["directory"], model_name="fake:guard")
+    batch, _ = worker.run_job(spec["job"])
+    by_title = {s["title"]: s for s in batch["signals"]}
+    committed = by_title["Rewrite the loader"]
+    ok(committed["owner_candidates"] == [{"person_ref": "aad-dana",
+                                          "basis": "self_reference",
+                                          "confidence": 0.75}],
+       "an unattributed self-commitment leaves the worker owned by its "
+       "speaker")
+    ok(by_title["Look at the docs"]["owner_candidates"] == [],
+       "a request to the room leaves the worker unowned, as it should")
+    ok(committed["author_ref"] == "aad-dana",
+       "author and owner agree here, and are still recorded separately")
+
+
 def test_pool_routing():
     """The rule that decides how many people get asked about one sentence.
 
@@ -341,6 +433,8 @@ if __name__ == "__main__":
     test_salvage()
     test_hallucination_guards()
     test_empty_window()
+    test_self_commitment_guard()
+    test_guard_end_to_end()
     test_pool_routing()
     test_pg_store()
     print("\nall {0} extraction checks passed".format(CHECKS[0]))

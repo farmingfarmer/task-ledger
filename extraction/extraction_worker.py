@@ -75,6 +75,65 @@ def find_schema_path(start_dir=None):
     raise FileNotFoundError("extraction_schema.json not found near " + base)
 
 
+# ---------------------------------------------------- self-commitment guard
+#
+# Measured on the first live run: the model returned NO owner candidates for
+# 18 of 22 rejected creates, while the speaker sat in the window the whole
+# time. Prompting is the wrong layer for that -- the deadline-removal guard
+# set the precedent, and this follows it: when the model attributes nobody
+# and the sentence is a speaker committing THEMSELVES, the speaker is the
+# owner.
+#
+# Precision over recall, deliberately. A claim this guard declines still
+# reaches its author's pool (see signal_store_pg.pool_targets), where a
+# human can name the owner in one edit; a claim it gets WRONG proposes the
+# wrong person's name and costs trust. So it fires only on unambiguous
+# self-commitment and stays silent everywhere else.
+
+# "I'll take it", "let me do that", "I'm going to write it up".
+_COMMIT = re.compile(
+    r"\b(i'?ll|i will|i'?m going to|i'?m gonna|i'?m working on|"
+    r"i'?ve started|i started|i'?d like to|i can take|i can do|"
+    r"i'?ll take|let me)\b", re.I)
+
+# The elided first person a transcript leaves behind: "[I] would also like
+# to start on the gallery". Only when the sentence OPENS that way -- with a
+# subject in front ("we would like to") it is somebody else's sentence.
+_COMMIT_ELIDED = re.compile(
+    r"^\W*(and\s+|so\s+|also\s+)*"
+    r"(would (also )?like to|will (also )?(start|take|pick up|do)|"
+    r"going to (start|take|pick up|do)|planning to)\b", re.I)
+
+# Things that look first-person but commit nobody. A question addressed to
+# the room, a group proposal, or an opinion are all sentences where naming
+# the speaker as owner would be exactly the wrong answer -- and the eval
+# labelled 15 of 22 cases this way.
+_NOT_COMMIT = re.compile(
+    r"\?\s*$"                                    # a question
+    r"|\b(can|could|should|shall|would|will|do|does|did) (we|you|"
+    r"somebody|someone|anyone)\b"                 # asked of the room
+    r"|\blet'?s\b"                                # group proposal
+    r"|\b(we|you|they) (should|need to|could|might|have to)\b"
+    r"|\bi (think|agree|feel|guess|hope|believe|wonder|assume)\b",
+    re.I)
+
+
+def _self_commitment_owner(utterance, author_ref):
+    """[] unless the speaker plainly committed themselves."""
+    text = (utterance.get("text") or "").strip()
+    if not text or not author_ref:
+        return []
+    if _NOT_COMMIT.search(text):
+        return []
+    if not (_COMMIT.search(text) or _COMMIT_ELIDED.match(text)):
+        return []
+    # Confidence sits below what the model reports for an explicit
+    # assignment: this is an inference from sentence shape, and the
+    # downstream gates should weigh it as such.
+    return [{"person_ref": author_ref, "basis": "self_reference",
+             "confidence": 0.75}]
+
+
 class ExtractionWorker(object):
     """One instance per model configuration.
 
@@ -230,6 +289,8 @@ class ExtractionWorker(object):
         deadline = self._clean_deadline(sig.get("deadline"))
         blocker = self._clean_blocker(sig.get("blocker"))
         owners = self._resolve_owners(sig.get("owner_candidates") or [])
+        if not owners and primary is not None:
+            owners = _self_commitment_owner(primary, author_ref)
 
         signal_id = _sha(batch_id, stype, evidence[0]["resource_id"], title)
         built = {
@@ -250,6 +311,7 @@ class ExtractionWorker(object):
         if built["description"] is None:
             del built["description"]
         return built, None
+
 
     def _resolve_owners(self, raw):
         out = []

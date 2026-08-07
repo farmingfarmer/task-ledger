@@ -75,6 +75,16 @@ signal_rules:
       schema does not yet have. See extraction/signal_store_pg.py."
 
   assignment:
+    # Attribution note: when the model returns NO owner candidates and the
+    # cited sentence is a speaker committing themselves ("I'll take it",
+    # or the elided "[I] would also like to start on X"), the extraction
+    # worker attributes the signal to the speaker with basis
+    # self_reference and confidence 0.75 -- below anything the model
+    # reports, because it is an inference from sentence shape. It fires
+    # only on unambiguous self-commitment: questions, group proposals
+    # ("can we", "let's") and opinions ("I think") leave the signal
+    # unowned, which is the right answer 15 times out of 22 on real data.
+    # See _self_commitment_owner in extraction/extraction_worker.py.
     min_conf: 0.65
     emits: reassign             # or sets owner on create/unowned task
     gates:
