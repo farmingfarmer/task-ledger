@@ -29,6 +29,10 @@ Endpoints:
   GET /api/held                      pooled, unconsumed claims; SELF ONLY
   GET /api/calibration               Q7 + Q8 on own decisions; SELF ONLY
   GET /api/viewers                   demo identity picker; off by default
+  GET /api/ask?q=...                 answered from confirmed state, cited
+  GET /api/meetings                  follow-through per conversation
+  GET /api/meeting/<source_ref>      every claim one conversation produced
+  GET /api/metrics                   the measures behind the charts
 
 SELF ONLY is a stricter rule than the grant ladder: pending packets, held
 claims, and reject reasons are unreviewed model output about a person and
@@ -44,6 +48,7 @@ never through this API. Python 3.8 compatible.
 import datetime
 import decimal
 import os
+import sys
 
 import psycopg2
 import psycopg2.extras
@@ -527,6 +532,32 @@ def _claim_rows(v, source_ref=None):
             best[r["signal_id"]] = r
     return sorted(best.values(),
                   key=lambda r: (r["source_ref"], r["signal_id"]))
+
+
+@app.route("/api/ask")
+def ask_endpoint():
+    """Answer a question from the ledger, scoped to the asker.
+
+    The retrieval set is what visible_tasks(viewer) returns, so an answer
+    cannot mention work the asker could not already see, and the sentences
+    are assembled from rows rather than written by a model -- see ask.py.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    question = (request.args.get("q") or "").strip()
+    if not question:
+        return jsonify({"error": "ask something with ?q="}), 400
+    if len(question) > 300:
+        question = question[:300]
+    here = os.path.dirname(os.path.abspath(__file__))
+    for rel in ("../../ask", "../../reconciler"):
+        p = os.path.normpath(os.path.join(here, rel))
+        if p not in sys.path:
+            sys.path.insert(0, p)
+    import ask as ask_mod
+    import ask_io_pg
+    return jsonify(ask_mod.answer(question, ask_io_pg.Retriever(DSN, v)))
 
 
 @app.route("/api/meetings")

@@ -414,6 +414,19 @@ ATLAS = {
                                "judge-band work holds for a better day "
                                "instead of being guessed at."},
                  ]},
+                {"name": "Ask the ledger",
+                 "file": "ask/ask.py",
+                 "components": [
+                     {"symbol": "answer",
+                      "blurb": "Questions answered from rows, never by a "
+                               "model: routing is all the model would be "
+                               "allowed to do, and here even that is a "
+                               "regex. The branch that matters is the last "
+                               "one -- when nothing is confirmed it checks "
+                               "the held pool and reports 'someone said so' "
+                               "rather than 'so', which is the difference "
+                               "between a ledger and a rumour mill."},
+                 ]},
                 {"name": "Weekly digest",
                  "file": "digest/digest_io_pg.py",
                  "components": [
@@ -951,6 +964,22 @@ NARRATIVE = {
              "one cheap check decides the tick's whole posture -- "
              "learned when a busy AI queue looked identical to a dead "
              "one"],
+        ],
+        "ask/ask.py::answer": [
+            ["Work out what kind of question it is",
+             "blocked, overdue, waiting, who, a meeting, or a subject -- "
+             "and each kind has its own shape of answer"],
+            ["Answer from the board, in the board's own words",
+             "every sentence is built from a stored row and carries the "
+             "task it came from, so the answer cannot say anything the "
+             "ledger does not hold"],
+            ["Say 'heard, not confirmed' when that is the truth",
+             "if the only thing on file is a claim nobody corroborated, "
+             "it is reported as a claim with a name attached -- never "
+             "restated as fact"],
+            ["Say nothing when there is nothing",
+             "no match and no claim means the honest answer is that the "
+             "ledger has not heard about it"],
         ],
         "digest/digest_io_pg.py::load_project": [
             ["Write the stakeholder's weekly note",

@@ -32,6 +32,7 @@ cd reconciler        && python3 test_supersede.py      # supersede/return semant
 cd cli               && python3 test_review.py         # review CLI over the live pending packet
 cd cli               && python3 test_share.py          # grant/revoke rules, expiry, audit trail
 cd digest            && python3 test_digest.py         # digest assembly, redaction-by-construction
+cd ask               && python3 test_ask.py            # question routing, refusal, citation, scoping
 cd integration/tests && python3 test_dashboard.py      # dashboard API access rules (own fixture identities)
 cd integration/tests && python3 test_integration.py    # graph ingestion + bot host (not in run_tests)
 cd integration/tenant && python3 test_tenant.py        # webhook host, offline (not in run_tests)
@@ -56,6 +57,7 @@ python3 reconciler/run_reconcile.py --user aad-dev --dsn "$DB_DSN" --embed-model
 python3 cli/review.py --as aad-dev --dsn "$DB_DSN"
 python3 cli/share.py --as aad-dev --dsn "$DB_DSN" list   # grant/revoke/list access
 python3 digest/run_digest.py --as aad-dev --dsn "$DB_DSN"  # the week, addressed to a person
+python3 ask/run_ask.py --as aad-dev --dsn "$DB_DSN" "what is blocked"   # answers with receipts
 python3 integration/dashboard/dashboard_api.py   # http://127.0.0.1:8090 (on Windows browse the literal IP; bare hostnames get https-upgraded)
 ```
 
@@ -95,6 +97,7 @@ Communication in → typed signals → proposals → **human decision** → prov
 | `integration/` | Graph ingestion & windowing, bot host, viewer-aware dashboard API + UI, `tenant/` (Graph auth, webhook host, mail subscription) |
 | `cadence/` | weekday tick: inbox → extract → reconcile → digest → notify (launchd; Task Scheduler on Windows) |
 | `digest/` | weekly personal + project digests; pure builder, pg loader, text/HTML/card renderers |
+| `ask/` | question answering over confirmed state: rule-based routing, row-assembled answers, refusal when only unconfirmed claims exist |
 | `testdata/` | seeded synthetic messy-comms generator + scorer against golden labels |
 | `deploy/windows/` | no-admin port: portable Postgres on port 5433, batch wrappers |
 

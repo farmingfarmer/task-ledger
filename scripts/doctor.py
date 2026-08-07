@@ -81,15 +81,27 @@ def check_schema(conn):
         report("PASS", "schema present ({0} core tables)".format(len(need)))
         # Pending migrations fail at write time with an UndefinedColumn deep
         # in the store, which is a poor way to learn about them.
+        # Both the column AND the view: v_unconsumed_signals is `SELECT s.*`,
+        # whose star was expanded when the view was created, so a database
+        # can have the column and still be missing it downstream.
         cur.execute("""
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name = 'signals' AND column_name = 'author_ref'""")
-        if cur.fetchone() is None:
+            SELECT count(*) FILTER (WHERE table_name = 'signals')     AS col,
+                   count(*) FILTER (WHERE table_name =
+                                    'v_unconsumed_signals')           AS view
+            FROM information_schema.columns
+            WHERE column_name = 'author_ref'""")
+        col, view = cur.fetchone()
+        if not col:
             report("WARN", "migration pending: signals.author_ref",
                    "extraction writes will fail; apply "
                    "storage/migrate_author_ref.sql")
+        elif not view:
+            report("WARN", "stale view: v_unconsumed_signals",
+                   "column present but the view predates it; re-apply "
+                   "storage/migrate_author_ref.sql")
         else:
-            report("PASS", "migrations applied", "signals.author_ref present")
+            report("PASS", "migrations applied",
+                   "signals.author_ref present in table and view")
         cur.execute("SELECT count(*) FROM v_unconsumed_signals")
         pool = cur.fetchone()[0]
         cur.execute("""

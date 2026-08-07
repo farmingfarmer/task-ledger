@@ -36,4 +36,23 @@ COMMENT ON COLUMN signals.author_ref IS
 CREATE INDEX IF NOT EXISTS signals_author_idx ON signals(author_ref)
   WHERE author_ref IS NOT NULL;
 
+-- v_unconsumed_signals is defined as `SELECT s.*`, and Postgres expands
+-- that star ONCE, when the view is created. A column added to signals
+-- afterwards therefore never appears in the view: a fresh database built
+-- from schema.sql has author_ref there, a migrated one silently does not,
+-- and the first consumer to select it fails with UndefinedColumn. The view
+-- has to be rebuilt, and CREATE OR REPLACE cannot do it -- the new column
+-- lands mid-list, and replace may only append. Dropping is safe: a view
+-- holds no data, and nothing else depends on this one.
+DROP VIEW IF EXISTS v_unconsumed_signals;
+CREATE VIEW v_unconsumed_signals AS
+SELECT s.*, le.user_ref
+FROM (
+  SELECT DISTINCT ON (signal_id, user_ref) signal_id, user_ref, event
+  FROM signal_pool_events
+  ORDER BY signal_id, user_ref, event_id DESC
+) le
+JOIN signals s USING (signal_id)
+WHERE le.event IN ('pooled','returned');
+
 COMMIT;
