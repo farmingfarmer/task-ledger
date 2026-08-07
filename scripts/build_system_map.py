@@ -95,6 +95,17 @@ ATLAS = {
                                "negative guidance grown from measured "
                                "failures (announcement dates, negation "
                                "reversals, hedge-lowers-confidence)."},
+                     {"symbol": "NEGATIVE_GUIDANCE",
+                      "blurb": "The do-not-emit list, and every clause is "
+                               "a scored failure rather than a guess: "
+                               "administrative dates read as deadlines, "
+                               "negations read affirmatively, hedged "
+                               "sightings suppressed instead of "
+                               "downgraded. Prompt text is versioned and "
+                               "diffed like code because it behaves like "
+                               "code -- and what it still cannot fix "
+                               "(deadline-removal, 3 of 3 at temperature "
+                               "0) graduates to a guard in the worker."},
                  ]},
                 {"name": "Worker & guards",
                  "file": "extraction/extraction_worker.py",
@@ -674,6 +685,32 @@ NARRATIVE = {
              "negation reversals, and hedge-handling each earned their "
              "line from a measured failure"],
         ],
+        "extraction/extraction_prompts.py::NEGATIVE_GUIDANCE": [
+            ["Every rule here is a mistake that actually happened",
+             "none of this is guesswork about what an AI might get "
+             "wrong; each line was written after a scored benchmark run "
+             "caught the error and named the sentence that caused it"],
+            ["A date on the calendar is not a deadline on the work",
+             "'benefits enrollment closes friday' was becoming "
+             "a due date, so announcements are now ruled out by name -- "
+             "a date only counts when work is attached to it"],
+            ["Read the direction of a sentence, not its keywords",
+             "'we are not doing X' and 'X is no longer "
+             "blocked' both contain the words of the thing they "
+             "deny; reversals are spelled out so they are not read "
+             "forwards"],
+            ["Hedging lowers confidence, it does not erase the sighting",
+             "'i think Dev finished the docs refresh?' was "
+             "being dropped entirely; it is now reported with lower "
+             "confidence, and the downstream gates decide what it is "
+             "worth"],
+            ["What the prompt cannot fix moves into code",
+             "one misread survived every attempt to phrase it away -- "
+             "reading 'the deadline is dropped' as a new "
+             "deadline, three times out of three at temperature zero -- "
+             "so that pattern is now deleted by a guard in the worker, "
+             "with the reason recorded"],
+        ],
         "extraction/extraction_worker.py::ExtractionWorker.run_job": [
             ["Send one window to the AI, get typed claims back",
              "one call per window, deterministic ids from content "
@@ -918,8 +955,8 @@ NARRATIVE = {
 
 
 def extract_symbol(path, dotted):
-    """Return the source of `dotted` ('fn' or 'Class.method' or 'Class')
-    from `path`, or None if absent."""
+    """Return the source of `dotted` ('fn', 'Class', 'Class.method', or a
+    module-level CONSTANT) from `path`, or None if absent."""
     with open(path) as f:
         src = f.read()
     tree = ast.parse(src)
@@ -945,6 +982,16 @@ def _find(scope, parts):
             if len(parts) == 1:
                 return node
             return _find(node, parts[1:])
+        # A component may name a constant, not just a callable: the prompt
+        # text the pipeline runs on is as much the code as the function
+        # that formats it. Constants are leaves -- there is nothing below
+        # them to descend into, so they only match the final part.
+        if len(parts) == 1 and isinstance(node, (ast.Assign, ast.AnnAssign)):
+            targets = (node.targets if isinstance(node, ast.Assign)
+                       else [node.target])
+            for target in targets:
+                if isinstance(target, ast.Name) and target.id == parts[0]:
+                    return node
     return None
 
 
