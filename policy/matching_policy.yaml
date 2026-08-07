@@ -62,7 +62,17 @@ signal_rules:
     gates:
       - "no candidate >= judge_floor survived judging (else it's a mention of existing work)"
       - "owner_candidate for the reviewing user exists OR signal came from a channel the user owns tasks in"
-    downgrade: "route to team-level proposals pool, not any individual's packet"
+    downgrade: "IMPLEMENTED as: pool to the signal's author (the person who
+      said it), never to the window's participants. The original wording here
+      said 'team-level proposals pool, not any individual's packet' and the
+      store did the opposite -- it fanned unowned claims out to everyone in
+      the conversation, so one sentence became a proposal on ten boards and
+      nine people rejected it as not theirs (15 of 22 wrong_owner rejections
+      on the first live run). Routing to the author is the smallest change
+      that honours the intent: exactly one person, and the one who spoke.
+      A real team-level pool is still the better endpoint and remains open
+      work -- it needs a queue that belongs to no individual, which the
+      schema does not yet have. See extraction/signal_store_pg.py."
 
   assignment:
     min_conf: 0.65

@@ -159,6 +159,12 @@ def process_inbox(dsn, inbox, host, extract_model, llm_factory):
                 "{3} inserted".format(
                     os.path.basename(path), report["kept"],
                     len(report["dropped"]), result["signals_inserted"]))
+            # Routing is the difference between one review card and ten.
+            if result.get("routed_to_author") or result.get("unrouted"):
+                log("    routing: {0} unowned claim(s) went to their "
+                    "speaker, {1} could not be routed at all".format(
+                        result.get("routed_to_author", 0),
+                        result.get("unrouted", 0)))
             for d in report["dropped"]:
                 log("    dropped [{0}]: {1}".format(
                     d.get("reason"), (d.get("title") or "")[:70]))

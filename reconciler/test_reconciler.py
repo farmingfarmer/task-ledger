@@ -501,11 +501,20 @@ def test_pg_live():
     conn = psycopg2.connect(dsn)
     with conn:
         with conn.cursor() as cur:
+            # Put the whole window's claims in dev's pool, explicitly.
+            # This used to re-pool only what was already dev's and rely on
+            # the store's fallback having fanned unowned claims out to
+            # every participant -- so the fixture silently depended on the
+            # pooling default, and changing that default (unowned claims
+            # now go to their speaker, not to everyone) quietly shrank the
+            # packet the review CLI suite expects. A fixture should state
+            # what it needs.
             cur.execute(
                 "INSERT INTO signal_pool_events (signal_id, user_ref, "
-                "event, run_id) SELECT DISTINCT signal_id, 'aad-dev', "
-                "'returned', 'test-repool' FROM signal_pool_events "
-                "WHERE user_ref = 'aad-dev'")
+                "event, run_id) SELECT s.signal_id, 'aad-dev', 'returned', "
+                "'test-repool' FROM signals s "
+                "JOIN extraction_batches b USING (batch_id) "
+                "WHERE b.source_ref = 'meeting-standup-2026-07-20'")
     conn.close()
 
     signals = board_io_pg.load_signals(dsn, "aad-dev")

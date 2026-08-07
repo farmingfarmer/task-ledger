@@ -228,6 +228,48 @@ def test_empty_window():
        "empty window yields schema-valid empty batch, zero LLM calls")
 
 
+def test_pool_routing():
+    """The rule that decides how many people get asked about one sentence.
+
+    Measured on the first live run: unowned claims fanned out to every
+    participant, so one sentence produced ten proposals and nine correct
+    rejections. 15 of 22 wrong_owner rejections were that shape.
+    """
+    print("pool routing")
+    import signal_store_pg as store
+    participants = ["aad-a", "aad-b", "aad-c", "aad-d"]
+
+    owned = {"owner_candidates": [{"person_ref": "aad-b"},
+                                  {"person_ref": "aad-c"}],
+             "author_ref": "aad-a"}
+    targets, how = store.pool_targets(owned, participants)
+    ok(targets == ["aad-b", "aad-c"] and how == "owners",
+       "an attributed claim goes to its owners, not to its speaker")
+
+    unowned = {"owner_candidates": [], "author_ref": "aad-a"}
+    targets, how = store.pool_targets(unowned, participants)
+    ok(targets == ["aad-a"] and how == "author",
+       "an unowned claim goes to the person who said it -- one card, not "
+       "one per participant")
+
+    anonymous = {"owner_candidates": [], "author_ref": None}
+    targets, how = store.pool_targets(anonymous, participants)
+    ok(targets == [] and how == "unrouted",
+       "with no owner and no speaker it reaches nobody's card, rather than "
+       "everybody's: the claim stays in the ledger and is counted")
+
+    targets, how = store.pool_targets(anonymous, participants,
+                                      broadcast_unowned=True)
+    ok(targets == participants and how == "broadcast",
+       "the old fan-out is still available, behind an explicit flag")
+
+    empty_refs = {"owner_candidates": [{"person_ref": None}, {}],
+                  "author_ref": "aad-a"}
+    targets, how = store.pool_targets(empty_refs, participants)
+    ok(targets == ["aad-a"] and how == "author",
+       "candidates with no resolved ref do not count as attribution")
+
+
 def test_pg_store():
     print("postgres store (live)")
     dsn = os.environ.get(
@@ -299,5 +341,6 @@ if __name__ == "__main__":
     test_salvage()
     test_hallucination_guards()
     test_empty_window()
+    test_pool_routing()
     test_pg_store()
     print("\nall {0} extraction checks passed".format(CHECKS[0]))

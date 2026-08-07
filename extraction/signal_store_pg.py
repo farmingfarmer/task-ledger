@@ -8,10 +8,27 @@ with ON CONFLICT DO NOTHING and pool events are only written for signals that
 were newly inserted -- replaying a window never double-pools.
 
 Pooling policy: a signal is pooled to every distinct owner_candidate
-person_ref (their boards may care). If a signal has no resolvable owners, it
-pools to fallback_users -- the window's participants -- because unattributed
-work spoken in a conversation still belongs on someone in that conversation's
-review card, and the reconciler/reviewer sorts out whose.
+person_ref (their boards may care). What happens when there are none is the
+part that had to change.
+
+It used to fall back to the window's participants -- everyone in the
+conversation -- on the theory that somebody there would sort out whose it
+was. Measured against the first live run, that theory cost: one sentence
+("can we prioritise the readme") became a create proposal on ten boards,
+and nine people correctly rejected it as not theirs. 15 of 22 wrong_owner
+rejections were that shape, and matching_policy.yaml had said not to do it
+all along -- "route to team-level proposals pool, NOT any individual's
+packet".
+
+So an unowned signal now pools to its AUTHOR: the one person known to be
+connected to the claim, because they said it. They can accept it (naming
+an owner as they go), reject it once, or leave it. Ten review cards become
+one. A signal with neither owner nor author is not routed at all: it stays
+in the ledger, is reported in the return value, and lands on nobody's card
+-- which is the honest outcome for a claim the system cannot attribute to
+anyone, and is vanishingly rare now that author_ref is recorded.
+
+broadcast_unowned=True restores the old fan-out for anyone who wants it.
 
 Python 3.8 compatible. Requires psycopg2.
 """
@@ -21,10 +38,29 @@ import json
 import psycopg2
 
 
-def write_batch(dsn, batch, fallback_users):
-    """Returns {"signals_inserted": n, "pool_events": m, "already_present": k}."""
+def pool_targets(signal, fallback_users, broadcast_unowned=False):
+    """Who should see this claim. Pure, so the routing rule is testable
+    without a database -- it is the rule that decides how many people get
+    asked about one sentence."""
+    owners = sorted({(c or {}).get("person_ref")
+                     for c in signal.get("owner_candidates") or []
+                     if (c or {}).get("person_ref")})
+    if owners:
+        return owners, "owners"
+    author = signal.get("author_ref")
+    if author:
+        return [author], "author"
+    if broadcast_unowned:
+        return sorted(set(fallback_users or [])), "broadcast"
+    return [], "unrouted"
+
+
+def write_batch(dsn, batch, fallback_users, broadcast_unowned=False):
+    """Returns {"signals_inserted": n, "pool_events": m, "already_present": k,
+    "routed_to_author": n, "unrouted": n}."""
     conn = psycopg2.connect(dsn)
-    out = {"signals_inserted": 0, "pool_events": 0, "already_present": 0}
+    out = {"signals_inserted": 0, "pool_events": 0, "already_present": 0,
+           "routed_to_author": 0, "unrouted": 0}
     try:
         with conn:
             with conn.cursor() as cur:
@@ -74,9 +110,12 @@ def write_batch(dsn, batch, fallback_users):
                             (s["signal_id"], i, ev["source_type"],
                              ev["resource_id"], span.get("start"),
                              span.get("end"), ev.get("content_hash")))
-                    owners = sorted({c["person_ref"]
-                                     for c in s.get("owner_candidates") or []})
-                    targets = owners or sorted(set(fallback_users))
+                    targets, how = pool_targets(s, fallback_users,
+                                                broadcast_unowned)
+                    if how == "author":
+                        out["routed_to_author"] += 1
+                    elif how == "unrouted":
+                        out["unrouted"] += 1
                     for user in targets:
                         cur.execute("""
                             INSERT INTO signal_pool_events
