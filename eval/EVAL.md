@@ -65,8 +65,57 @@ the speaker* — not *always use the speaker*.
 The verdict line names which layer to work in: wire `author_ref` if the
 speaker resolves most of them, prompt-and-guard work if it doesn't.
 
+## The half that runs without a human
+
+The worksheet above is ground truth, and it costs a labelling pass every
+time. `golden` is the half that can run on every change: synthetic meetings
+(`testdata/synth_meetings.py`) whose owner was decided *before the model saw
+the sentence*, shipped as a sidecar per window.
+
+    python3 eval/run_attribution_eval.py golden \
+        --dsn "<synthetic dsn>" \
+        --golden ~/task-ledger-synthetic-inbox/golden --show-misses
+
+The scoring rule that matters: **a sentence naming nobody counts as correct
+when left unowned**, and attributing it is its own category
+(`wrongly_owned`). Without that column a default-to-speaker change scores
+*better* while making the live failure worse — 15 of the 22 real rejections
+were exactly that shape.
+
+### Baseline — 6 windows, 77 planted claims, after the routing fix and guard
+
+| | |
+|---|---|
+| reached extraction | 75 / 77 |
+| owner correct | 43 |
+| correctly left unowned | 20 |
+| owner **wrong person** | 1 |
+| owner missing | 7 |
+| **wrongly attributed** (named nobody) | **6** |
+| **accuracy** | **81.8%** |
+
+Wrong-person is 1 in 77 — the failure that started this work is essentially
+gone. What remains splits in two, and neither is the guard: all 6 wrong
+attributions carry `basis="inferred"` at 0.8, i.e. the model's own judgement
+on impersonal sentences ("X is stuck waiting on the platform team", "let's
+get X scoped"). The guard fired 9 times (`self_reference`, 0.75) and appears
+in none of them.
+
+The 7 misses are a different shape — a speaker reporting that *somebody
+else* finished something, a speaker reporting their own blocker, and one
+sentence that addresses a person by name and asks them to take the work,
+which should have been the easiest case in the set. Those are prompt work,
+deliberately out of scope until this number can be watched across a change.
+
+(The examples here name no one on purpose. The generated sentences are
+invented but the speakers are the real directory, so a quoted miss would
+carry a colleague's name into the repository — the same reason the
+worksheet is written outside it.)
+
 ## Validation
 
-`test_eval.py` — 17 checks, no database, invented fixtures: case assembly,
+`test_eval.py` — 27 checks, no database, invented fixtures: case assembly,
 first-person detection, missing windows reported rather than dropped, the
-scorer's two directions, and the repo-write guard.
+scorer's two directions, the golden scorer's unowned-is-correct rule, a
+claim that produced no signal at all being reported with its text rather
+than silently counted, and the repo-write guard.
