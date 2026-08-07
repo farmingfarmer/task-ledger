@@ -480,6 +480,31 @@ def blocked_on(user_ref):
         ORDER BY waiter.user_ref""", (user_ref, user_ref)))
 
 
+@app.route("/api/recent")
+def recent():
+    """What the viewer has personally confirmed lately.
+
+    Every accepted proposal is a decision with their name on it, and the
+    ledger is careful to record that -- but nothing showed it back to them.
+    Two uses: an accountability record, and the fastest way to notice your
+    own rubber-stamping, since a run of accepts on things you did not
+    really read looks exactly like what it is. Self-only by construction:
+    it filters on decided_by.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    return jsonify(q("""
+        SELECT e.event_id, e.task_id, t.title, e.event_type, e.occurred_at,
+               d.decision, p.op, p.confidence
+        FROM task_events e
+        JOIN decisions d      ON d.decision_id = e.decision_id
+        LEFT JOIN proposals p ON p.proposal_id = d.proposal_id
+        JOIN tasks_current t  ON t.task_id = e.task_id
+        WHERE d.decided_by = %s
+        ORDER BY e.event_id DESC LIMIT 8""", (v,)))
+
+
 @app.route("/api/waiting-on/<user_ref>")
 def waiting_on(user_ref):
     """The reciprocal of blocked-on: what this person is waiting for, and

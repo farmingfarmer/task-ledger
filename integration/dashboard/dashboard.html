@@ -136,6 +136,12 @@
        border-radius:4px;padding:2px 8px;font-family:var(--mono);
        font-size:11px;margin:4px 6px 0 0}
 
+  .lg-h{font-weight:600;color:var(--ink);margin-bottom:4px}
+  .lg-s{margin-top:6px}
+  .level-note ul{margin:4px 0 0 18px;padding:0}
+  .level-note li{margin:2px 0}
+  .lg-f{margin-top:8px;font-size:12px}
+  .loading{padding:18px 16px;text-align:left;font-size:12.5px}
   .empty{padding:28px 16px;color:var(--muted);text-align:center}
   .empty img{display:block;margin:0 auto 12px;width:150px;height:auto;
              opacity:.9}
@@ -185,8 +191,23 @@
     </section>
 
     <section class="panel">
+      <h2>What you are waiting for</h2>
+      <div id="waiting"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Projects</h2>
+      <div id="projects"></div>
+    </section>
+
+    <section class="panel">
       <h2>Access you have granted</h2>
       <div id="shares"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Confirmed by you</h2>
+      <div id="recent"></div>
     </section>
 
     <section class="panel" id="panel-cal">
@@ -238,10 +259,34 @@
     d.appendChild(el("div", null, text));
     return d;
   }
-  function fail(node, e){
+  // Panels load and fail independently. One endpoint being slow, or
+  // forbidden, must never leave the rest of the page blank and unexplained.
+  function loading(node){
     node.innerHTML = "";
-    node.appendChild(el("div","err", e.forbidden ? e.message
-      : "Could not load data: " + e.message));
+    node.appendChild(el("div","empty loading","Loading\u2026"));
+  }
+  function fail(node, e, retry){
+    node.innerHTML = "";
+    var box = el("div","err", e.forbidden ? e.message
+      : "Could not load this panel: " + e.message);
+    node.appendChild(box);
+    if(retry && !e.forbidden){
+      var again = el("button","trace-btn","Try again");
+      again.addEventListener("click", retry);
+      node.appendChild(again);
+    }
+  }
+  // Panel loader: show a state while fetching, hand the node to the
+  // renderer, and keep the failure local with a way back.
+  function panel(id, path, render){
+    var node = document.getElementById(id);
+    loading(node);
+    get(path).then(function(data){
+      node.innerHTML = "";
+      render(node, data);
+    }).catch(function(e){
+      fail(node, e, function(){ panel(id, path, render); });
+    });
   }
 
   var sel = document.getElementById("viewer-sel");
@@ -257,13 +302,63 @@
     document.getElementById("drill").innerHTML =
       '<div class="empty">Select a task to see its history.</div>';
     loadTeam(); loadShares(); loadPending(); loadHeld(); loadCalibration();
+    loadProjects(); loadRecent();
+  }
+
+  // ---- projects you own or have been given ----
+  function loadProjects(){
+    panel("projects", "/api/projects", function(box, rows){
+      if(!rows.length){
+        box.appendChild(el("div","empty",
+          "No projects. A project follows one workstream across everyone " +
+          "working on it, without exposing anything else they do."));
+        return;
+      }
+      rows.forEach(function(p){
+        var d = el("div","dep");
+        var line = el("div");
+        line.appendChild(el("span","who", p.name));
+        line.appendChild(document.createTextNode(
+          " \u00b7 " + p.tasks + " task" + (p.tasks === 1 ? "" : "s") +
+          (p.blocked ? ", " + p.blocked + " blocked" : "") +
+          " \u00b7 " + p.people + " " + (p.people === 1 ? "person" : "people")));
+        d.appendChild(line);
+        d.appendChild(el("div","via", p.is_owner ? "you own this project"
+          : "shared with you at " + (p.granted_level || "progress") +
+            (p.expires_at ? " until " + p.expires_at.slice(0,10) : "")));
+        box.appendChild(d);
+      });
+    });
+  }
+
+  // ---- what you have personally confirmed ----
+  function loadRecent(){
+    panel("recent", "/api/recent", function(box, rows){
+      if(!rows.length){
+        box.appendChild(el("div","empty",
+          "Nothing yet. Every change you accept is recorded with your name " +
+          "on it and shows up here."));
+        return;
+      }
+      rows.forEach(function(r){
+        var d = el("div","dep");
+        d.appendChild(el("div", null,
+          describe({event_type: r.event_type, payload: {}}) + " \u00b7 " +
+          r.title));
+        d.appendChild(el("div","via",
+          (r.decision === "accept_edited" ? "accepted with edits"
+                                          : "accepted") +
+          " \u00b7 " + (r.occurred_at || "").slice(0,10) +
+          (r.confidence != null
+            ? " \u00b7 proposed at " + Math.round(r.confidence*100) + "%" : "")));
+        box.appendChild(d);
+      });
+    });
   }
 
   // ---- your own review loop (Q6): self-only, never widened by a grant ----
   function loadPending(){
-    var box = document.getElementById("pending");
-    get("/api/pending").then(function(d){
-      box.innerHTML = "";
+    panel("pending", "/api/pending", function(box, d){
       if(!d.undecided){
         box.appendChild(el("div","empty",
           "Nothing waiting. Proposals appear here after a cadence run."));
@@ -284,14 +379,12 @@
       });
       box.appendChild(el("div","via",
         "Answer them: python3 cli/review.py --as " + state.viewer));
-    }).catch(function(e){ fail(box, e); });
+    });
   }
 
   // ---- claims the gates are holding, not guessing at ----
   function loadHeld(){
-    var box = document.getElementById("held");
-    get("/api/held").then(function(rows){
-      box.innerHTML = "";
+    panel("held", "/api/held", function(box, rows){
       if(!rows.length){
         box.appendChild(el("div","empty",
           "No claims are waiting. Anything the gates hold shows up here."));
@@ -308,7 +401,7 @@
           (s.deadline_raw ? " \u00b7 said \u201c" + s.deadline_raw + "\u201d" : "")));
         box.appendChild(d);
       });
-    }).catch(function(e){ fail(box, e); });
+    });
   }
 
   // ---- calibration (Q7 drift + Q8 reject reasons), self-only ----
@@ -323,9 +416,7 @@
   };
 
   function loadCalibration(){
-    var box = document.getElementById("cal");
-    get("/api/calibration").then(function(d){
-      box.innerHTML = "";
+    panel("cal", "/api/calibration", function(box, d){
       if(!d.decisions_total){
         box.appendChild(el("div","empty",
           "No decisions yet. Accept and reject reasons accumulate here and " +
@@ -360,12 +451,13 @@
           box.appendChild(row);
         });
       }
-    }).catch(function(e){ fail(box, e); });
+    });
   }
 
   // ---- boards visible to the viewer ----
   function loadTeam(){
     var box = document.getElementById("team");
+    loading(box);
     get("/api/team").then(function(rows){
       box.innerHTML = "";
       if(!rows.length){
@@ -386,7 +478,7 @@
       });
       var still = rows.some(function(r){ return r.user_ref === state.user; });
       selectUser(still ? state.user : rows[0].user_ref);
-    }).catch(function(e){ fail(box, e); });
+    }).catch(function(e){ fail(box, e, loadTeam); });
   }
 
   function clearBoard(){
@@ -403,12 +495,53 @@
         String(m.querySelector(".name").textContent === u));
     });
     document.getElementById("board-title").textContent = "Board \u2014 " + u;
-    loadBoard(); loadDeps();
+    loadBoard(); loadDeps(); loadWaiting();
+  }
+
+  // ---- what this person is blocked on, and whether it is moving ----
+  function loadWaiting(){
+    panel("waiting", "/api/waiting-on/" + encodeURIComponent(state.user),
+      function(box, rows){
+        if(!rows.length){
+          box.appendChild(el("div","empty",
+            state.user + " is not waiting on anything right now."));
+          return;
+        }
+        rows.forEach(function(r){
+          var d = el("div","dep");
+          var line = el("div");
+          line.appendChild(el("span","who", r.my_title));
+          line.appendChild(document.createTextNode(
+            " waits on " + (r.blocking_title || r.blocker_desc ||
+                            "something outside the ledger")));
+          d.appendChild(line);
+          if(r.blocking_task){
+            var st = el("div","via");
+            st.appendChild(document.createTextNode(
+              r.blocking_task + " \u00b7 " + r.blocking_owner + " \u00b7 "));
+            st.appendChild(el("span","status s-" + r.blocking_status,
+              (r.blocking_status || "unknown").replace("_"," ")));
+            if(r.blocking_access === "status_only")
+              st.appendChild(el("span","lvl",
+                " status only \u2014 visible because it blocks you"));
+            d.appendChild(st);
+          } else {
+            d.appendChild(el("div","via",
+              r.blocking_party ? "waiting on " + r.blocking_party
+                               : "no linked task"));
+          }
+          box.appendChild(d);
+        });
+      });
   }
 
   // ---- board (Q1, filtered) ----
   function loadBoard(){
     var body = document.getElementById("board");
+    if(!body.firstChild){
+      var lr = el("tr"), lc = el("td","empty loading","Loading\u2026");
+      lc.colSpan = 3; lr.appendChild(lc); body.appendChild(lr);
+    }
     get("/api/board/" + encodeURIComponent(state.user)).then(function(rows){
       body.innerHTML = "";
       if(!rows.length){
@@ -459,14 +592,13 @@
         });
         body.appendChild(tr);
       });
-    }).catch(function(e){ fail(body, e); });
+    }).catch(function(e){ fail(body, e, loadBoard); });
   }
 
   // ---- blocked-on (Q4, owner or full-trace board grant) ----
   function loadDeps(){
-    var box = document.getElementById("deps");
-    get("/api/blocked-on/" + encodeURIComponent(state.user)).then(function(rows){
-      box.innerHTML = "";
+    panel("deps", "/api/blocked-on/" + encodeURIComponent(state.user),
+      function(box, rows){
       if(!rows.length){ box.appendChild(emptyEl(
         "Nobody is waiting on " + state.user + " right now.",
         "empty-deps.png")); return; }
@@ -482,16 +614,17 @@
           r.blocked_task + " waits on " + (r.my_blocking_task || "external")));
         box.appendChild(d);
       });
-    }).catch(function(e){ fail(box, e); });
+    });
   }
 
   // ---- grants given (owners see who they've shared with) ----
   function loadShares(){
-    var box = document.getElementById("shares");
-    get("/api/grants").then(function(rows){
-      box.innerHTML = "";
-      if(!rows.length){ box.appendChild(emptyEl("You have not shared anything.",
-        "empty-shares.png")); return; }
+    panel("shares", "/api/grants", function(box, rows){
+      if(!rows.length){
+        box.appendChild(emptyEl("You have not shared anything.",
+          "empty-shares.png"));
+        return;
+      }
       rows.forEach(function(g){
         var d = el("div","share-row");
         d.appendChild(el("span","who", g.grantee_ref));
@@ -501,9 +634,13 @@
             : " can see your whole board")));
         d.appendChild(el("span","lvl", g.level === "full_trace"
           ? "full trace" : "progress only"));
+        // A grant that ends on its own is worth seeing at a glance; one
+        // that never does is the thing people forget they gave.
+        d.appendChild(el("span","lvl", g.expires_at
+          ? "until " + g.expires_at.slice(0,10) : "until revoked"));
         box.appendChild(d);
       });
-    }).catch(function(e){ fail(box, e); });
+    });
   }
 
   // ---- drill (Q2 + Q3, level-aware) ----
@@ -517,15 +654,38 @@
     box.appendChild(head);
     get("/api/task/" + encodeURIComponent(task.task_id) + "/history")
     .then(function(res){
-      if(res.access_level === "progress"){
-        box.appendChild(el("div","level-note",
-          "Shared at progress level: you can follow what changed and when. " +
-          "Discussion detail and sources stay with the team."));
-      }
+      if(res.access_level === "progress") box.appendChild(legend());
       var rail = el("div","rail");
       res.events.forEach(function(ev){ rail.appendChild(eventRow(ev)); });
       box.appendChild(rail);
-    }).catch(function(e){ fail(box, e); });
+    }).catch(function(e){
+      fail(box, e, function(){ drill(task); });
+    });
+  }
+
+  // A viewer at progress level meets several blanks at once. Saying which
+  // ones and why beats an unexplained "detail hidden" on each row: the rule
+  // is about where the information CAME FROM, not about trust.
+  function legend(){
+    var box = el("div","level-note");
+    box.appendChild(el("div","lg-h",
+      "Shared at progress level \u2014 you see what changed and when."));
+    var ul = document.createElement("ul");
+    ["why each change was proposed, and the discussion behind it",
+     "who confirmed it, and how confident the model was",
+     "blocker wording, alternative names, and every source link"
+    ].forEach(function(t){
+      var li = document.createElement("li");
+      li.textContent = t;
+      ul.appendChild(li);
+    });
+    box.appendChild(el("div","lg-s", "Hidden at this level:"));
+    box.appendChild(ul);
+    box.appendChild(el("div","lg-f",
+      "These all come from internal conversations you were not part of. " +
+      "The board state itself is complete: nothing about the work is " +
+      "being withheld, only the messages it came from."));
+    return box;
   }
 
   var ACTOR_LABEL = { manual_edit: "typed by hand",

@@ -314,6 +314,16 @@ def main():
        and "no message fetcher" in prov[0]["integrity_note"],
        "an unchecked hash says so rather than looking checked")
 
+    print("confirmed-by-you")
+    code, mine = as_viewer(client, "/api/recent", OWNER)
+    ok(code == 200 and any(r["task_id"] == TASK
+                           and r["decision"] == "accept" for r in mine),
+       "your own confirmations come back to you as an accountability record")
+    code, theirs = as_viewer(client, "/api/recent", MATE)
+    ok(code == 200 and theirs == [],
+       "a full_trace grantee sees none of the owner's decisions: it filters "
+       "on who decided, not on who can read the board")
+
     print("blocker-implied visibility")
     code, board = as_viewer(client, "/api/board/" + OWNER, BLOCKED)
     rows = [t for t in board if t["task_id"] == TASK]
