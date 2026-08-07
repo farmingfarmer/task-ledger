@@ -35,6 +35,7 @@ TASK = "task-dash-fixture"
 PACKET = "packet-dash-fixture"
 BATCH = "batch-dash-fixture"
 SIGNAL = "signal-dash-fixture"
+SIGNAL_ACCEPTED = "signal-dash-accepted"
 
 
 def ok(cond, label):
@@ -44,8 +45,9 @@ def ok(cond, label):
 
 
 def seed(conn):
-    """Idempotent fixture: a task, a delivered packet with one undecided
-    and one rejected proposal, a pooled signal, and the two grants."""
+    """Idempotent fixture: a task, a delivered packet with an undecided,
+    a rejected and an accepted proposal, a pooled signal, and the two
+    grants. Returns the id of the board event that carries provenance."""
     with conn:
         with conn.cursor() as cur:
             cur.execute("SELECT 1 FROM tasks_current WHERE task_id = %s",
@@ -92,23 +94,70 @@ def seed(conn):
             if cur.fetchone() is None:
                 cur.execute("INSERT INTO packet_state_events (packet_id, state)"
                             " VALUES (%s,'delivered')", (PACKET,))
-            for pid, op, conf, conflict in (
-                    ("prop-dash-open", "update_status", 0.80, None),
-                    ("prop-dash-rejected", "create_task", 0.70, None)):
+            for pid, op, conf in (
+                    ("prop-dash-open", "update_status", 0.80),
+                    ("prop-dash-rejected", "create_task", 0.70),
+                    ("prop-dash-accepted", "update_deadline", 0.90)):
                 cur.execute("""
                     INSERT INTO proposals (proposal_id, packet_id, op,
                       target_task_id, rationale, confidence, conflict_type,
                       conflict_detail, payload)
                     VALUES (%s,%s,%s,%s,'fixture rationale',%s,NULL,NULL,%s)
                     ON CONFLICT (proposal_id) DO NOTHING""",
-                    (pid, PACKET, op, TASK if op != "create_task" else None,
+                    (pid, PACKET, op, None if op == "create_task" else TASK,
                      conf, json.dumps({"kind": op})))
+            # A second signal stands behind the accepted proposal, so the
+            # held list keeps exactly one entry and the source count has
+            # something real to count.
+            cur.execute("""
+                INSERT INTO signals (signal_id, batch_id, signal_type, title,
+                  confidence, deadline_raw, raw)
+                VALUES (%s, %s, 'deadline_signal', 'Fixture deadline claim',
+                        0.90, 'end of next sprint', '{}')
+                ON CONFLICT (signal_id) DO NOTHING""", (SIGNAL_ACCEPTED, BATCH))
+            cur.execute("""
+                INSERT INTO evidence_refs (signal_id, ordinal, source_type,
+                  resource_id, content_hash)
+                VALUES (%s, 1, 'teams_message', 'msg-dash-1', 'hash-2')
+                ON CONFLICT DO NOTHING""", (SIGNAL_ACCEPTED,))
+            cur.execute("""
+                INSERT INTO proposal_signals (proposal_id, signal_id)
+                VALUES ('prop-dash-accepted', %s)
+                ON CONFLICT DO NOTHING""", (SIGNAL_ACCEPTED,))
             cur.execute("""
                 INSERT INTO decisions (proposal_id, packet_id, decision,
                   reject_reason, decided_by, decided_at)
                 VALUES ('prop-dash-rejected',%s,'reject','duplicate',%s,now())
                 ON CONFLICT (proposal_id, decided_by) DO NOTHING""",
                 (PACKET, OWNER))
+            # The accepted one becomes a board event through the only writer,
+            # carrying the raw phrase the reviewer saw.
+            cur.execute("""
+                SELECT event_id FROM task_events
+                WHERE task_id = %s AND event_type = 'deadline_changed'
+                ORDER BY event_id LIMIT 1""", (TASK,))
+            existing = cur.fetchone()
+            if existing:
+                return existing[0]
+            cur.execute("""
+                INSERT INTO decisions (proposal_id, packet_id, decision,
+                  decided_by, decided_at)
+                VALUES ('prop-dash-accepted',%s,'accept',%s,now())
+                ON CONFLICT (proposal_id, decided_by) DO NOTHING
+                RETURNING decision_id""", (PACKET, OWNER))
+            did = cur.fetchone()[0]
+            cur.execute(
+                "SELECT apply_task_event(%s,%s,'deadline_changed',"
+                "'user_decision',%s,%s::jsonb)",
+                (TASK, OWNER, did,
+                 json.dumps({"from_deadline": None,
+                             "to_deadline": "2026-09-30",
+                             "raw_text": "end of next sprint"})))
+            cur.execute("""
+                SELECT event_id FROM task_events
+                WHERE task_id = %s AND event_type = 'deadline_changed'
+                ORDER BY event_id LIMIT 1""", (TASK,))
+            return cur.fetchone()[0]
             for who, level in ((MATE, "full_trace"), (STAKE, "progress")):
                 cur.execute("""
                     SELECT 1 FROM v_current_grants
@@ -144,7 +193,7 @@ def main():
     dashboard_api.DSN = dsn
     client = dashboard_api.app.test_client()
 
-    seed(conn)
+    EVENT = [seed(conn)]
     conn.close()
 
     print("identity")
@@ -198,6 +247,31 @@ def main():
        "progress history keeps the skeleton and drops decider identity")
     code, _ = as_viewer(client, "/api/task/{0}/history".format(TASK), STRANGER)
     ok(code == 403, "stranger is refused the history")
+
+    print("board information")
+    code, board = as_viewer(client, "/api/board/" + OWNER, OWNER)
+    row = [t for t in board if t["task_id"] == TASK][0]
+    ok(row["quiet_days"] is not None and row["quiet_days"] >= 0,
+       "board rows carry quiet-since, so stale work is visible without a "
+       "deadline")
+    ok(row["deadline_raw"] == "end of next sprint",
+       "the phrase behind the date travels to the board ({0})".format(
+           row["deadline_raw"]))
+    ok(row["sources"] >= 1,
+       "confirmed state carries how many distinct claims back it")
+    code, board = as_viewer(client, "/api/board/" + OWNER, STAKE)
+    row = [t for t in board if t["task_id"] == TASK][0]
+    ok(row["deadline_raw"] is None and row["sources"] is None
+       and row["quiet_days"] is not None,
+       "progress level keeps quiet-since but not the quote or the "
+       "source count")
+
+    print("evidence integrity")
+    code, prov = as_viewer(client, "/api/event/{0}/provenance".format(EVENT[0]),
+                           OWNER)
+    ok(code == 200 and prov and prov[0]["integrity"] == "unverified"
+       and "no message fetcher" in prov[0]["integrity_note"],
+       "an unchecked hash says so rather than looking checked")
 
     print("demo picker")
     code, _ = as_viewer(client, "/api/viewers", OWNER)

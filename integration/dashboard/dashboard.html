@@ -79,6 +79,11 @@
                 background:var(--panel);padding:4px 8px;font:inherit}
   .loud{padding:10px 16px;font-weight:600;font-size:13px;
         border-bottom:1px solid var(--line)}
+  .quiet{font-size:11px;color:var(--quiet)}
+  .rawdate{font-family:var(--mono);font-size:11px;color:var(--muted);
+           margin-top:2px}
+  .integ{display:block;font-size:10.5px;color:var(--quiet);margin-top:3px}
+  .integ.changed{color:var(--brick)}
   .dep{padding:10px 16px;border-bottom:1px solid var(--line);font-size:13px}
   .dep:last-child{border-bottom:none}
   .dep .who{font-weight:600}
@@ -423,7 +428,15 @@
           titleLine.appendChild(el("span","proj", r.project_name));
         t1.appendChild(titleLine);
         t1.appendChild(el("div","tid", r.task_id +
-          (r.subtasks ? " \u00b7 " + r.subtasks + " subtasks" : "")));
+          (r.subtasks ? " \u00b7 " + r.subtasks + " subtasks" : "") +
+          (r.sources ? " \u00b7 " + r.sources + " source" +
+            (r.sources === 1 ? "" : "s") : "")));
+        // Quiet work is the failure mode deadlines do not catch: a task
+        // nobody has mentioned in weeks is decaying whether or not it is due.
+        if(r.quiet_days >= 14 && r.status !== "completed"
+           && r.status !== "cancelled")
+          t1.appendChild(el("div","quiet",
+            "no change in " + r.quiet_days + " days"));
         var t2 = el("td");
         t2.appendChild(el("span","status s-" + r.status,
           r.status.replace("_"," ")));
@@ -434,6 +447,10 @@
         t3.appendChild(el("span",
           "deadline" + (r.overdue ? " overdue" : ""), r.deadline || "\u2014"));
         if(r.overdue) t3.appendChild(el("div","flag","overdue"));
+        // The phrase behind the date: "end of next sprint" resolving to a
+        // wrong Tuesday is invisible until you can see the phrase.
+        if(r.deadline_raw)
+          t3.appendChild(el("div","rawdate", "\u201c" + r.deadline_raw + "\u201d"));
         tr.appendChild(t1); tr.appendChild(t2); tr.appendChild(t3);
         function open(){ state.task = r.task_id; loadBoard(); drill(r); }
         tr.addEventListener("click", open);
@@ -580,6 +597,11 @@
           (r.content_hash ? " \u00b7 integrity hash " + r.content_hash : "");
         chip.addEventListener("click", function(e){ e.preventDefault(); });
         s.appendChild(chip);
+        // An unchecked hash must not read as a checked one.
+        if(r.integrity && r.integrity !== "verified")
+          s.appendChild(el("span","integ " + r.integrity,
+            r.integrity === "changed" ? "source changed since capture"
+                                      : r.integrity_note || r.integrity));
       });
       t.appendChild(s);
     });

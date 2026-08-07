@@ -284,7 +284,7 @@ def board(user_ref):
     v = viewer()
     if not v:
         return _need_viewer()
-    return jsonify(q("""
+    rows = q("""
         SELECT t.task_id, t.title, t.status, t.owner_ref, t.deadline,
                t.project_id, pr.name AS project_name,
                vt.access_level,
@@ -292,7 +292,11 @@ def board(user_ref):
                 AND t.status NOT IN ('completed','cancelled')) AS overdue,
                COALESCE(b.open_blockers, 0)  AS open_blockers,
                COALESCE(c.subtasks, 0)       AS subtasks,
-               t.updated_at
+               t.updated_at,
+               floor(EXTRACT(epoch FROM now() - t.updated_at) / 86400)::int
+                 AS quiet_days,
+               dl.deadline_raw,
+               COALESCE(src.n, 0) AS sources
         FROM visible_tasks(%s) vt
         JOIN tasks_current t USING (task_id)
         LEFT JOIN projects pr USING (project_id)
@@ -302,9 +306,34 @@ def board(user_ref):
         LEFT JOIN (SELECT parent_task_id AS task_id, count(*) AS subtasks
                    FROM tasks_current WHERE parent_task_id IS NOT NULL
                    GROUP BY parent_task_id) c USING (task_id)
+        -- The phrase someone actually said ("end of next sprint"), carried
+        -- from the deadline event. Relative-date resolution is the top
+        -- failure mode, and the resolved date alone hides it.
+        LEFT JOIN LATERAL (
+            SELECT e.payload->>'raw_text' AS deadline_raw
+            FROM task_events e
+            WHERE e.task_id = t.task_id AND e.event_type = 'deadline_changed'
+              AND e.payload->>'raw_text' IS NOT NULL
+            ORDER BY e.board_version DESC LIMIT 1) dl ON true
+        -- How many distinct claims stand behind the confirmed state: one
+        -- mention and five mentions are not the same kind of fact.
+        LEFT JOIN LATERAL (
+            SELECT count(DISTINCT ps.signal_id) AS n
+            FROM task_events e
+            JOIN decisions d         ON d.decision_id = e.decision_id
+            JOIN proposal_signals ps ON ps.proposal_id = d.proposal_id
+            WHERE e.task_id = t.task_id) src ON true
         WHERE t.user_ref = %s AND t.merged_into IS NULL
         ORDER BY overdue DESC, t.status, t.deadline NULLS LAST""",
-        (v, user_ref)))
+        (v, user_ref))
+    for r in rows:
+        # A raw deadline phrase is a quote, and a source count is a fact
+        # about someone's communications -- both belong to the provenance
+        # rail, not the progress skeleton.
+        if r["access_level"] != "full_trace":
+            r["deadline_raw"] = None
+            r["sources"] = None
+    return jsonify(rows)
 
 
 @app.route("/api/task/<task_id>/history")
@@ -365,7 +394,7 @@ def provenance(event_id):
     if task_level(v, owner_rows[0]["task_id"]) != "full_trace":
         return jsonify({"error":
             "provenance requires full-trace access to this task"}), 403
-    return jsonify(q("""
+    rows = q("""
         SELECT p.proposal_id, p.op, p.rationale, p.confidence,
                s.signal_id, s.signal_type, s.title AS signal_title,
                s.confidence AS signal_confidence,
@@ -378,7 +407,32 @@ def provenance(event_id):
         JOIN signals s           ON s.signal_id = ps.signal_id
         JOIN evidence_refs ev    ON ev.signal_id = s.signal_id
         WHERE e.event_id = %s
-        ORDER BY s.signal_id, ev.ordinal""", (event_id,)))
+        ORDER BY s.signal_id, ev.ordinal""", (event_id,))
+    for r in rows:
+        r.update(_evidence_state(r))
+    return jsonify(rows)
+
+
+def _evidence_state(row):
+    """The integrity state of one evidence pointer.
+
+    CONTRACTS.md promises the UI flags a hash mismatch rather than quietly
+    showing different text -- but that check needs a fetcher to re-read the
+    message, and locally there is none. Saying so explicitly is the honest
+    version: an unchecked hash must not look like a checked one. When the
+    Graph fetcher lands it fills in verified / changed / unavailable here,
+    and the UI already renders all four.
+    """
+    if not row.get("content_hash"):
+        return {"integrity": "unhashed",
+                "integrity_note": "no content hash was recorded"}
+    if not os.environ.get("TL_EVIDENCE_FETCH"):
+        return {"integrity": "unverified",
+                "integrity_note": "hash not checked - no message fetcher "
+                                  "configured"}
+    return {"integrity": "unverified",
+            "integrity_note": "fetcher configured but verification is not "
+                              "wired yet"}
 
 
 @app.route("/api/blocked-on/<user_ref>")
