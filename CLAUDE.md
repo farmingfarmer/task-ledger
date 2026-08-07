@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Never commit corpus files, inbox JSONs, or DB contents** — these hold real colleague data.
 - **This repository stays private. It is policy, not a current state — never make it public**, and never assume it is safe to publish because it looks like ordinary code. It processes real colleague communications.
 - **Live-derived strings are forbidden**: real task titles, people's names, and quotes from real messages must not appear in code, comments, test fixtures, docstrings, or commit messages. Describe the *shape* of a real example ("a vague restatement and a specific description of the same work") and keep the measurement; invent fixture data. This applies to commit messages too — history is the hardest place to clean up.
+- **Two profiles, real and synthetic** (`PROFILES.md`): exercise changes against `taskintel_synth` + `~/task-ledger-synthetic-inbox`, never against the live ledger. Switching is two env vars; nothing in the code knows which profile it is under.
 - **`run_tests.sh` mutates boards** (seeds tasks, re-pools signals, accepts proposals through `apply_task_event`). Always `export DB_DSN` pointing at a **scratch database** before running it. Never point it at `taskintel`, which holds real ledger data.
 - **Verify a claimed bug before fixing it.** Diagnoses in task briefs may be transcribed from screen photos and can carry OCR errors — a reported `$DB_QSN` typo turned out to be `$DB_DSN`, correct in every file. Grep for the exact symbol, string, or file first; if it does not exist, say so and fix the real defect rather than inventing a matching one.
 
@@ -99,6 +100,7 @@ Communication in → typed signals → proposals → **human decision** → prov
 | `integration/` | Graph ingestion & windowing, bot host, viewer-aware dashboard API + UI, `tenant/` (Graph auth, webhook host, mail subscription) |
 | `cadence/` | weekday tick: inbox → extract → reconcile → digest → notify (launchd; Task Scheduler on Windows) |
 | `digest/` | weekly personal + project digests; pure builder, pg loader, text/HTML/card renderers |
+| `testdata/synth_meetings.py` | synthetic meetings with the REAL cast (read at runtime from a real window, never committed) and golden owner labels |
 | `eval/` | attribution eval built from real rejections; worksheets hold real speech and are written outside the repo by force |
 | `ask/` | question answering over confirmed state: rule-based routing, row-assembled answers, refusal when only unconfirmed claims exist |
 | `testdata/` | seeded synthetic messy-comms generator + scorer against golden labels |

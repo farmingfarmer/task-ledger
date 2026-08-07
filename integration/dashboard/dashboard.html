@@ -151,6 +151,14 @@
               background:linear-gradient(180deg,#FFFFFF,var(--tint));
               box-shadow:var(--sh-press),0 0 0 3px rgba(28,92,171,.16)}
   .tlstage.act .n{color:var(--brick)}
+  .tlopts{display:flex;justify-content:space-between;align-items:center;
+          gap:12px;flex-wrap:wrap;padding:10px 16px;
+          border-bottom:1px solid var(--line)}
+  .tlopt-group{display:flex;gap:7px;flex-wrap:wrap}
+  .tlopt-note{font-size:12px;color:var(--faint)}
+  .linkbtn{background:none;border:0;padding:0;font:inherit;font-size:12px;
+           color:var(--brand);font-weight:600;cursor:pointer;
+           text-decoration:underline;text-underline-offset:2px}
   .tlchart{padding:14px 16px 6px}
   .tlchart svg{display:block;width:100%;height:auto;overflow:visible}
 
@@ -449,6 +457,7 @@
 
     <div class="tlwrap">
       <div class="tlbar" id="tlbar"></div>
+      <div class="tlopts" id="tlopts"></div>
       <div class="tlchart viz" id="timeline"></div>
     </div>
     <div class="pipe-foot" id="pipefoot"></div>
@@ -818,12 +827,87 @@
     paintFoot();
   }
 
+  // Density: a window, a grouping, and a cap. Without them the chart
+  // grows 27px a row forever and spends half its width on empty time.
+  var TLV = {days: 30, group: false, cap: 14, all: false};
+  var WINDOWS = [[7, "7 days"], [30, "30 days"], [90, "90 days"],
+                 [0, "All time"]];
+
   function loadTimeline(){
     var box = document.getElementById("timeline");
     get("/api/timeline").then(function(d){
       HERO.awaiting = d.awaiting;
-      timelineChart(box, d.items, d.now);
+      TLV.raw = d;
+      paintTimeline();
     }).catch(function(e){ fail(box, e, loadTimeline); });
+  }
+
+  function paintTimeline(){
+    var d = TLV.raw;
+    if(!d) return;
+    var box = document.getElementById("timeline");
+    var now = Date.parse(d.now) || Date.now();
+    var items = d.items.slice();
+
+    if(TLV.days){
+      var floor = now - TLV.days * 86400000;
+      items = items.filter(function(i){
+        var end = i.ended_at ? Date.parse(i.ended_at) : now;
+        return isNaN(end) || end >= floor;   // still live, or ended inside
+      });
+    }
+    // Group by whose board it is, so a shared timeline reads as people
+    // rather than one undifferentiated stack.
+    if(TLV.group){
+      items.sort(function(a, b){
+        if(a.mine !== b.mine) return a.mine ? -1 : 1;
+        if(a.board !== b.board) return a.board < b.board ? -1 : 1;
+        return (a.first_noted || "") < (b.first_noted || "") ? -1 : 1;
+      });
+    }
+    var total = items.length;
+    var shown = (!TLV.all && total > TLV.cap) ? items.slice(0, TLV.cap)
+                                              : items;
+    paintTlOpts(total, shown.length);
+    timelineChart(box, shown, d.now, TLV.group);
+  }
+
+  function paintTlOpts(total, shown){
+    var bar = document.getElementById("tlopts");
+    bar.innerHTML = "";
+    var left = el2("div","tlopt-group");
+    WINDOWS.forEach(function(w){
+      var b = el2("button","chip");
+      b.type = "button";
+      b.textContent = w[1];
+      b.setAttribute("aria-pressed", String(TLV.days === w[0]));
+      b.addEventListener("click", function(){
+        TLV.days = w[0]; paintTimeline(); });
+      left.appendChild(b);
+    });
+    var grp = el2("button","chip");
+    grp.type = "button";
+    grp.textContent = "Group by person";
+    grp.setAttribute("aria-pressed", String(TLV.group));
+    grp.addEventListener("click", function(){
+      TLV.group = !TLV.group; paintTimeline(); });
+    left.appendChild(grp);
+    bar.appendChild(left);
+
+    var note = el2("div","tlopt-note");
+    if(shown < total){
+      note.appendChild(document.createTextNode(
+        "showing " + shown + " of " + total + " · "));
+      var more = el2("button","linkbtn");
+      more.type = "button";
+      more.textContent = "show all";
+      more.addEventListener("click", function(){
+        TLV.all = true; paintTimeline(); });
+      note.appendChild(more);
+    } else {
+      note.textContent = total + " item" + (total === 1 ? "" : "s");
+    }
+    bar.appendChild(note);
   }
 
   // A row in the chart opens the same detail its stage would.
@@ -1889,7 +1973,7 @@
     return it.status === "blocked" ? "blocked" : "board";
   }
 
-  function timelineChart(node, items, nowIso){
+  function timelineChart(node, items, nowIso, grouped){
     node.innerHTML = "";
     if(!items.length){
       node.appendChild(el("div","empty",
@@ -1898,7 +1982,11 @@
       return;
     }
     var W = 1080, LAB = 210, PAD_R = 26, ROW = 27, TOP = 26;
-    var H = TOP + items.length * ROW + 34;
+    var groups = 0, seen = {};
+    if(grouped)
+      items.forEach(function(i){
+        if(!seen[i.board]){ seen[i.board] = 1; groups++; } });
+    var H = TOP + items.length * ROW + groups * 14 + 34;
     var plotW = W - LAB - PAD_R;
     var now = Date.parse(nowIso) || Date.now();
     var lo = now, hi = now;
@@ -1931,8 +2019,20 @@
       "text-anchor": "end", fill: "var(--muted)", "font-size": 10,
       "font-weight": 600})).textContent = "today";
 
+    var lastBoard = null, groupOffset = 0;
     items.forEach(function(it, i){
-      var y = TOP + i * ROW + ROW / 2;
+      var y = TOP + i * ROW + ROW / 2 + (grouped ? groupOffset : 0);
+      if(grouped && it.board !== lastBoard){
+        groupOffset += 14;
+        y += 14;
+        lastBoard = it.board;
+        svg.appendChild(sv("text", {x: 0, y: y - ROW / 2 - 2,
+          fill: "var(--brand)", "font-size": 10, "font-weight": 700}))
+          .textContent = (it.mine ? "you" : it.board).toUpperCase();
+        svg.appendChild(sv("line", {x1: 0, x2: W - PAD_R,
+          y1: y - ROW / 2 + 1, y2: y - ROW / 2 + 1,
+          stroke: "var(--line)", "stroke-width": 1}));
+      }
       var st = TL[lifeStage(it)];
       var start = Date.parse(it.first_noted);
       if(isNaN(start)) start = lo;

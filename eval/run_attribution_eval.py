@@ -133,6 +133,79 @@ def cmd_score(args):
     return 0
 
 
+def cmd_golden(args):
+    """Score the CURRENT extractor against planted labels.
+
+    Reads the signals a real cadence tick wrote to a database and compares
+    them with the golden sidecars the generator planted, so the loop is
+    measure -> change -> measure again with nobody labelling anything in
+    between.
+    """
+    import glob
+    import psycopg2
+    import psycopg2.extras
+
+    gold_dir = os.path.expanduser(args.golden)
+    windows = []
+    conn = psycopg2.connect(args.dsn)
+    try:
+        conn.set_session(readonly=True, autocommit=True)
+        for path in sorted(glob.glob(os.path.join(gold_dir, "*.golden.json"))):
+            with open(path) as f:
+                golden = json.load(f)
+            with conn.cursor(
+                    cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT s.signal_id, s.author_ref, s.owner_candidates,
+                           array_agg(e.resource_id) AS rids
+                    FROM signals s
+                    JOIN extraction_batches b USING (batch_id)
+                    LEFT JOIN evidence_refs e ON e.signal_id = s.signal_id
+                    WHERE b.source_ref = %s
+                    GROUP BY s.signal_id, s.author_ref, s.owner_candidates""",
+                    (golden["source_ref"],))
+                sigs = []
+                for r in cur.fetchall():
+                    sigs.append({
+                        "author_ref": r["author_ref"],
+                        "owner_candidates": r["owner_candidates"],
+                        "evidence_resource_ids": [x for x in (r["rids"] or [])
+                                                  if x]})
+            windows.append({"golden": golden, "signals": sigs})
+    finally:
+        conn.close()
+
+    result = ev.score_golden(windows)
+    if args.json:
+        sys.stdout.write(json.dumps(result, indent=2) + "\n")
+        return 0
+    print("Attribution against planted labels")
+    print("  windows scored:        {0}".format(len(windows)))
+    print("  claims planted:        {0}".format(result["claims"]))
+    print("  reached extraction:    {0}".format(result["extracted"]))
+    print("")
+    print("  owner correct:         {0}".format(result["owner_right"]))
+    print("  correctly left unowned:{0}".format(result["correctly_unowned"]))
+    print("  owner WRONG:           {0}".format(result["owner_wrong"]))
+    print("  owner missing:         {0}".format(result["owner_missing"]))
+    print("  wrongly attributed:    {0}   (sentence named nobody)".format(
+        result["wrongly_owned"]))
+    print("")
+    for rule in sorted(result["by_rule"]):
+        r = result["by_rule"][rule]
+        print("  rule {0:8} n={1:3}  right {2:3}  wrong {3:3}  "
+              "missing {4:3}".format(rule, r["n"], r["right"], r["wrong"],
+                                     r["missing"]))
+    print("")
+    print("  ATTRIBUTION ACCURACY: {0}%".format(result["accuracy"]))
+    if result["misses"] and args.show_misses:
+        print("\n  misses:")
+        for m in result["misses"][:12]:
+            print("    want={0} got={1} :: {2}".format(
+                m["want"], m["got"], (m["text"] or "")[:60]))
+    return 0
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="Attribution eval from real rejections.")
@@ -152,8 +225,21 @@ def main():
     s.add_argument("--worksheet", required=True)
     s.add_argument("--json", action="store_true")
 
+    g = sub.add_parser("golden",
+                       help="score the current extractor against planted "
+                            "labels (no human labelling needed)")
+    g.add_argument("--dsn", required=True)
+    g.add_argument("--golden", required=True,
+                   help="directory of *.golden.json sidecars")
+    g.add_argument("--json", action="store_true")
+    g.add_argument("--show-misses", action="store_true")
+
     args = ap.parse_args()
-    return cmd_build(args) if args.command == "build" else cmd_score(args)
+    if args.command == "build":
+        return cmd_build(args)
+    if args.command == "golden":
+        return cmd_golden(args)
+    return cmd_score(args)
 
 
 if __name__ == "__main__":

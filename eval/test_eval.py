@@ -125,6 +125,58 @@ def test_score():
        "the fix: wire author_ref, do not rewrite the prompt")
 
 
+def test_golden_scoring():
+    """Scoring against planted labels: the half of the loop that needs no
+    human. The three cases below are the three the live run got wrong."""
+    print("golden scoring")
+    windows = [{
+        "golden": {"source_ref": "synth-1", "claims": [
+            {"resource_id": "u1", "kind": "assignment", "owner_rule": "speaker",
+             "expected_owner_ref": "aad-a", "text": "I'll take it"},
+            {"resource_id": "u2", "kind": "assignment", "owner_rule": "target",
+             "expected_owner_ref": "aad-b", "text": "B, can you take it?"},
+            {"resource_id": "u3", "kind": "proposal", "owner_rule": "none",
+             "expected_owner_ref": None, "text": "can we prioritise it?"},
+            {"resource_id": "u4", "kind": "proposal", "owner_rule": "none",
+             "expected_owner_ref": None, "text": "someone should look"},
+            {"resource_id": "u5", "kind": "assignment", "owner_rule": "speaker",
+             "expected_owner_ref": "aad-a", "text": "I'll do the other one"}]},
+        "signals": [
+            {"author_ref": "aad-a", "evidence_resource_ids": ["u1"],
+             "owner_candidates": [{"person_ref": "aad-a"}]},      # right
+            {"author_ref": "aad-a", "evidence_resource_ids": ["u2"],
+             "owner_candidates": [{"person_ref": "aad-a"}]},      # wrong
+            {"author_ref": "aad-a", "evidence_resource_ids": ["u3"],
+             "owner_candidates": []},                             # right
+            {"author_ref": "aad-a", "evidence_resource_ids": ["u4"],
+             "owner_candidates": [{"person_ref": "aad-a"}]},      # over-eager
+            # u5 never reached extraction at all
+        ]}]
+    r = ev.score_golden(windows)
+    ok(r["claims"] == 5 and r["extracted"] == 4,
+       "claims that never reached extraction are counted, not ignored")
+    ok(r["owner_right"] == 1 and r["owner_wrong"] == 1,
+       "a named owner is graded against the planted one")
+    ok(r["correctly_unowned"] == 1,
+       "leaving a sentence that names nobody unowned counts as CORRECT, "
+       "not as a miss")
+    ok(r["wrongly_owned"] == 1,
+       "naming somebody when the sentence named nobody is its own failure "
+       "-- the one a speaker-defaulting fix would cause")
+    ok(r["owner_missing"] == 1,
+       "a claim that produced no signal is a miss")
+    ok(r["accuracy"] == 40.0,
+       "accuracy counts right owners plus correct abstentions over all "
+       "planted claims ({0}%)".format(r["accuracy"]))
+    ok(r["by_rule"]["speaker"]["n"] == 2
+       and r["by_rule"]["none"]["n"] == 2
+       and r["by_rule"]["target"]["n"] == 1,
+       "results break down by what the sentence actually did")
+    ok(len(r["misses"]) == 3 and all("text" in m for m in r["misses"]),
+       "every miss carries its sentence, so the next fix has something to "
+       "read")
+
+
 def test_repo_guard():
     print("privacy guard")
     repo = os.path.abspath(".")
@@ -150,6 +202,7 @@ def test_index():
 if __name__ == "__main__":
     test_build()
     test_score()
+    test_golden_scoring()
     test_repo_guard()
     test_index()
     print("\nall {0} eval checks passed".format(CHECKS[0]))

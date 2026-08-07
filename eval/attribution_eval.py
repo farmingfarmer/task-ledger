@@ -221,6 +221,77 @@ def _verdict(n, fixed, no_owner=0, total=0):
             "and guard work.".format(pct))
 
 
+def score_golden(windows):
+    """Score attribution against planted labels.
+
+    The worksheet measures the extractor against a human's reading of real
+    sentences, which is the truth that matters and costs a labelling pass
+    every time. This measures it against synthetic meetings whose owners
+    were decided before the model saw them, so the loop can run on every
+    change without anyone reading anything.
+
+    windows: [{golden: {claims:[...]}, signals: [{author_ref,
+    owner_candidates, evidence_resource_ids}]}]
+    """
+    out = {"claims": 0, "extracted": 0, "owner_right": 0, "owner_wrong": 0,
+           "owner_missing": 0, "correctly_unowned": 0,
+           "wrongly_owned": 0, "by_rule": {}, "misses": []}
+    for w in windows:
+        by_rid = {}
+        for sig in w.get("signals") or []:
+            for rid in sig.get("evidence_resource_ids") or []:
+                by_rid.setdefault(rid, sig)
+        for claim in (w.get("golden") or {}).get("claims") or []:
+            out["claims"] += 1
+            rule = claim.get("owner_rule") or "unknown"
+            slot = out["by_rule"].setdefault(
+                rule, {"n": 0, "right": 0, "wrong": 0, "missing": 0})
+            slot["n"] += 1
+            sig = by_rid.get(claim["resource_id"])
+            if sig is None:
+                # Extraction never produced anything for this sentence.
+                # That is the most actionable miss of all, so it carries
+                # its text like the others rather than being a bare count.
+                slot["missing"] += 1
+                out["owner_missing"] += 1
+                out["misses"].append({"text": claim.get("text"),
+                                      "want": claim.get("expected_owner_ref"),
+                                      "got": None, "why": "not extracted"})
+                continue
+            out["extracted"] += 1
+            got = ((sig.get("owner_candidates") or [{}])[0] or {}).get(
+                "person_ref")
+            want = claim.get("expected_owner_ref")
+            if want is None:
+                # The sentence names nobody: leaving it unowned is right,
+                # and naming somebody is the failure the live run showed.
+                if got is None:
+                    out["correctly_unowned"] += 1
+                    slot["right"] += 1
+                else:
+                    out["wrongly_owned"] += 1
+                    slot["wrong"] += 1
+                    out["misses"].append({"text": claim.get("text"),
+                                          "want": None, "got": got})
+            elif got == want:
+                out["owner_right"] += 1
+                slot["right"] += 1
+            elif got is None:
+                out["owner_missing"] += 1
+                slot["missing"] += 1
+                out["misses"].append({"text": claim.get("text"),
+                                      "want": want, "got": None})
+            else:
+                out["owner_wrong"] += 1
+                slot["wrong"] += 1
+                out["misses"].append({"text": claim.get("text"),
+                                      "want": want, "got": got})
+    graded = out["owner_right"] + out["correctly_unowned"]
+    out["accuracy"] = (round(100.0 * graded / out["claims"], 1)
+                       if out["claims"] else 0.0)
+    return out
+
+
 def assert_outside_repo(path, repo_root):
     """A worksheet holds real colleague speech. Refuse to write one inside
     the working tree, where a later `git add -A` would sweep it up -- the
