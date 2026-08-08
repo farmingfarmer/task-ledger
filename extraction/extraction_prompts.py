@@ -14,7 +14,13 @@ Design rules embodied here:
     already existing.
   - Attribution basis is a closed set (explicit_assignment, self_reference,
     inferred) with definitions and examples, because the downstream op gates
-    key off it.
+    key off it. The fourth answer -- NO owner at all -- is spelled out just
+    as explicitly, because a model given three bases and no permission to
+    return none will always find someone: measured against planted labels,
+    every false attribution was an impersonal sentence ("X is stuck waiting
+    on the platform team") pinned on whoever said it. The rule is structural
+    (no first person and no named person -> empty), not a confidence
+    threshold, since "when in doubt" is what produced the guessing.
   - Deadlines carry raw_text + precision always; the resolved date only when
     the model is confident, resolved against the window end date it is given.
   - Negative guidance gets as many words as positive: what is NOT a signal
@@ -39,14 +45,38 @@ SIGNAL_TYPES_SPEC = """- task_mention: a unit of work is referenced without new 
 - blocker_resolved: a previously stated obstruction is said to be cleared.
 - cancellation: work is called off."""
 
-ATTRIBUTION_SPEC = """For owner_candidates, classify HOW you know who owns the work:
-- explicit_assignment: someone with apparent authority directed the work to a
-  named person ("Priya, can you take the IAM role", "assigning this to Dev").
-- self_reference: the speaker claims the work themselves ("I'll handle the
-  deploy", "I'm picking up the OCR fix").
-- inferred: anything weaker -- the person talked about the work a lot, the
-  work is in their area, pronouns you resolved yourself. When in doubt,
-  inferred. Never promote inferred to self_reference because it seems likely."""
+ATTRIBUTION_SPEC = """For owner_candidates, name who would DO the work, and classify how you know:
+- explicit_assignment: the work is directed at a named person -- handed over
+  ("assigning this to Dev") or addressed to them as a request ("Priya, can
+  you take the IAM role?"). The owner is the person ADDRESSED, never the
+  speaker who addressed them.
+- self_reference: the speaker takes the work on themselves. This is about
+  first person, not about signal type -- "I'll handle the deploy", "I'm
+  blocked on the migration until access clears", and "finished the OCR fix
+  yesterday" are all self_reference, because in each one the person speaking
+  is the person doing the work. Transcripts routinely drop the leading "I":
+  "will start on the audit tomorrow" and "picking that up after standup" are
+  still first person.
+- inferred: a named person is tied to the work more weakly -- someone reports
+  on a third party ("i think Dev finished the docs refresh"), or a pronoun
+  you resolved yourself. The owner is the person NAMED, not the person doing
+  the reporting.
+
+LEAVE owner_candidates EMPTY WHEN THE SENTENCE IDENTIFIES NOBODY. An empty
+list is a normal, frequent, CORRECT answer -- not a failure to try. Apply it
+structurally: if there is no first person AND no person named, there is no
+owner to report, however obvious a guess might feel.
+- impersonal subjects: "the retention sweep is stuck waiting on the platform
+  team", "the migration needs to land before the audit", "that one is no
+  longer blocked" -> EMPTY. Work being stuck or due says nothing about who
+  holds it.
+- collective or nobody in particular: "let's get the intake form scoped",
+  "we should prioritise this", "someone should look at it" -> EMPTY.
+- Raising a topic is not owning it. The speaker is NOT the owner merely
+  because the speaker is the one who brought the work up.
+Emitting a wrong owner is worse than emitting none: an unowned signal is
+routed by the surrounding system, while a wrong one puts work on the wrong
+person's board. Never fill the list just to have it non-empty."""
 
 NEGATIVE_GUIDANCE = """Do NOT emit signals for:
 - opinions, preferences, or venting ("this codebase is a mess")

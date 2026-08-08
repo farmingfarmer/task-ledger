@@ -86,7 +86,7 @@ ATLAS = {
                      "verified. Measured: 94-97% recall, 0 fabrications on "
                      "synthetic messy corpora.",
             "modules": [
-                {"name": "Prompt (extract-v1.1)",
+                {"name": "Prompt (extract-v1.2)",
                  "file": "extraction/extraction_prompts.py",
                  "components": [
                      {"symbol": "build_messages",
@@ -106,6 +106,16 @@ ATLAS = {
                                "code -- and what it still cannot fix "
                                "(deadline-removal, 3 of 3 at temperature "
                                "0) graduates to a guard in the worker."},
+                     {"symbol": "ATTRIBUTION_SPEC",
+                      "blurb": "Who owns the work, and the fourth answer "
+                               "most prompts forget: nobody. Given three "
+                               "bases and no permission to return none, "
+                               "the model pinned impersonal sentences on "
+                               "whoever said them -- so 'no first person "
+                               "and no name -> empty' is stated as a "
+                               "structural rule, not a confidence "
+                               "threshold, because 'when in doubt' is what "
+                               "produced the guessing."},
                  ]},
                 {"name": "Worker & guards",
                  "file": "extraction/extraction_worker.py",
@@ -355,8 +365,8 @@ ATLAS = {
                      "(guaranteed negation traps, hedged claims, vague "
                      "dates, name variants) and a scorer verified honest "
                      "in both directions: a cheating LLM scores 100%, an "
-                     "empty one 0%. This is how extract-v1.1's numbers "
-                     "exist at all.",
+                     "empty one 0%. This is how the prompt has numbers "
+                     "at all.",
             "modules": [
                 {"name": "Corpus generator",
                  "file": "testdata/synthesize.py",
@@ -709,6 +719,22 @@ NARRATIVE = {
              "the ignore-list is battle scars: announcement dates, "
              "negation reversals, and hedge-handling each earned their "
              "line from a measured failure"],
+        ],
+        "extraction/extraction_prompts.py::ATTRIBUTION_SPEC": [
+            ["Name who would do the work -- or name nobody",
+             "an owner is only reported when the sentence actually "
+             "identifies one: the speaker taking it on, or a person "
+             "addressed by name"],
+            ["Saying it out loud is not the same as owning it",
+             "'the migration is stuck waiting on the platform team' "
+             "names nobody, and pinning it on whoever raised it puts "
+             "work on the wrong person's board"],
+            ["Empty is a correct answer, so the prompt says so",
+             "the rule is structural rather than a confidence bar, "
+             "because a model told to guess when unsure will always "
+             "find a candidate; an unowned signal still gets routed "
+             "downstream, while a wrongly owned one has to be rejected "
+             "by a human"],
         ],
         "extraction/extraction_prompts.py::NEGATIVE_GUIDANCE": [
             ["Every rule here is a mistake that actually happened",
