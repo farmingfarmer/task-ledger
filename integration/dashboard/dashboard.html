@@ -985,9 +985,14 @@
     foot.innerHTML = "";
     var lag = el2("button","lagbtn");
     lag.type = "button";
-    lag.textContent = "Median " + (HERO.lag || "\u2014") +
-      " from said to tracked" +
-      (HERO.lagTasks ? ", across " + HERO.lagTasks + " task(s)" : "");
+    // A bare em dash read as a broken number. The measure needs a task
+    // that came from a recorded conversation AND was then confirmed by a
+    // person; with none of those yet, say that rather than print nothing.
+    lag.textContent = HERO.lag
+      ? ("Median " + HERO.lag + " from said to tracked" +
+         (HERO.lagTasks ? ", across " + HERO.lagTasks + " task(s)" : ""))
+      : "No said \u2192 tracked time yet \u2014 it needs work that came "
+        + "from a conversation and was then confirmed here";
     lag.addEventListener("click", function(){
       openTable(document.getElementById("fig-latency"));
       document.getElementById("fig-latency").classList.add("flash");
@@ -2047,7 +2052,7 @@
         "is processed."));
       return;
     }
-    var W = 1080, LAB = 210, PAD_R = 26, ROW = 27, TOP = 26;
+    var W = 1080, LAB = 250, PAD_R = 26, ROW = 27, TOP = 26;
     var groups = 0, seen = {};
     if(grouped)
       items.forEach(function(i){
