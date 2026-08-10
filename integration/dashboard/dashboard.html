@@ -53,6 +53,11 @@
     --mono:'IBM Plex Mono',monospace; --sans:'Archivo',system-ui,sans-serif;
   }
   *{box-sizing:border-box;margin:0}
+  /* An author display rule outranks the browser's [hidden]{display:none},
+     so any element with its own display: that JS toggles via .hidden stays
+     visible -- which shipped an empty switch and an empty banner onto the
+     page as a stray dot and an orange bar. Make hidden mean hidden. */
+  [hidden]{display:none !important}
   body{font-family:var(--sans);font-size:14px;line-height:1.5;color:var(--ink);
        background:linear-gradient(180deg,var(--page-top) 0,var(--page-bot) 520px,
                   var(--page-bot) 100%);background-attachment:fixed;
@@ -133,8 +138,11 @@
      synthetic profile additionally paints a banner across the header.
      Colour alone would fail a colourblind viewer and a projector, so the
      banner carries a word too. */
-  .profsw{display:inline-flex;margin-left:6px;border-radius:var(--r1);
-          background:var(--well);box-shadow:var(--sh-sink);padding:3px}
+  .profsw{display:inline-flex;align-items:center;margin-left:10px;
+          border-radius:var(--r1);background:var(--well);
+          box-shadow:var(--sh-sink);padding:3px}
+  .profsw .swlab{font:700 10.5px/1 var(--mono);letter-spacing:.08em;
+          text-transform:uppercase;color:var(--faint);padding:0 8px 0 6px}
   .profsw button{font:inherit;font-size:12px;font-weight:700;
           border:1px solid transparent;background:none;color:var(--faint);
           padding:5px 11px;border-radius:6px;cursor:pointer;
@@ -2321,6 +2329,11 @@
     if(state.profiles.length < 2){ box.hidden = true; ban.hidden = true; return; }
     box.hidden = false;
     box.innerHTML = "";
+    // Labelled, because unlabelled it sits beside "Viewing as" and reads
+    // as another identity control -- which is exactly how it was first
+    // mistaken for one.
+    var lab = el("span", "swlab", "Ledger");
+    box.appendChild(lab);
     state.profiles.forEach(function(p){
       var b = el("button", p.synthetic ? "synth" : null, p.label);
       b.type = "button";

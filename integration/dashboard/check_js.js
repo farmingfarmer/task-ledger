@@ -47,4 +47,22 @@ if (missing.length) {
   console.error("UNDECLARED: " + missing.join(", "));
   process.exit(1);
 }
-console.log("dashboard JS: no undeclared module constants");
+
+// The .hidden property only hides if CSS lets it. An author rule with its
+// own display: outranks the browser's [hidden]{display:none}, so an element
+// this code "hides" stays on screen -- which is how an empty profile switch
+// and an empty banner shipped as a stray dot and an orange bar. One global
+// rule fixes every case; this asserts it is still there.
+// Comments stripped first: the rule is explained in a comment that quotes
+// itself, and matching that comment made this check pass with the rule
+// deleted -- a checker that cannot fail is worse than none.
+var cssOnly = html.replace(/\/\*[\s\S]*?\*\//g, "");
+if (!/\[hidden\]\s*\{[^}]*display\s*:\s*none/.test(cssOnly)) {
+  console.error(
+    "MISSING CSS: no [hidden]{display:none} rule. JS toggles .hidden on " +
+    "elements that carry their own display:, and without this rule those " +
+    "elements never actually hide.");
+  process.exit(1);
+}
+
+console.log("dashboard JS: no undeclared module constants; hidden hides");
