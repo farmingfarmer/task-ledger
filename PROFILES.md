@@ -64,8 +64,27 @@ several rounds, so later rounds match against the board earlier ones built
 python3 scripts/demo_seed_synthetic.py --dsn "$TL_SYNTH_DSN"
 ```
 
+Pass `--judge-model mistral-small3.1` unless you want a board with
+nothing finished on it: without a judge the reconciler *holds* closure
+signals rather than guessing, which is correct degraded behaviour and also
+means no task ever reaches completed.
+
 It accepts most, rejects some with reasons (which is what gives the
-calibration panel anything to say), and leaves a few undecided. It is not
+calibration panel anything to say), leaves a few undecided, and shares
+boards between people at both access levels -- a demo that only ever shows
+`full_trace` never shows the redaction working.
+
+Then check it before anyone is watching:
+
+```zsh
+python3 scripts/demo_preflight.py
+```
+
+which asserts the two ledgers actually disagree, the synthetic board is
+not a shell, both access levels are present, and every panel answers under
+both profiles. Each of those failed at least once while this was built,
+and the two worst -- an empty review queue and a board with nothing
+completed -- looked fine in the seeding script's own summary. It is not
 a new write path: accepts go through `cli/review.py`'s `apply_accept()`,
 which goes through `apply_task_event()`, which demands a decision. Every
 decision it files carries a note identifying it as seeded. It refuses to

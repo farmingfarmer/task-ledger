@@ -52,7 +52,29 @@ REJECT_REASONS = ["wrong_owner", "not_a_task", "duplicate",
 
 # decisions has reject_note, not rationale -- the note rides along on
 # both so every seeded decision is self-identifying in the ledger.
+# Ops that move an existing task forward. A demo board with no
+# completions shows a to-do list, not a ledger of what happened.
+STATUS_OPS = ("complete_task", "update_status", "add_blocker",
+              "resolve_blocker", "update_deadline", "reassign")
+
 RATIONALE = "seeded demo decision on synthetic data"
+
+
+def _ollama_chat(model, host):
+    """Same call shape as run_reconcile's, so the judge behaves here
+    exactly as it does in the real pipeline."""
+    import json as _json
+    import urllib.request as _u
+
+    def call(messages):
+        body = _json.dumps({"model": model, "messages": messages,
+                            "stream": False,
+                            "options": {"temperature": 0.0}}).encode("utf-8")
+        req = _u.Request(host + "/api/chat", data=body,
+                         headers={"Content-Type": "application/json"})
+        with _u.urlopen(req, timeout=300) as resp:
+            return _json.loads(resp.read().decode("utf-8"))["message"]["content"]
+    return call
 
 
 def refuse_if_real(dsn, override):
@@ -80,12 +102,17 @@ def users_with_signals(conn):
         return [r[0] for r in cur.fetchall()]
 
 
-def reconcile_for(dsn, user, run_id):
+def reconcile_for(dsn, user, run_id, judge=None):
     signals = board_io_pg.load_signals(dsn, user)
     if not signals:
         return None
     tasks, version = board_io_pg.load_board(dsn, user)
-    rec = rec_mod.Reconciler(embed=embedders.TokenEmbedder(), judge_llm=None)
+    # A judge matters here more than it looks: without one the reconciler
+    # HOLDS closure signals rather than guessing, which is the correct
+    # degraded behaviour and also means a seeded board has nothing
+    # completed on it. "What got done" is half of what a demo is for.
+    rec = rec_mod.Reconciler(embed=embedders.TokenEmbedder(),
+                             judge_llm=judge)
     packet, rep = rec.reconcile(user, signals, tasks, version, run_id,
                                 all_tasks=board_io_pg.load_all_boards(dsn))
     result = board_io_pg.write_packet(dsn, packet, rep["consumed"],
@@ -104,8 +131,16 @@ def decide_for(conn, user, keep_pending):
         packets = review_cli.pending_packets(cur, user)
         for packet in packets:
             props = review_cli.undecided_proposals(cur, packet["packet_id"])
+            # Reserve from the TAIL, and never reserve an op that changes
+            # an existing task. undecided_proposals sorts by confidence, so
+            # reserving the first N held back the strongest proposals --
+            # including both complete_task proposals in the set, which is
+            # why a seeded board had nothing finished on it. A queue of
+            # low-confidence creates is also the more honest queue: those
+            # are the ones a person would actually still be deciding.
+            cut = max(0, len(props) - keep_pending)
             for i, prop in enumerate(props):
-                if i < keep_pending:
+                if i >= cut and prop["op"] not in STATUS_OPS:
                     stats["left"] += 1
                     continue
                 ok, why = review_cli.still_valid(prop)
@@ -151,6 +186,37 @@ def decide_for(conn, user, keep_pending):
     return stats
 
 
+def seed_grants(conn, users):
+    """Give the cross-person view something to show.
+
+    Without grants every person sees only their own board, so the team
+    panel, the sharing rail and the project view are all empty -- and
+    those are the parts that argue for a shared ledger over a private
+    to-do list. Levels are mixed on purpose: progress hides rationales,
+    deciders, confidence, blocker wording and the whole provenance rail,
+    so a demo that only ever shows full_trace never shows the redaction
+    working.
+    """
+    made = 0
+    with conn.cursor() as cur:
+        for i, owner in enumerate(users):
+            # Each person shares their board with the next two people in a
+            # fixed rotation: one deep, one shallow.
+            deep = users[(i + 1) % len(users)]
+            shallow = users[(i + 2) % len(users)]
+            for grantee, level in ((deep, "full_trace"),
+                                   (shallow, "progress")):
+                if grantee == owner:
+                    continue
+                cur.execute(
+                    "SELECT grant_access(%s,%s,'user',%s,%s,%s,NULL)",
+                    (owner, grantee, owner, level,
+                     "seeded demo grant on synthetic data"))
+                made += 1
+    conn.commit()
+    return made
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--dsn", default=os.environ.get("TL_SYNTH_DSN")
@@ -160,6 +226,11 @@ def main():
                          "review queue on screen is not empty")
     ap.add_argument("--rounds", type=int, default=3,
                     help="reconcile/decide passes; later rounds match\n                         against the board the earlier ones built")
+    ap.add_argument("--judge-model", default=None,
+                    help="Ollama chat model for the judge band; without it "
+                         "closure signals hold and nothing on the seeded "
+                         "board is ever completed")
+    ap.add_argument("--ollama-host", default="http://localhost:11434")
     ap.add_argument("--i-know-what-this-is", action="store_true",
                     dest="override")
     args = ap.parse_args()
@@ -167,6 +238,8 @@ def main():
         raise SystemExit("set TL_SYNTH_DSN or pass --dsn")
 
     name = refuse_if_real(args.dsn, args.override)
+    judge = (_ollama_chat(args.judge_model, args.ollama_host)
+             if args.judge_model else None)
 
     conn = psycopg2.connect(args.dsn)
     try:
@@ -187,12 +260,16 @@ def main():
     # is what produces updates and closures on an existing task rather than
     # a flat list of creates. Only the last round leaves a queue.
     for r in range(1, args.rounds + 1):
-        last = (r == args.rounds)
-        keep = args.keep_pending if last else 0
-        print("round {0}/{1}{2}".format(
-            r, args.rounds, " (leaves a review queue)" if last else ""))
+        # Hold some back on EVERY round, not just the last. Reserving them
+        # only at the end left an empty queue: by the final round the pool
+        # was consumed and there was nothing left to leave, and a demo
+        # whose "needs your review" panel is empty omits the one thing
+        # this system is actually about.
+        keep = args.keep_pending
+        print("round {0}/{1}".format(r, args.rounds))
         for user in users:
-            rep = reconcile_for(args.dsn, user, "demo-seed-r{0}".format(r))
+            rep = reconcile_for(args.dsn, user,
+                                "demo-seed-r{0}".format(r), judge)
             if rep and rep["proposals"]:
                 print("  {0}: {1} proposal(s), {2} held".format(
                     user, rep["proposals"], rep["held"]))
@@ -211,12 +288,15 @@ def main():
 
     conn = psycopg2.connect(args.dsn)
     try:
+        grants = seed_grants(conn, users)
         with conn.cursor() as cur:
             cur.execute("SELECT count(*) FROM tasks_current "
                         "WHERE merged_into IS NULL")
             tasks = cur.fetchone()[0]
     finally:
         conn.close()
+    print("shared {0} board grant(s) so the team view is not empty"
+          .format(grants))
 
     print("\nboard now: {0} task(s), {1} accepted, {2} rejected with "
           "reasons, {3} still awaiting review".format(
