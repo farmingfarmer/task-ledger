@@ -8,6 +8,7 @@ cd /d "%~dp0cli" && python test_share.py || exit /b 1
 cd /d "%~dp0digest" && python test_digest.py || exit /b 1
 cd /d "%~dp0ask" && python test_ask.py || exit /b 1
 cd /d "%~dp0eval" && python test_eval.py || exit /b 1
+cd /d "%~dp0testdata" && python test_synth.py || exit /b 1
 cd /d "%~dp0integration\tests" && python test_dashboard.py || exit /b 1
 where node >nul 2>&1 && node "%~dp0integration\dashboard\check_js.js" "%~dp0integration\dashboard\dashboard.html"
 cd /d "%~dp0" && python scripts\build_system_map.py || exit /b 1

@@ -10,6 +10,7 @@ cd "$(dirname "$0")"
 ( cd digest && python3 test_digest.py )
 ( cd ask && python3 test_ask.py )
 ( cd eval && python3 test_eval.py )
+( cd testdata && python3 test_synth.py )
 ( cd integration/tests && python3 test_dashboard.py )
 # The dashboard's JS is inline and untested by the Python suites; this
 # catches a constant deleted along with the function above it, which is

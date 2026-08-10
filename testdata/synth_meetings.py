@@ -123,11 +123,19 @@ def assert_outside_repo(path):
     return full
 
 
-def build_meeting(rng, cast, source_type, day, index, turns):
+def build_meeting(rng, cast, source_type, day, index, turns, seed):
     directory, speakers, _ = cast
     refs = sorted(speakers)
     start = datetime.datetime.combine(day, datetime.time(10, 0))
-    source_ref = "synth-{0}-standup-{1}".format(day.isoformat(), index)
+    # The seed belongs in the id. Two runs on the same day with different
+    # seeds produce entirely different conversations, and without this they
+    # produced identical source_refs -- which means identical batch_ids,
+    # because batch_id hashes (source_ref, window_start, window_end,
+    # prompt_version) and none of those see the content. Ingesting a tuning
+    # set and a held-out set into one database would have silently dropped
+    # the second on ON CONFLICT DO NOTHING and scored the first twice.
+    source_ref = "synth-s{0}-{1}-standup-{2}".format(
+        seed, day.isoformat(), index)
     mhash = hashlib.sha256(source_ref.encode()).hexdigest()[:8]
 
     items, golden = [], []
@@ -197,7 +205,7 @@ def main():
             days=int(args.days * (args.meetings - 1 - i) /
                      max(args.meetings - 1, 1)))
         ref, window, golden = build_meeting(rng, cast, source_type, day, i,
-                                            args.turns)
+                                            args.turns, args.seed)
         with open(os.path.join(out, ref + ".json"), "w") as f:
             json.dump(window, f, indent=1)
         with open(os.path.join(gold_dir, ref + ".golden.json"), "w") as f:
