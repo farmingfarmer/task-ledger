@@ -123,6 +123,27 @@ def test_prompt_build():
        and "2026-07-20" in msgs[1]["content"],
        "items numbered with authors; window end date anchored")
 
+    # The empty-owner rule is right for a room and wrong for a mailbox, so
+    # authored channels carry an exception -- and ONLY authored channels.
+    # Every other source type must stay byte-identical, because that is what
+    # lets the attribution numbers measured without it still stand.
+    spoken = [extraction_prompts.build_messages(st, "2026-07-20",
+                                                numbered)[0]["content"]
+              for st in ("meeting_transcript", "teams_channel", "teams_chat")]
+    authored = [extraction_prompts.build_messages(st, "2026-07-20",
+                                                  numbered)[0]["content"]
+                for st in extraction_prompts.AUTHORED_SOURCES]
+    ok(all("AUTHORED MESSAGES" not in s for s in spoken),
+       "spoken channels never see the authored-sender exception")
+    ok(all("AUTHORED MESSAGES" in s for s in authored),
+       "authored channels do")
+    ok(len(set(spoken)) == 1 and len(set(authored)) == 1,
+       "the prompt varies by channel class, not by individual source type")
+    ok(authored[0].replace(extraction_prompts.AUTHORED_ATTRIBUTION, "")
+       == spoken[0],
+       "authored prompt is the spoken prompt plus that block and nothing "
+       "else")
+
 
 def test_golden():
     print("golden path")

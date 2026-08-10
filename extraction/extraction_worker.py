@@ -33,7 +33,7 @@ import jsonschema
 
 import extraction_prompts
 
-PROMPT_VERSION = "extract-v1.2"
+PROMPT_VERSION = "extract-v1.3"
 
 VALID_TYPES = {
     "task_mention", "assignment", "status_update", "completion_claim",

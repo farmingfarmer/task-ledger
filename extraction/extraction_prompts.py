@@ -21,6 +21,13 @@ Design rules embodied here:
     on the platform team") pinned on whoever said it. The rule is structural
     (no first person and no named person -> empty), not a confidence
     threshold, since "when in doubt" is what produced the guessing.
+  - That rule is right for a room and wrong for a mailbox, so it carries one
+    channel exception. An email or document item is written by one person in
+    their own voice, and a sender describing work impersonally is reporting
+    on work they hold -- measured, treating those as unowned cost the email
+    corpus nine points of attribution. Only AUTHORED_SOURCES see the
+    exception; every other source type gets prompt text byte-identical to
+    what was measured without it, which is what lets those numbers stand.
   - Deadlines carry raw_text + precision always; the resolved date only when
     the model is confident, resolved against the window end date it is given.
   - Negative guidance gets as many words as positive: what is NOT a signal
@@ -144,6 +151,42 @@ Rules:
 - Use names exactly as they appear in the items; do not invent people.
 - If the window contains no signals, return []."""
 
+# The empty-owner rule is right for a room and wrong for a mailbox.
+# "The drift monitor is blocked -- waiting on the cloud team" spoken in a
+# standup names nobody: attributing it to whoever said it is what produced
+# 15 of 22 real wrong_owner rejections. The same sentence TYPED BY ONE
+# PERSON in their own email is that person reporting on their own work, and
+# scoring it as unowned costs the email corpus nine points of attribution.
+# The difference is not the sentence, it is the channel -- so only the
+# channels where a message has a single author in their own voice get this,
+# and every other source type sees the structural rule unchanged.
+AUTHORED_ATTRIBUTION = """
+AUTHORED MESSAGES -- one exception to the empty-owner rule above. Every
+item here is written by one person in their own voice rather than spoken
+across a room, so a sender reporting on work is normally reporting on work
+they hold. When the message does not identify who holds the work, name THE
+SENDER, basis "inferred".
+
+Read "does not identify an owner" carefully -- it is not the same as "no
+name appears". A person mentioned as something the work WAITS ON is a
+dependency, not an owner:
+  "the drift monitor is blocked -- waiting on Victor's team for review"
+  -> the sender owns the drift monitor; Victor's team is the blocker.
+  "the migration still needs to land before the audit"
+  -> the sender owns the migration.
+Naming a reviewer, a blocking team, or someone whose input is needed
+leaves the owner unidentified, and in an authored message that means the
+sender.
+
+This does not license guessing anywhere else. If the message hands the
+work to someone else, that is explicit_assignment to them; if it reports
+what someone else did or will do, the owner is that person; and a sender
+asking an open question of the thread ("should we prioritise this?")
+proposes work nobody has taken, so it still gets an empty list."""
+
+# Source types whose items are authored messages rather than utterances.
+AUTHORED_SOURCES = ("email_thread", "document")
+
 SOURCE_FRAMING = {
     "meeting_transcript": ("The items below are utterances from a meeting "
                            "transcript, in order, with speakers."),
@@ -165,7 +208,7 @@ SIGNAL TYPES
 {signal_types}
 
 ATTRIBUTION
-{attribution}
+{attribution}{channel}
 
 WHAT NOT TO EXTRACT
 {negative}
@@ -180,9 +223,14 @@ def build_messages(source_type, window_end_date, items):
     items: list of dicts with keys item_no, author_name, timestamp, text
     window_end_date: 'YYYY-MM-DD' used as the anchor for relative dates.
     """
+    # Empty for every other source type, so their prompt text is
+    # byte-identical to what was measured before this exception existed.
+    channel = (AUTHORED_ATTRIBUTION
+               if source_type in AUTHORED_SOURCES else "")
     system = SYSTEM_PROMPT.format(
         signal_types=SIGNAL_TYPES_SPEC,
         attribution=ATTRIBUTION_SPEC,
+        channel=channel,
         negative=NEGATIVE_GUIDANCE,
         output=OUTPUT_SPEC,
     )

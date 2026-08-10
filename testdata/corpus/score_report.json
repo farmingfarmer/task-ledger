@@ -42,7 +42,7 @@
   "golden": 3,
   "recovered": 3,
   "attr_checked": 2,
-  "attr_ok": 1,
+  "attr_ok": 2,
   "vague_checked": 0,
   "vague_ok": 0,
   "trap_hits": 0,
@@ -132,7 +132,7 @@
   "trap_hits": 0,
   "trap_details": [],
   "fabrications": 0,
-  "extracted": 4,
+  "extracted": 3,
   "dropped": 0
  },
  "window-11-teams_chat-dm-d2.json": {

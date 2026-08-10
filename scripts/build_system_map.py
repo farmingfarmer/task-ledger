@@ -86,7 +86,7 @@ ATLAS = {
                      "verified. Measured: 94-100% recall, 0 fabrications on "
                      "synthetic messy corpora.",
             "modules": [
-                {"name": "Prompt (extract-v1.2)",
+                {"name": "Prompt (extract-v1.3)",
                  "file": "extraction/extraction_prompts.py",
                  "components": [
                      {"symbol": "build_messages",
