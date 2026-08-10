@@ -28,7 +28,7 @@
       "additionalProperties": false,
       "properties": {
         "source_type": {
-          "enum": ["teams_channel", "teams_chat", "email_thread", "meeting_transcript", "meeting_recap", "document"]
+          "enum": ["teams_channel", "teams_chat", "email_thread", "meeting_transcript", "meeting_recap", "copilot_claims", "document"]
         },
         "source_ref": {
           "type": "string",
@@ -146,7 +146,7 @@
       "additionalProperties": false,
       "properties": {
         "source_type": {
-          "enum": ["teams_message", "email_message", "transcript_utterance", "document_span", "meeting_insight"]
+          "enum": ["teams_message", "email_message", "transcript_utterance", "document_span", "meeting_insight", "assistant_claim"]
         },
         "resource_id": {
           "type": "string",

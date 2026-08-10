@@ -47,7 +47,8 @@ CREATE TABLE extraction_batches (
   prompt_version  text NOT NULL,
   source_type     text NOT NULL CHECK (source_type IN
                     ('teams_channel','teams_chat','email_thread',
-                     'meeting_transcript','meeting_recap','document')),
+                     'meeting_transcript','meeting_recap',
+                     'copilot_claims','document')),
   source_ref      text NOT NULL,
   window_start    timestamptz NOT NULL,
   window_end      timestamptz NOT NULL,
@@ -82,7 +83,7 @@ CREATE TABLE evidence_refs (
   ordinal       smallint NOT NULL,
   source_type   text NOT NULL CHECK (source_type IN
                   ('teams_message','email_message','transcript_utterance',
-                   'document_span','meeting_insight')),
+                   'document_span','meeting_insight','assistant_claim')),
   resource_id   text NOT NULL,               -- Graph id; pointer, never a copy
   span_start    integer,
   span_end      integer,

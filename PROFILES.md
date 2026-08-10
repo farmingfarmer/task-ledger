@@ -52,6 +52,51 @@ active. Colour alone would fail a projector or a colourblind viewer, so it
 says the word *synthetic* too: the one failure this feature must never
 allow is an audience that cannot tell which ledger it is looking at.
 
+## A third ledger: what Copilot itself claims
+
+Copilot will export per-person task claims already structured -- person,
+task, status, progress, blockers, next_action, claim_type, confidence,
+sources. That is a better input than a recap and, in places, better than
+raw transcript: specific, per-person, and separating progress from blockers
+from next actions.
+
+```zsh
+python3 scripts/copilot_claims_ingest.py claims.json --dry-run
+createdb taskintel_copilot   # + schema.sql, access_control.sql, migrations
+export TL_COPILOT_DSN="host=localhost port=5432 dbname=taskintel_copilot user=$(whoami)"
+python3 scripts/copilot_claims_ingest.py claims.json --dsn "$TL_COPILOT_DSN" --bootstrap
+```
+
+It does **not** run the extractor: Copilot already extracted, and a second
+pass over a paraphrase only loses more. The ingest writes the same batch
+shape the worker writes, against the same contract, so pooling,
+reconciliation, gates and review are unchanged. Copilot becomes the
+extractor; this stays the system of record.
+
+`--bootstrap` matters on a first import. An export is mostly progress and
+blockers on work already under way, and against an empty ledger those have
+nothing to attach to -- `update_status` needs a target task -- so they are
+consumed and propose nothing. Bootstrap maps every claim to a type that can
+create, so the first import establishes that the work exists.
+
+**What it refuses to pretend.** Each record asserts
+`"evidence_strength": "transcript_supported"` and lists meeting names --
+no message id, no utterance, no span, and the assistant will not release
+the transcript. That is an assertion that evidence exists, not evidence.
+So these land as evidence type `assistant_claim`, which the provenance rail
+must never offer as a trace-to-source; the hash is over the exported record,
+which makes a quietly edited export detectable and claims nothing more;
+every owner basis is `inferred`, because `self_reference` means somebody was
+heard and nothing here was; and confidence is capped at 0.75 -- above the
+0.60 floor so these claims do reach a review card, below the 0.80 and 0.85
+floors so an unverifiable claim is structurally incapable of proposing that
+work is complete, cancelled or merged away.
+
+The dashboard shows it as a third button, with its own caution banner, and
+it is **not writable from the browser**: it holds real colleague content, so
+it keeps the read-only session for the same reason the real ledger does.
+Nothing is on its board until a person agrees -- which is the demo.
+
 ## The nudge popup
 
 The dashboard asks the two questions the Teams card asks: what was heard

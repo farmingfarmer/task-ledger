@@ -159,6 +159,11 @@
           padding:9px 14px;border-radius:var(--r1);font-size:12.5px;
           background:var(--evidence-bg);color:var(--evidence-ink);
           border:1px solid var(--evidence);box-shadow:var(--sh-panel)}
+  /* An unverifiable ledger is a different warning from an invented one:
+     the content is real, which is exactly why the missing receipt matters. */
+  .profbanner.unverified{background:#F4EEF9;color:#4A2C63;
+          border-color:#8A5FB0}
+  .profbanner.unverified .tag{background:#4A2C63}
   .profbanner .tag{font:600 11px/1 var(--mono);letter-spacing:.06em;
           text-transform:uppercase;background:var(--evidence-ink);
           color:#fff;padding:4px 7px;border-radius:5px;white-space:nowrap}
@@ -2653,19 +2658,17 @@
       b.onclick = function(){ switchProfile(p.name); };
       box.appendChild(b);
     });
+    // The caution comes from the server, because what needs saying differs
+    // per ledger: synthetic data is invented, Copilot's claims are real but
+    // uncheckable, and the real ledger needs no warning at all.
     var cur = null;
     state.profiles.forEach(function(p){ if(p.name === state.profile) cur = p; });
-    if(cur && cur.synthetic){
+    if(cur && cur.banner){
       ban.hidden = false;
+      ban.className = "profbanner" + (cur.synthetic ? "" : " unverified");
       ban.innerHTML = "";
-      ban.appendChild(el("span", "tag", "Synthetic data"));
-      ban.appendChild(el("span", null,
-        "Generated meetings spoken by the real directory about invented " +
-        "work. Owner labels were planted before extraction ran, so every " +
-        "attribution on this screen is checkable against a known answer. " +
-        "Nothing here is a real task \u2014 and every confirmation was " +
-        "seeded in one sitting, so the said \u2192 tracked timings " +
-        "measure that sitting, not the pipeline."));
+      ban.appendChild(el("span", "tag", cur.banner.tag));
+      ban.appendChild(el("span", null, cur.banner.text));
     } else {
       ban.hidden = true;
     }

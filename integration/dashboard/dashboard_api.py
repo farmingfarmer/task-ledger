@@ -86,17 +86,47 @@ DSN = os.environ.get(
 # some other profile. The synthetic profile exists only when TL_SYNTH_DSN is
 # set; with it unset this file behaves exactly as it did before.
 SYNTH_DSN = os.environ.get("TL_SYNTH_DSN", "").strip()
+COPILOT_DSN = os.environ.get("TL_COPILOT_DSN", "").strip()
 
+# `writable` is separate from `synthetic` because they answer different
+# questions. Synthetic says whether the content is invented; writable says
+# whether a browser may record decisions against it. Only invented content
+# is writable here -- every ledger holding real colleague material keeps the
+# read-only session that is the reason a browser cannot reach it.
 PROFILES = {
-    "real": {"dsn": DSN, "synthetic": False,
+    "real": {"dsn": DSN, "synthetic": False, "writable": False,
              "label": os.environ.get("TL_REAL_LABEL", "Real ledger"),
-             "blurb": "Extracted from actual Copilot meeting recaps."},
+             "blurb": "Extracted from your own conversations.",
+             "banner": None},
 }
 if SYNTH_DSN:
     PROFILES["synthetic"] = {
-        "dsn": SYNTH_DSN, "synthetic": True,
+        "dsn": SYNTH_DSN, "synthetic": True, "writable": True,
         "label": os.environ.get("TL_SYNTH_LABEL", "Synthetic demo"),
-        "blurb": "Generated meetings: invented work, planted owner labels."}
+        "blurb": "Generated meetings: invented work, planted owner labels.",
+        "banner": {
+            "tag": "Synthetic data",
+            "text": "Generated meetings spoken by the real directory about "
+                    "invented work. Owner labels were planted before "
+                    "extraction ran, so every attribution on this screen is "
+                    "checkable against a known answer. Nothing here is a "
+                    "real task -- and every confirmation was seeded in one "
+                    "sitting, so the said-to-tracked timings measure that "
+                    "sitting, not the pipeline."}}
+if COPILOT_DSN:
+    PROFILES["copilot"] = {
+        "dsn": COPILOT_DSN, "synthetic": False, "writable": False,
+        "label": os.environ.get("TL_COPILOT_LABEL", "Copilot claims"),
+        "blurb": "Claims Copilot exported, none of them verifiable here.",
+        "banner": {
+            "tag": "Unverified claims",
+            "text": "Copilot extracted these itself and asserted that a "
+                    "transcript supports them, but released no message, no "
+                    "utterance and no span -- only meeting names. Nothing "
+                    "on this screen can be traced to a sentence, so "
+                    "confidence is capped and every owner is marked "
+                    "inferred. This is what an assistant says happened; the "
+                    "board still moves only when a person agrees."}}
 
 DEFAULT_PROFILE = os.environ.get("TL_DEFAULT_PROFILE", "real")
 if DEFAULT_PROFILE not in PROFILES:
@@ -175,11 +205,13 @@ def profiles():
     """
     active = profile_name()
     out = []
-    for name in ("real", "synthetic"):
+    for name in ("real", "synthetic", "copilot"):
         if name in PROFILES:
             p = PROFILES[name]
             out.append({"name": name, "label": p["label"],
                         "blurb": p["blurb"], "synthetic": p["synthetic"],
+                        "writable": p.get("writable", False),
+                        "banner": p.get("banner"),
                         "active": name == active})
     return jsonify({"profiles": out, "active": active,
                     "default": DEFAULT_PROFILE,
@@ -219,9 +251,20 @@ def viewers():
     if os.environ.get("TL_VIEWER_PICKER") != "1":
         return jsonify({"error": "viewer picker disabled; set "
                                  "TL_VIEWER_PICKER=1 for local demos"}), 404
-    rows = q("SELECT DISTINCT owner_ref AS r FROM tasks_current "
-             "WHERE owner_ref IS NOT NULL AND owner_ref <> '' "
-             "ORDER BY 1")
+    # Board owners AND anyone with something waiting on them. A ledger
+    # freshly imported from an assistant's claims has no board at all --
+    # nothing is on one until a person agrees -- so an owners-only list is
+    # empty and there is no identity to review as, which makes the review
+    # queue unreachable exactly when it is the only thing to see.
+    rows = q("""
+        SELECT DISTINCT r FROM (
+          SELECT owner_ref AS r FROM tasks_current
+           WHERE owner_ref IS NOT NULL AND owner_ref <> ''
+          UNION
+          SELECT user_ref AS r FROM review_packets
+          UNION
+          SELECT user_ref AS r FROM v_unconsumed_signals
+        ) x WHERE r IS NOT NULL AND r <> '' ORDER BY 1""")
     return jsonify({"viewers": [x["r"] for x in rows]})
 
 
@@ -757,7 +800,7 @@ def _writable():
     popup can show the invariant working end to end: a human decision, and
     only then a board change.
     """
-    return bool(PROFILES.get(profile_name(), {}).get("synthetic"))
+    return bool(PROFILES.get(profile_name(), {}).get("writable"))
 
 
 @app.route("/api/review")

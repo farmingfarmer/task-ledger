@@ -54,6 +54,7 @@ psql -d taskintel -f access/access_control.sql   # then access/validate_access.s
 psql -d taskintel -f storage/migrate_author_ref.sql   # signals.author_ref
 psql -d taskintel -f access/migrate_sharing.sql       # grant expiry + status_only
 psql -d taskintel -f storage/migrate_meeting_recap.sql # meeting_recap source type
+psql -d taskintel -f storage/migrate_copilot_claims.sql # copilot_claims + assistant_claim evidence
 export DB_DSN="host=localhost port=5432 dbname=taskintel user=$(whoami)"
 
 python3 scripts/demo_offline.py                  # seed a reviewable state, no Ollama needed
@@ -82,6 +83,7 @@ python3 scripts/build_presenter.py    # -> docs/presenter_companion.html (assert
 node integration/dashboard/check_js.js integration/dashboard/dashboard.html   # undeclared constants in the inline JS
 python3 scripts/copilot_ingest.py paste.txt --out ~/task-ledger-inbox [--dry-run]
 python3 scripts/copilot_recap_ingest.py recap.txt --out ~/task-ledger-inbox [--dry-run]  # when only a summary is available
+python3 scripts/copilot_claims_ingest.py claims.json --dsn "$TL_COPILOT_DSN" [--bootstrap]  # Copilot's own structured claims
 ```
 
 ## Architecture

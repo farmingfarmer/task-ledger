@@ -32,6 +32,7 @@ STAKE = "dash-stake"        # progress grant on OWNER's board
 STRANGER = "dash-stranger"  # no grants at all
 BLOCKED = "dash-blocked"    # owns a task blocked on OWNER's task
 EXPIRED = "dash-expired"    # holds a grant that has already lapsed
+PACKET_USER = "dash-boardless"  # a packet waiting, no board at all
 
 TASK = "task-dash-fixture"
 PACKET = "packet-dash-fixture"
@@ -544,8 +545,8 @@ def main():
     # that matter: your own packet, a real decision word, a reason on every
     # rejection.
     dashboard_api.PROFILES["synthetic"] = {
-        "dsn": dsn, "synthetic": True, "label": "Synthetic demo",
-        "blurb": "invented work"}
+        "dsn": dsn, "synthetic": True, "writable": True,
+        "label": "Synthetic demo", "blurb": "invented work", "banner": None}
     try:
         def post(path, payload, who=OWNER):
             r = client.post(path + "?profile=synthetic", json=payload,
@@ -576,6 +577,58 @@ def main():
     finally:
         dashboard_api.PROFILES.pop("synthetic", None)
 
+    print("unverifiable ledger")
+    # A third profile that is NOT synthetic and NOT writable: real content
+    # from an assistant, with no retrievable source behind it.
+    dashboard_api.PROFILES["copilot"] = {
+        "dsn": dsn, "synthetic": False, "writable": False,
+        "label": "Copilot claims", "blurb": "asserted, not verifiable",
+        "banner": {"tag": "Unverified claims", "text": "no source released"}}
+    try:
+        code, prof = as_viewer(client, "/api/profiles", OWNER)
+        names = [p["name"] for p in prof["profiles"]]
+        ok(names == ["real", "copilot"],
+           "a third ledger is offered alongside the others")
+        cop = [p for p in prof["profiles"] if p["name"] == "copilot"][0]
+        ok(cop["banner"]["tag"] == "Unverified claims",
+           "each ledger carries its own caution, not a shared one")
+        ok(cop["synthetic"] is False and cop["writable"] is False,
+           "real-but-unverifiable is a different thing from invented: it "
+           "gets a warning AND stays read-only")
+        r = client.post("/api/decide?profile=copilot",
+                        json={"proposal_id": "x", "decision": "accept"},
+                        headers={"X-Viewer": OWNER})
+        ok(r.status_code == 403,
+           "writability follows the flag, not the word 'synthetic' -- a "
+           "ledger of real claims is not writable from a browser")
+    finally:
+        dashboard_api.PROFILES.pop("copilot", None)
+
+    print("identity picker")
+    # Someone with a packet and NO board: the shape a ledger imported from
+    # an assistant's claims has for every person in it until a human agrees
+    # to something.
+    import psycopg2 as _pg
+    _c = _pg.connect(dsn)
+    with _c.cursor() as _cur:
+        _cur.execute("""
+            INSERT INTO review_packets (packet_id, user_ref, cadence_run_id,
+              board_version, generated_at, expires_at)
+            VALUES ('packet-dash-boardless',%s,'dash-fixture',1, now(),
+                    now() + interval '2 days')
+            ON CONFLICT (packet_id) DO NOTHING""", (PACKET_USER,))
+    _c.commit()
+    _c.close()
+    os.environ["TL_VIEWER_PICKER"] = "1"
+    code, v = as_viewer(client, "/api/viewers", OWNER)
+    ok(code == 200 and OWNER in v["viewers"],
+       "board owners are listed")
+    ok(PACKET_USER in v["viewers"],
+       "so is anyone with a packet waiting but no board yet -- a ledger "
+       "imported from an assistant has no board until someone agrees, and "
+       "an owners-only list would make its review queue unreachable")
+    os.environ.pop("TL_VIEWER_PICKER", None)
+
     print("profile switch")
     code, prof = as_viewer(client, "/api/profiles", OWNER)
     ok(code == 200 and prof["switchable"] is False
@@ -587,8 +640,8 @@ def main():
     # Point a second profile at the SAME database: what is under test is
     # the routing and the guards, not two sets of rows.
     dashboard_api.PROFILES["synthetic"] = {
-        "dsn": dsn, "synthetic": True, "label": "Synthetic demo",
-        "blurb": "invented work"}
+        "dsn": dsn, "synthetic": True, "writable": True,
+        "label": "Synthetic demo", "blurb": "invented work", "banner": None}
     try:
         code, prof = as_viewer(client, "/api/profiles", OWNER)
         ok(code == 200 and prof["switchable"] is True
