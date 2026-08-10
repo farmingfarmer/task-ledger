@@ -1,7 +1,7 @@
 """Attribution eval: turn real rejections into a measurable test set.
 
 Four out of five rejections on the first live run were `wrong_owner`. The
-synthetic corpora in testdata/ measure attribution at 75-83%, but they
+synthetic corpora in testdata/ measure attribution at 74-81%, but they
 cannot produce the sentences that actually defeat it -- real people saying
 "I'll pick that up" three turns after someone else's name. These
 rejections can.

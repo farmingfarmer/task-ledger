@@ -174,12 +174,18 @@ P = {
                     "an eval run, not a leap of faith.",
          "questions": [
              ["What recall/precision, really?",
-              "Seed 7 (used during prompt development): 97% recall, "
-              "83% attribution. Seed 11, never seen during "
-              "development: 94% recall, 75% attribution. Both: 100% "
-              "vague-date safety, zero traps, zero fabrications. "
-              "Attribution's residual is absorbed by fail-closed "
-              "gates downstream."],
+              "On extract-v1.2, seed 7 (used during prompt "
+              "development): 100% recall, 74% attribution, 1 negation "
+              "trap. Seed 11, never seen during development: 94% "
+              "recall, 81% attribution, no traps. Both: 100% "
+              "vague-date safety, zero fabrications. Attribution "
+              "splits because v1.2 refuses to name an owner when the "
+              "sentence names nobody -- a large win on meeting and "
+              "chat text (81% to 92% against planted labels, 99% "
+              "held out) and a loss on single-author email, where the "
+              "sender usually is the owner. The residual is absorbed "
+              "by fail-closed gates: an unowned signal proposes "
+              "nothing on its own."],
              ["What's a negation trap?",
               "'We are NOT doing the docs rewrite this quarter' -- "
               "extracting that as a docs-rewrite task is the trap. "

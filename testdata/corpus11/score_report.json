@@ -16,19 +16,13 @@
   "golden": 3,
   "recovered": 3,
   "attr_checked": 3,
-  "attr_ok": 2,
+  "attr_ok": 3,
   "vague_checked": 0,
   "vague_ok": 0,
   "trap_hits": 0,
   "trap_details": [],
-  "fabrications": 1,
-  "extracted": 4,
-  "fabrication_titles": [
-   {
-    "type": "task_mention",
-    "title": "Mention demo work"
-   }
-  ],
+  "fabrications": 0,
+  "extracted": 3,
   "dropped": 0
  },
  "window-03-teams_chat-dm-d0.json": {
@@ -99,7 +93,7 @@
   "golden": 3,
   "recovered": 3,
   "attr_checked": 2,
-  "attr_ok": 2,
+  "attr_ok": 1,
   "vague_checked": 1,
   "vague_ok": 1,
   "trap_hits": 0,
@@ -151,7 +145,7 @@
   "golden": 3,
   "recovered": 3,
   "attr_checked": 1,
-  "attr_ok": 0,
+  "attr_ok": 1,
   "vague_checked": 1,
   "vague_ok": 1,
   "trap_hits": 0,
@@ -170,7 +164,7 @@
   "trap_hits": 0,
   "trap_details": [],
   "fabrications": 0,
-  "extracted": 5,
+  "extracted": 3,
   "dropped": 0
  }
 }

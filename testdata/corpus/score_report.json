@@ -42,13 +42,13 @@
   "golden": 3,
   "recovered": 3,
   "attr_checked": 2,
-  "attr_ok": 2,
+  "attr_ok": 1,
   "vague_checked": 0,
   "vague_ok": 0,
   "trap_hits": 0,
   "trap_details": [],
   "fabrications": 0,
-  "extracted": 5,
+  "extracted": 3,
   "dropped": 0
  },
  "window-05-meeting_transcript-standup-d1.json": {
@@ -84,10 +84,16 @@
   "attr_ok": 0,
   "vague_checked": 1,
   "vague_ok": 1,
-  "trap_hits": 0,
-  "trap_details": [],
+  "trap_hits": 1,
+  "trap_details": [
+   {
+    "trap": "extracted_blocker_from_unblock",
+    "extracted_as": "task_mention",
+    "title": "Address feature drift in the drift monitor"
+   }
+  ],
   "fabrications": 0,
-  "extracted": 3,
+  "extracted": 4,
   "dropped": 0
  },
  "window-08-email-thread-d1.json": {
@@ -118,21 +124,15 @@
  },
  "window-10-teams_channel-ml-eng-channel-d2.json": {
   "golden": 3,
-  "recovered": 2,
-  "attr_checked": 1,
+  "recovered": 3,
+  "attr_checked": 2,
   "attr_ok": 0,
   "vague_checked": 0,
   "vague_ok": 0,
   "trap_hits": 0,
   "trap_details": [],
   "fabrications": 0,
-  "extracted": 3,
-  "missed": [
-   {
-    "type": "blocker",
-    "title": "OCR fix"
-   }
-  ],
+  "extracted": 4,
   "dropped": 0
  },
  "window-11-teams_chat-dm-d2.json": {
@@ -158,7 +158,7 @@
   "trap_hits": 0,
   "trap_details": [],
   "fabrications": 0,
-  "extracted": 4,
+  "extracted": 3,
   "dropped": 0
  }
 }

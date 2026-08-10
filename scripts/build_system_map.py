@@ -83,7 +83,7 @@ ATLAS = {
                      "signals with attribution ladders and cited evidence. "
                      "Everything it says is checked: salvage keeps good "
                      "signals out of bad JSON, guards delete what can't be "
-                     "verified. Measured: 94-97% recall, 0 fabrications on "
+                     "verified. Measured: 94-100% recall, 0 fabrications on "
                      "synthetic messy corpora.",
             "modules": [
                 {"name": "Prompt (extract-v1.2)",

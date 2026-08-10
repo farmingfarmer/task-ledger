@@ -29,6 +29,21 @@ verified honest in both directions: a cheating LLM built from golden
 labels scores 100 percent on every axis and an empty LLM scores 0
 percent recall.
 
+Prompt extract-v1.2 rewrote owner attribution around a rule the earlier
+prompts never stated: leave the owner empty when the sentence identifies
+nobody. Seed 7: recall 100 percent (33 of 33), attribution 74 percent, 1
+negation trap hit, 0 fabrications, 1 salvage drop. Seed 11: recall 94
+percent (32 of 34), attribution 81 percent, 0 traps, 0 fabrications.
+Both seed 7 figures reproduced exactly across two runs, so the
+attribution drop is a real disagreement rather than sampling noise: this
+corpus credits the sender of an email with owning work their message
+describes impersonally, while v1.2 reads that shape as naming nobody.
+Against planted labels on synthetic meetings using a real participant
+directory the same rule scores 92.2 percent, up from 81.2 percent on
+identical claims, and 98.6 percent on a held-out set — the two corpora
+encode different conventions for authored messages, and the rule does
+not yet distinguish them.
+
 Test suites: 21 extraction checks, 26 reconciler checks, 7 supersede
 checks, 11 review CLI checks, 7 cadence checks, 7 tenant webhook
 checks, plus storage and access SQL validation suites; the reconciler
