@@ -53,6 +53,7 @@ psql -d taskintel -f access/access_control.sql   # then access/validate_access.s
 # Databases predating a column need its migration; doctor.py reports which:
 psql -d taskintel -f storage/migrate_author_ref.sql   # signals.author_ref
 psql -d taskintel -f access/migrate_sharing.sql       # grant expiry + status_only
+psql -d taskintel -f storage/migrate_meeting_recap.sql # meeting_recap source type
 export DB_DSN="host=localhost port=5432 dbname=taskintel user=$(whoami)"
 
 python3 scripts/demo_offline.py                  # seed a reviewable state, no Ollama needed
@@ -80,6 +81,7 @@ python3 scripts/build_system_map.py   # -> docs/system_map.html   (fails on symb
 python3 scripts/build_presenter.py    # -> docs/presenter_companion.html (asserts 8 domains, deep-node/FAQ counts, ES5-only JS)
 node integration/dashboard/check_js.js integration/dashboard/dashboard.html   # undeclared constants in the inline JS
 python3 scripts/copilot_ingest.py paste.txt --out ~/task-ledger-inbox [--dry-run]
+python3 scripts/copilot_recap_ingest.py recap.txt --out ~/task-ledger-inbox [--dry-run]  # when only a summary is available
 ```
 
 ## Architecture

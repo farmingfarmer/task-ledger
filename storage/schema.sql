@@ -47,7 +47,7 @@ CREATE TABLE extraction_batches (
   prompt_version  text NOT NULL,
   source_type     text NOT NULL CHECK (source_type IN
                     ('teams_channel','teams_chat','email_thread',
-                     'meeting_transcript','document')),
+                     'meeting_transcript','meeting_recap','document')),
   source_ref      text NOT NULL,
   window_start    timestamptz NOT NULL,
   window_end      timestamptz NOT NULL,

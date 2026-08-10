@@ -28,7 +28,7 @@
       "additionalProperties": false,
       "properties": {
         "source_type": {
-          "enum": ["teams_channel", "teams_chat", "email_thread", "meeting_transcript", "document"]
+          "enum": ["teams_channel", "teams_chat", "email_thread", "meeting_transcript", "meeting_recap", "document"]
         },
         "source_ref": {
           "type": "string",

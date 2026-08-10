@@ -45,8 +45,17 @@ VALID_STATUS = {"proposed", "in_progress", "blocked", "completed",
 VALID_BASIS = {"explicit_assignment", "self_reference", "inferred"}
 VALID_PRECISION = {"exact", "week", "month", "quarter", "vague"}
 
+# What a summary about a conversation may honestly produce: sightings of
+# work, and nothing that asserts the work moved.
+RECAP_SOURCE_TYPES = ("meeting_recap",)
+RECAP_ALLOWED_TYPES = ("task_mention", "proposal")
+
 SOURCE_TO_EVIDENCE = {
     "meeting_transcript": "transcript_utterance",
+    # A recap points at a summariser's paraphrase, not at an utterance.
+    # Routing it to transcript_utterance would let the provenance rail
+    # claim a sentence-level receipt for something that has no sentence.
+    "meeting_recap": "meeting_insight",
     "teams_channel": "teams_message",
     "teams_chat": "teams_message",
     "email_thread": "email_message",
@@ -211,9 +220,21 @@ class ExtractionWorker(object):
         report["raw_signals"] = len(parsed)
 
         ev_type = SOURCE_TO_EVIDENCE[job["source_type"]]
+        recap = job["source_type"] in RECAP_SOURCE_TYPES
         by_no = {it["item_no"]: it for it in numbered}
         seen_ids = set()
         for idx, sig in enumerate(parsed):
+            # A recap cannot witness a state change. The prompt says so at
+            # length; this is the part that does not depend on the model
+            # having listened. Everything a summary can honestly support is
+            # a sighting of work, so anything else is deleted with its
+            # reason recorded rather than trusted.
+            if recap and isinstance(sig, dict) \
+                    and sig.get("type") not in RECAP_ALLOWED_TYPES:
+                report["dropped"].append({
+                    "index": idx, "reason": "recap_cannot_witness_state",
+                    "title": _safe_title(sig)})
+                continue
             built, why = self._build_signal(sig, idx, batch_id, ev_type, by_no)
             if built is None:
                 report["dropped"].append({"index": idx, "reason": why,
@@ -223,6 +244,15 @@ class ExtractionWorker(object):
                 report["dropped"].append({"index": idx, "reason": "duplicate",
                                           "title": built["title"]})
                 continue
+            if recap:
+                # Nor can it evidence how firmly somebody owns the work.
+                # "Discussed by" is an inference; the stronger bases mean
+                # a person said something, and nobody said anything here.
+                for cand in built.get("owner_candidates") or []:
+                    if cand.get("basis") != "inferred":
+                        cand["basis"] = "inferred"
+                        cand["confidence"] = min(
+                            float(cand.get("confidence") or 0.5), 0.6)
             seen_ids.add(built["signal_id"])
             batch["signals"].append(built)
             report["kept"] += 1

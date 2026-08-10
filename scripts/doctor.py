@@ -103,6 +103,19 @@ def check_schema(conn):
         else:
             report("PASS", "migrations applied",
                    "signals.author_ref present in table and view")
+        # A database predating meeting_recap rejects the batch at write
+        # time with a CHECK violation deep in the store, which is a poor
+        # way to learn a migration is outstanding.
+        cur.execute("""
+            SELECT count(*) FROM pg_constraint
+            WHERE conname = 'extraction_batches_source_type_check'
+              AND pg_get_constraintdef(oid) LIKE '%meeting_recap%'""")
+        if cur.fetchone()[0]:
+            report("PASS", "migrations applied", "meeting_recap accepted")
+        else:
+            report("WARN", "migration pending: meeting_recap source type",
+                   "recap ingestion will fail on write; apply "
+                   "storage/migrate_meeting_recap.sql")
         cur.execute("SELECT count(*) FROM v_unconsumed_signals")
         pool = cur.fetchone()[0]
         cur.execute("""

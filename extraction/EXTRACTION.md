@@ -31,6 +31,30 @@ Everything external is injected (fetcher, LLM, clock), so the whole pipeline tes
 
 The same passage names the failures in the other direction, because under-attribution and over-attribution are one gap, not two: self_reference is defined by *first person* rather than by signal type (a blocker and a completion are as self-referential as a commitment, and transcripts routinely drop the leading "I"), a request addressed to someone by name belongs to the person addressed, and a report about a third party belongs to the person named rather than the one reporting.
 
+**A recap is not a conversation, and says so.** Some tenants will not
+release meeting transcripts; what Copilot hands over instead is a recap --
+subjects grouped under the people who raised them, with no utterances, no
+timestamps and no commitment language. That arrives as its own source type,
+`meeting_recap`, rather than being dressed up as one of the others, because
+two things follow from it. Its evidence is `meeting_insight`, never
+`transcript_utterance`: a bullet points at a paraphrase of several things
+somebody said, and routing it to an utterance type would claim a
+sentence-level receipt the data cannot support. And it is deliberately not
+an AUTHORED source, because a recap has no sender -- it is machine-written
+about other people, so the sender-owns-the-work rule would attribute
+everybody's work to nobody in particular.
+
+The prompt tells it to emit sightings only, and a worker guard enforces
+what the prompt cannot: any `completion_claim`, `blocker`,
+`blocker_resolved`, `deadline_signal`, `cancellation` or `status_update`
+from a recap window is deleted with reason `recap_cannot_witness_state`,
+and any owner basis stronger than `inferred` is demoted, since nobody said
+anything for the model to have heard. Measured on a real recap: ten bullets
+in, ten `task_mention`s out, every owner `inferred`, every evidence ref
+`meeting_insight`. Prefer a transcript, a chat thread or an email thread
+whenever one is available -- those carry the words people actually chose,
+which is what attribution and provenance both rest on.
+
 **Dates resolve against a given anchor.** The prompt supplies the window end date; the model resolves "Friday" and "end of next sprint" against it or returns null — "never guess a date" is in the output rules, and the worker enforces it anyway (below).
 
 ## 3. Worker policies

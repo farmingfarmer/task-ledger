@@ -259,6 +259,76 @@ def test_broken_array_salvage():
        "a well-formed response reports no salvage at all")
 
 
+def test_meeting_recap():
+    print("meeting recap")
+    msgs = extraction_prompts.build_messages(
+        "meeting_recap", "2026-08-04",
+        [{"item_no": 1, "author_name": "Alex", "timestamp": "t",
+          "text": "Prompt gallery direction"}])
+    sysmsg = msgs[0]["content"]
+    ok("MEETING RECAP" in sysmsg and "NOT utterances" in msgs[1]["content"],
+       "a recap is framed as subjects reported, not things said")
+    ok("AUTHORED MESSAGES" not in sysmsg,
+       "and never as an authored message -- a recap has no sender, so the "
+       "sender-owns-it rule would attribute everyone's work to nobody")
+
+    # The model is told not to invent state. This is the half that does not
+    # depend on it having listened.
+    recap_job = {"source_type": "meeting_recap",
+                 "source_ref": "recap-fixture",
+                 "window_start": "2026-08-04T00:00:00Z",
+                 "window_end": "2026-08-04T23:59:00Z"}
+    payload = [
+        {"type": "task_mention", "title": "Prompt gallery direction",
+         "speaker": "Alex", "owner_candidates": [
+             {"name": "Alex", "basis": "self_reference", "confidence": 0.95}],
+         "status_signal": None, "deadline": None, "blocker": None,
+         "confidence": 0.7, "evidence_items": [1]},
+        {"type": "completion_claim", "title": "Rollout readiness",
+         "speaker": "Alex", "owner_candidates": [],
+         "status_signal": "completed", "deadline": None, "blocker": None,
+         "confidence": 0.8, "evidence_items": [1]},
+        {"type": "blocker", "title": "Governance review",
+         "speaker": "Alex", "owner_candidates": [],
+         "status_signal": "blocked", "deadline": None,
+         "blocker": {"description": "waiting", "blocking_party": None},
+         "confidence": 0.8, "evidence_items": [1]},
+        {"type": "deadline_signal", "title": "Slide quality work",
+         "speaker": "Alex", "owner_candidates": [],
+         "status_signal": None,
+         "deadline": {"raw_text": "next sprint", "precision": "vague",
+                      "date": None},
+         "blocker": None, "confidence": 0.8, "evidence_items": [1]},
+    ]
+    w, _ = make_worker(payload)
+    w.fetcher = lambda job: [
+        {"resource_id": "rc-1", "author_name": "Alex", "author_ref": "aad-alex",
+         "timestamp": "2026-08-04T12:00:00Z", "text": "Prompt gallery direction"}]
+    batch, report = w.run_job(recap_job)
+    kinds = [s["type"] for s in batch["signals"]]
+    ok(kinds == ["task_mention"],
+       "only the sighting survives; a summary cannot witness a completion, "
+       "a blocker or a deadline")
+    reasons = set(d["reason"] for d in report["dropped"])
+    ok(reasons == set(["recap_cannot_witness_state"]),
+       "and each deletion is recorded with a reason, not silently dropped")
+    ok(batch["signals"][0]["owner_candidates"][0]["basis"] == "inferred"
+       and batch["signals"][0]["owner_candidates"][0]["confidence"] <= 0.6,
+       "'discussed by' is an inference: a stronger basis is demoted, since "
+       "nobody said anything for the model to have heard")
+    ok(batch["signals"][0]["evidence"][0]["source_type"] == "meeting_insight",
+       "evidence points at an insight, never at an utterance that does not "
+       "exist")
+
+    # The same payload through a transcript keeps everything: the guard is
+    # about the source, not about the signal types.
+    w2, _ = make_worker(payload)
+    b2, _ = w2.run_job(SPEC["job"])
+    ok(len(b2["signals"]) == 4,
+       "a real transcript is unaffected -- state changes are only refused "
+       "where they cannot have been witnessed")
+
+
 def test_hallucination_guards():
     print("hallucination guards")
     bad = copy.deepcopy(GOLDEN[3])
@@ -491,6 +561,7 @@ if __name__ == "__main__":
     test_determinism()
     test_salvage()
     test_broken_array_salvage()
+    test_meeting_recap()
     test_hallucination_guards()
     test_empty_window()
     test_self_commitment_guard()

@@ -185,11 +185,50 @@ asking an open question of the thread ("should we prioritise this?")
 proposes work nobody has taken, so it still gets an empty list."""
 
 # Source types whose items are authored messages rather than utterances.
+# meeting_recap is deliberately NOT here: it has no sender. It is written
+# ABOUT other people by a summariser, so the sender-owns-it rule would
+# attribute everybody's work to nobody, or to whoever got summarised first.
 AUTHORED_SOURCES = ("email_thread", "document")
+
+# A recap is not a conversation, and the difference is the whole reason it
+# gets its own source type. Each item is a subject somebody was reported to
+# have discussed -- no utterance, no timestamp, no commitment language. The
+# temptation is to read a bullet like "Prompt gallery rollout" as a task
+# with an owner and a status; almost all of that would be invented, and the
+# invented parts are exactly the ones a person then has to reject.
+RECAP_GUIDANCE = """
+MEETING RECAP -- read this before extracting anything below.
+These items are NOT things people said. They are subjects a summariser
+reported each person as having discussed, so treat them as sightings of
+work, not as claims about it.
+
+- Emit task_mention, and nothing else. A recap cannot witness a state
+  change: it does not record that work started, finished, slipped, got
+  blocked or got cancelled, however much a bullet may sound like it.
+  "Readiness for rollout" is a subject, not a completion.
+- NEVER emit completion_claim, blocker, blocker_resolved, deadline_signal,
+  cancellation, or status_update from a recap. If a bullet seems to say
+  one of those, it is the summariser's phrasing, not somebody's report.
+- The person a bullet sits under discussed it. That is worth recording as
+  an owner_candidate with basis "inferred" and modest confidence -- but it
+  is a weaker fact than "they said they would do it", and it must never be
+  promoted to self_reference or explicit_assignment, neither of which a
+  recap can evidence.
+- A bullet naming a second person ("handing the template work to Priya")
+  still gets basis "inferred" on that person. A summary of an assignment
+  is not the assignment.
+- Do not merge bullets, and do not invent detail to make one sound like a
+  task. Report the subject in the words given."""
+
+RECAP_SOURCES = ("meeting_recap",)
 
 SOURCE_FRAMING = {
     "meeting_transcript": ("The items below are utterances from a meeting "
                            "transcript, in order, with speakers."),
+    "meeting_recap": ("The items below are NOT utterances. Each is a "
+                      "subject that an automated recap reported a named "
+                      "person as having discussed in a meeting. Nobody is "
+                      "quoted and no times are recorded."),
     "teams_channel": ("The items below are messages from a Teams channel "
                       "thread, in order, with authors."),
     "teams_chat": ("The items below are messages from a Teams group chat, "
@@ -226,7 +265,9 @@ def build_messages(source_type, window_end_date, items):
     # Empty for every other source type, so their prompt text is
     # byte-identical to what was measured before this exception existed.
     channel = (AUTHORED_ATTRIBUTION
-               if source_type in AUTHORED_SOURCES else "")
+               if source_type in AUTHORED_SOURCES
+               else RECAP_GUIDANCE if source_type in RECAP_SOURCES
+               else "")
     system = SYSTEM_PROMPT.format(
         signal_types=SIGNAL_TYPES_SPEC,
         attribution=ATTRIBUTION_SPEC,
