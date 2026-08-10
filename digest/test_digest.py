@@ -9,12 +9,19 @@ digest with nothing to prune.
 Run: python3 test_digest.py   (live section skips politely without a DB)
 """
 
+import datetime
 import json
 import os
 import sys
 
 sys.path.insert(0, ".")
 import digest as dg
+
+# The builder takes an injectable clock; use it. Ages like "oldest 6 days
+# old" are computed against now, so a test that asserts one while letting
+# now drift passes only on the day it was written -- this suite began
+# failing days later with nothing about the digest having changed.
+NOW = datetime.datetime(2026, 8, 7, 9, 0, 0)
 
 CHECKS = [0]
 
@@ -50,7 +57,7 @@ FULL = {
 
 def test_personal():
     print("personal digest")
-    d = dg.build_personal("aad-dev", FULL)
+    d = dg.build_personal("aad-dev", FULL, now=NOW)
     keys = [s["key"] for s in d["sections"]]
     ok(not d["quiet"] and "review" in keys and "confirmed" in keys,
        "a full week produces the sections it has material for")
@@ -65,7 +72,7 @@ def test_personal():
        "the headline counts the things, not the lines describing them "
        "({0})".format(d["headline"]))
 
-    empty = dg.build_personal("aad-dev", {})
+    empty = dg.build_personal("aad-dev", {}, now=NOW)
     ok(empty["quiet"] and not empty["sections"],
        "a week with nothing to say is marked quiet, not padded")
     ok("Nothing needs you" in empty["headline"],
@@ -85,7 +92,7 @@ def test_truncation_and_escaping():
     print("bounds and escaping")
     many = {"overdue": [{"title": "Task {0}".format(i),
                          "deadline": "2026-07-01"} for i in range(20)]}
-    d = dg.build_personal("aad-dev", many)
+    d = dg.build_personal("aad-dev", many, now=NOW)
     sec = d["sections"][0]
     ok(len(sec["lines"]) == dg.MAX_LINES_PER_SECTION and sec["more"] == 14,
        "long sections are capped and say how many were left out")
@@ -93,14 +100,14 @@ def test_truncation_and_escaping():
 
     nasty = {"overdue": [{"title": "<script>alert(1)</script> & co",
                           "deadline": "2026-07-01"}]}
-    html = dg.render_html(dg.build_personal("aad-dev", nasty))
+    html = dg.render_html(dg.build_personal("aad-dev", nasty, now=NOW))
     ok("<script>alert" not in html and "&lt;script&gt;" in html,
        "titles are escaped: a task title can never inject markup")
 
 
 def test_card():
     print("adaptive card")
-    card = dg.build_digest_card(dg.build_personal("aad-dev", FULL))
+    card = dg.build_digest_card(dg.build_personal("aad-dev", FULL, now=NOW))
     ok(card["type"] == "AdaptiveCard" and card["body"],
        "a card payload is produced for the bot host to deliver")
     size = len(json.dumps(card).encode("utf-8"))
@@ -108,7 +115,7 @@ def test_card():
        "the card stays under the Teams ceiling ({0} bytes)".format(size))
     huge = {"overdue": [{"title": "T" * 300, "deadline": "2026-07-01"}
                         for _ in range(200)]}
-    big = dg.build_personal("aad-dev", huge)
+    big = dg.build_personal("aad-dev", huge, now=NOW)
     big["sections"][0]["lines"] = ["T" * 300 for _ in range(400)]
     try:
         dg.build_digest_card(big)
@@ -202,7 +209,7 @@ def test_live():
     ok("pending" in personal and "held" in personal
        and isinstance(personal["overdue"], list),
        "the personal loader returns every section the builder expects")
-    d = dg.build_personal(user, personal)
+    d = dg.build_personal(user, personal, now=NOW)
     ok(d["kind"] == "personal" and d["audience"] == user,
        "a live personal digest assembles end to end")
 
