@@ -200,6 +200,44 @@ def test_salvage():
        "unparseable response yields valid empty batch, not a crash")
 
 
+def test_broken_array_salvage():
+    print("salvage of a broken array")
+    # The shape a contradiction-dense window actually produced: thousands of
+    # characters of well-formed signals, then the JSON breaks. Before this,
+    # the break cost every signal before it.
+    body = json.dumps(GOLDEN[0]) + "," + json.dumps(GOLDEN[1])
+    truncated = "[" + body + ',{"type":"assignment","title":"cut off mid-'
+    w, _ = make_worker([])
+    w.llm = lambda messages: truncated
+    batch, report = w.run_job(SPEC["job"])
+    ok(report["kept"] == 2 and len(batch["signals"]) == 2,
+       "signals before the break survive a truncated array")
+    ok(report["salvaged"]["objects"] == 2
+       and report["salvaged"]["broken"] == 1,
+       "the report counts what was rescued AND what was lost")
+    ok("parse_error" in report["salvaged"],
+       "the original parse error is kept, so salvage is never silent")
+    titles = [s["title"] for s in batch["signals"]]
+    ok(not any("cut off mid-" in t for t in titles),
+       "the truncated object is dropped, never closed or guessed")
+
+    # A brace or quote inside a title must not shift the depth count.
+    tricky = copy.deepcopy(GOLDEN[0])
+    tricky["title"] = 'fix the {broken} "thing"'
+    raw = "[" + json.dumps(tricky) + ',{"oops": ]'
+    w2, _ = make_worker([])
+    w2.llm = lambda messages: raw
+    batch2, report2 = w2.run_job(SPEC["job"])
+    ok(report2["kept"] == 1
+       and batch2["signals"][0]["title"] == 'fix the {broken} "thing"',
+       "braces and quotes inside strings do not confuse the scanner")
+
+    w3, _ = make_worker(GOLDEN)
+    _, report3 = w3.run_job(SPEC["job"])
+    ok("salvaged" not in report3,
+       "a well-formed response reports no salvage at all")
+
+
 def test_hallucination_guards():
     print("hallucination guards")
     bad = copy.deepcopy(GOLDEN[3])
@@ -431,6 +469,7 @@ if __name__ == "__main__":
     test_golden()
     test_determinism()
     test_salvage()
+    test_broken_array_salvage()
     test_hallucination_guards()
     test_empty_window()
     test_self_commitment_guard()

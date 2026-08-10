@@ -194,10 +194,20 @@ class ExtractionWorker(object):
 
         parsed, parse_err = _parse_json_array(raw)
         if parse_err:
-            report["dropped"].append({"reason": "unparseable_response",
-                                      "detail": parse_err})
-            jsonschema.validate(batch, self.schema)
-            return batch, report
+            # A malformed array used to cost the whole window. On a window
+            # dense with contradictory claims the model can run to 15k
+            # characters and break the JSON near the end -- discarding the
+            # dozens of well-formed objects before the break, which were
+            # never in doubt. Salvage reads whole top-level objects and
+            # keeps the ones that parse.
+            parsed, broken = _salvage_objects(raw)
+            if not parsed:
+                report["dropped"].append({"reason": "unparseable_response",
+                                          "detail": parse_err})
+                jsonschema.validate(batch, self.schema)
+                return batch, report
+            report["salvaged"] = {"objects": len(parsed), "broken": broken,
+                                  "parse_error": parse_err}
         report["raw_signals"] = len(parsed)
 
         ev_type = SOURCE_TO_EVIDENCE[job["source_type"]]
@@ -377,6 +387,61 @@ def _parse_json_array(raw):
     if not isinstance(obj, list):
         return None, "top level is not an array"
     return obj, None
+
+
+def _salvage_objects(raw):
+    """Whole top-level JSON objects from a response the parser rejected.
+
+    Returns (objects, broken_count). Scans for brace-balanced spans while
+    respecting string literals and escapes, so a title containing a brace
+    or a quote does not shift the depth count. Nested objects (deadline,
+    blocker) are inside their parent's span and are never emitted alone.
+
+    Deliberately not a JSON repair: nothing is patched, closed, or guessed.
+    A fragment either parses exactly as the model wrote it or is counted as
+    broken, because a half-read signal is a fabricated one -- and the report
+    carries both numbers so a window that needed salvage is visible rather
+    than quietly thinner than it should be.
+    """
+    text = raw or ""
+    out = []
+    broken = 0
+    depth = 0
+    start = None
+    in_str = False
+    esc = False
+    for i, ch in enumerate(text):
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+            continue
+        if ch == '"':
+            in_str = True
+        elif ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}":
+            if depth > 0:
+                depth -= 1
+                if depth == 0 and start is not None:
+                    try:
+                        obj = json.loads(text[start:i + 1])
+                    except ValueError:
+                        broken += 1
+                    else:
+                        if isinstance(obj, dict):
+                            out.append(obj)
+                        else:
+                            broken += 1
+                    start = None
+    if depth > 0 and start is not None:
+        broken += 1              # truncated tail: never guess its closing
+    return out, broken
 
 
 def _num(v):
