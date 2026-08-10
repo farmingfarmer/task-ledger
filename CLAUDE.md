@@ -36,6 +36,7 @@ cd digest            && python3 test_digest.py         # digest assembly, redact
 cd ask               && python3 test_ask.py            # question routing, refusal, citation, scoping
 cd eval              && python3 test_eval.py           # attribution eval builder (no DB needed)
 cd testdata          && python3 test_synth.py          # synthetic meeting generator (no DB, no LLM)
+cd cadence           && python3 test_cadence.py        # inbox retry/quarantine policy (no DB, no LLM)
 cd integration/tests && python3 test_dashboard.py      # dashboard API access rules (own fixture identities)
 cd integration/tests && python3 test_integration.py    # graph ingestion + bot host (not in run_tests)
 cd integration/tenant && python3 test_tenant.py        # webhook host, offline (not in run_tests)

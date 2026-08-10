@@ -128,6 +128,60 @@ def notify(title, text):
 
 # ------------------------------------------------------------------- stages
 
+# A window is retried until it works, which is right for the ordinary
+# failure (Ollama down, database asleep) and wrong for a window that can
+# never succeed. One real window drove the model to 15k characters of
+# malformed JSON and 480-680s against a 300s socket timeout: it failed
+# every tick, forever, and "a file waiting in the inbox" is exactly what
+# healthy degraded mode looks like. So failures are counted per file and a
+# window that keeps failing is set aside where a person can see it.
+QUARANTINE_AFTER = 3
+ATTEMPTS_FILE = ".attempts.json"
+
+
+def _attempts_load(inbox):
+    """Best-effort. A corrupt counter must never stop the tick -- losing
+    the count costs a few extra retries; refusing to run costs the day."""
+    try:
+        with open(os.path.join(inbox, ATTEMPTS_FILE)) as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except (IOError, ValueError):
+        return {}
+
+
+def _attempts_save(inbox, attempts):
+    try:
+        with open(os.path.join(inbox, ATTEMPTS_FILE), "w") as f:
+            json.dump(attempts, f, indent=1, sort_keys=True)
+    except IOError:
+        pass
+
+
+def quarantine(inbox, path, record):
+    """Set a repeatedly-failing window aside, with why, beside it.
+
+    Not deleted and not silently skipped: moving it back into the inbox is
+    the whole recovery procedure, and the note says what to expect.
+    """
+    qdir = os.path.join(inbox, "quarantine")
+    os.makedirs(qdir, exist_ok=True)
+    name = os.path.basename(path)
+    shutil.move(path, os.path.join(qdir, name))
+    try:
+        with open(os.path.join(qdir, name + ".error.txt"), "w") as f:
+            f.write(
+                "This window failed extraction {0} times and was set aside "
+                "so it would stop\nconsuming every tick. It was NOT "
+                "processed and no signals from it exist.\n\n"
+                "last attempt: {1}\nlast error:   {2}\n\n"
+                "Move the .json back into the inbox to retry it.\n".format(
+                    record.get("count"), record.get("last_at"),
+                    record.get("last_error")))
+    except IOError:
+        pass
+
+
 def process_inbox(dsn, inbox, host, extract_model, llm_factory):
     import extraction_worker
     import signal_store_pg
@@ -137,13 +191,19 @@ def process_inbox(dsn, inbox, host, extract_model, llm_factory):
         log("inbox: empty")
         return 0
     if not ollama_up(host):
+        # Deliberately before any counting: an unreachable model is the
+        # normal degraded path and must never push a window toward
+        # quarantine.
         log("inbox: {0} file(s) waiting but Ollama unreachable; "
             "leaving for next tick".format(len(files)))
         return 0
     processed_dir = os.path.join(inbox, "processed")
     os.makedirs(processed_dir, exist_ok=True)
+    attempts = _attempts_load(inbox)
+    quarantined = 0
     total = 0
     for path in files:
+        name = os.path.basename(path)
         try:
             with open(path) as f:
                 spec = json.load(f)
@@ -169,11 +229,30 @@ def process_inbox(dsn, inbox, host, extract_model, llm_factory):
                 log("    dropped [{0}]: {1}".format(
                     d.get("reason"), (d.get("title") or "")[:70]))
             total += result["signals_inserted"]
-            shutil.move(path, os.path.join(processed_dir,
-                                           os.path.basename(path)))
+            attempts.pop(name, None)          # a success clears the history
+            shutil.move(path, os.path.join(processed_dir, name))
         except Exception as e:
-            log("inbox: FAILED {0}: {1} -- left in place".format(
-                os.path.basename(path), e))
+            record = attempts.get(name) or {"count": 0}
+            record["count"] = record.get("count", 0) + 1
+            record["last_error"] = str(e)[:300]
+            record["last_at"] = datetime.datetime.now().isoformat(
+                timespec="seconds")
+            attempts[name] = record
+            if record["count"] >= QUARANTINE_AFTER:
+                quarantine(inbox, path, record)
+                attempts.pop(name, None)
+                quarantined += 1
+                log("inbox: QUARANTINED {0} after {1} failed attempts: {2} "
+                    "-- moved to quarantine/, see the .error.txt beside "
+                    "it".format(name, record["count"], e))
+            else:
+                log("inbox: FAILED {0} (attempt {1} of {2}): {3} -- left in "
+                    "place".format(name, record["count"], QUARANTINE_AFTER,
+                                   e))
+    _attempts_save(inbox, attempts)
+    if quarantined:
+        log("inbox: {0} window(s) quarantined this tick and will NOT be "
+            "retried".format(quarantined))
     return total
 
 

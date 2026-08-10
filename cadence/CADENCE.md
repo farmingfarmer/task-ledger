@@ -16,6 +16,21 @@ bootstrap + status/run-now/uninstall).
    unreachable -> files stay put for the next tick; extraction needs a
    model and loses nothing by waiting. This folder is the pre-Mnemo input
    path: drop a transcript, the system ingests it at 4:45.
+
+   **Waiting is not the same as stuck.** Retrying forever is right for the
+   ordinary failure and wrong for a window that can never succeed — one
+   real window drove the model to 15k characters of malformed JSON and
+   480–680s against a 300s socket timeout, so it failed every tick,
+   indefinitely, while looking exactly like the normal wait for Ollama.
+   Failures are therefore counted per file in `.attempts.json`, and after
+   `QUARANTINE_AFTER` (3) the window moves to `quarantine/` beside an
+   `.error.txt` naming the error and stating that nothing from it was
+   processed. Recovery is moving the `.json` back. A success clears the
+   count, so a flaky window never accumulates its way out of the inbox,
+   and an unreachable Ollama is checked *before* any counting — five ticks
+   with the model down must never quarantine anything. `doctor.py` reports
+   both waiting and quarantined counts, because otherwise nothing would
+   ever mention them.
 2. **Reconcile.** Ollama up: real embeddings + judge. Down: offline
    TokenEmbedder, no judge -- gates still run, judge-band and closures
    hold. Either way `write_packet` supersedes any open packet (undecided

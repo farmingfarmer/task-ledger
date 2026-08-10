@@ -11,6 +11,7 @@ reconcile-offline, review, dashboard) needs no model. Exit code 0 unless a
 FAIL occurred. Python 3.8+, stdlib + project deps only.
 """
 
+import glob
 import importlib
 import json
 import os
@@ -161,11 +162,38 @@ def check_files():
                    "incomplete checkout?")
 
 
+def check_inbox():
+    """Waiting windows and quarantined ones.
+
+    A file sitting in the inbox means Ollama was down, which is normal. A
+    file in quarantine/ means a window failed enough times that the tick
+    gave up on it -- and since a failing window simply stayed in the inbox
+    before, that state looked exactly like the normal one. It is reported
+    here because nothing else would ever mention it.
+    """
+    inbox = os.path.expanduser(
+        os.environ.get("TL_INBOX", "~/task-ledger-inbox"))
+    if not os.path.isdir(inbox):
+        report("WARN", "inbox not found", inbox)
+        return
+    waiting = glob.glob(os.path.join(inbox, "*.json"))
+    quarantined = glob.glob(os.path.join(inbox, "quarantine", "*.json"))
+    report("PASS", "inbox", "{0} window(s) waiting, {1} processed".format(
+        len(waiting),
+        len(glob.glob(os.path.join(inbox, "processed", "*.json")))))
+    if quarantined:
+        names = ", ".join(sorted(os.path.basename(q) for q in quarantined)[:3])
+        report("WARN", "{0} window(s) quarantined".format(len(quarantined)),
+               "{0} -- never extracted; see the .error.txt beside each, and "
+               "move the .json back to retry".format(names))
+
+
 def main():
     print("task-ledger doctor\n" + "-" * 40)
     check_python()
     check_deps()
     check_files()
+    check_inbox()
     conn = check_db()
     if conn is not None:
         check_schema(conn)
