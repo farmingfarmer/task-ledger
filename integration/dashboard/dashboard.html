@@ -2115,9 +2115,14 @@
         groupOffset += 14;
         y += 14;
         lastBoard = it.board;
+        // A band heading has room for a name, so print one: "PATRICK
+        // TORAL", not the raw "AAD-PATRICK-TORAL". Rows in the ungrouped
+        // view already shorten the same ref, and the two modes disagreeing
+        // about what a person is called is its own small confusion.
         svg.appendChild(sv("text", {x: 0, y: y - ROW / 2 - 2,
           fill: "var(--brand)", "font-size": 10, "font-weight": 700}))
-          .textContent = (it.mine ? "you" : it.board).toUpperCase();
+          .textContent = (it.mine ? "you"
+            : it.board.replace(/^aad-/, "").replace(/-/g, " ")).toUpperCase();
         svg.appendChild(sv("line", {x1: 0, x2: W - PAD_R,
           y1: y - ROW / 2 + 1, y2: y - ROW / 2 + 1,
           stroke: "var(--line)", "stroke-width": 1}));
@@ -2404,7 +2409,9 @@
         "Generated meetings spoken by the real directory about invented " +
         "work. Owner labels were planted before extraction ran, so every " +
         "attribution on this screen is checkable against a known answer. " +
-        "Nothing here is a real task."));
+        "Nothing here is a real task \u2014 and every confirmation was " +
+        "seeded in one sitting, so the said \u2192 tracked timings " +
+        "measure that sitting, not the pipeline."));
     } else {
       ban.hidden = true;
     }
