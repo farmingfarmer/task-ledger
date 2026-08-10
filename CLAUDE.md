@@ -62,6 +62,8 @@ python3 cli/review.py --as aad-dev --dsn "$DB_DSN"
 python3 cli/share.py --as aad-dev --dsn "$DB_DSN" list   # grant/revoke/list access
 python3 digest/run_digest.py --as aad-dev --dsn "$DB_DSN"  # the week, addressed to a person
 python3 ask/run_ask.py --as aad-dev --dsn "$DB_DSN" "what is blocked"   # answers with receipts
+export TL_SYNTH_DSN="host=localhost port=5432 dbname=taskintel_synth user=$(whoami)"  # optional: adds the real/synthetic switch
+python3 scripts/demo_seed_synthetic.py --dsn "$TL_SYNTH_DSN"   # give the synthetic ledger a board to show
 python3 integration/dashboard/dashboard_api.py   # http://127.0.0.1:8090 (on Windows browse the literal IP; bare hostnames get https-upgraded)
 ```
 

@@ -508,6 +508,53 @@ def main():
        "identity picker answers only when explicitly enabled")
     os.environ.pop("TL_VIEWER_PICKER", None)
 
+    print("profile switch")
+    code, prof = as_viewer(client, "/api/profiles", OWNER)
+    ok(code == 200 and prof["switchable"] is False
+       and [p["name"] for p in prof["profiles"]] == ["real"],
+       "one ledger configured: nothing to switch, and the UI is told so")
+    ok("dbname=" not in json.dumps(prof),
+       "the profile list never ships a connection string")
+
+    # Point a second profile at the SAME database: what is under test is
+    # the routing and the guards, not two sets of rows.
+    dashboard_api.PROFILES["synthetic"] = {
+        "dsn": dsn, "synthetic": True, "label": "Synthetic demo",
+        "blurb": "invented work"}
+    try:
+        code, prof = as_viewer(client, "/api/profiles", OWNER)
+        ok(code == 200 and prof["switchable"] is True
+           and [p["name"] for p in prof["profiles"]] == ["real", "synthetic"],
+           "with two configured, both are offered")
+        ok(prof["active"] == "real",
+           "and the default is active until something asks otherwise")
+        code, prof = as_viewer(client, "/api/profiles?profile=synthetic",
+                               OWNER)
+        ok(prof["active"] == "synthetic",
+           "asking for a profile by name selects it")
+
+        # The whole risk of this feature: a client that can name a DSN can
+        # point the dashboard at any database the host can reach.
+        for bogus in ("host=evil dbname=secret", "../../etc", "REAL",
+                      "synthetic; drop table tasks_current", ""):
+            code, prof = as_viewer(
+                client, "/api/profiles?profile=" + bogus, OWNER)
+            ok(code == 200 and prof["active"] == "real",
+               "an unrecognised profile falls back to the default: "
+               + (repr(bogus)[:34]))
+
+        code, board = as_viewer(
+            client, "/api/board/" + OWNER + "?profile=synthetic", STRANGER)
+        ok(code in (403, 404) or not (board or {}).get("tasks"),
+           "a profile is not a way around visible_tasks: a stranger still "
+           "sees nothing")
+        code, pend = as_viewer(
+            client, "/api/pending?profile=synthetic", MATE)
+        ok(code == 200 and pend["undecided"] == 0 and pend["packets"] == [],
+           "SELF-ONLY endpoints stay self-only under an explicit profile")
+    finally:
+        dashboard_api.PROFILES.pop("synthetic", None)
+
 
 if __name__ == "__main__":
     main()

@@ -59,11 +59,52 @@ app = Flask(__name__)
 DSN = os.environ.get(
     "DB_DSN", "host=/home/claude/pgsock port=5433 dbname=taskintel user=postgres")
 
+# Two ledgers, one dashboard. Demoing this system means showing real
+# extraction on real conversations AND a synthetic set wide enough to cover
+# interactions the real week happened not to contain -- and switching
+# between them must be one click, not an edited environment and a restart.
+#
+# The switch is a NAME, never a DSN. A client that could hand this endpoint
+# a connection string could point the dashboard at any database reachable
+# from the host, so the request selects from a server-built whitelist and
+# anything unrecognised falls back to the default rather than erroring into
+# some other profile. The synthetic profile exists only when TL_SYNTH_DSN is
+# set; with it unset this file behaves exactly as it did before.
+SYNTH_DSN = os.environ.get("TL_SYNTH_DSN", "").strip()
+
+PROFILES = {
+    "real": {"dsn": DSN, "synthetic": False,
+             "label": os.environ.get("TL_REAL_LABEL", "Real ledger"),
+             "blurb": "Extracted from actual Copilot meeting recaps."},
+}
+if SYNTH_DSN:
+    PROFILES["synthetic"] = {
+        "dsn": SYNTH_DSN, "synthetic": True,
+        "label": os.environ.get("TL_SYNTH_LABEL", "Synthetic demo"),
+        "blurb": "Generated meetings: invented work, planted owner labels."}
+
+DEFAULT_PROFILE = os.environ.get("TL_DEFAULT_PROFILE", "real")
+if DEFAULT_PROFILE not in PROFILES:
+    DEFAULT_PROFILE = "real"
+
 REDACTED = "[shared at progress level - detail hidden]"
 
 
+def profile_name():
+    """The requested profile, or the default. Never the client's string."""
+    try:
+        asked = (request.args.get("profile") or "").strip()
+    except RuntimeError:                      # outside a request context
+        return DEFAULT_PROFILE
+    return asked if asked in PROFILES else DEFAULT_PROFILE
+
+
+def profile_dsn():
+    return PROFILES[profile_name()]["dsn"]
+
+
 def q(sql, params=()):
-    conn = psycopg2.connect(DSN)
+    conn = psycopg2.connect(profile_dsn())
     try:
         conn.set_session(readonly=True, autocommit=True)
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -107,6 +148,27 @@ def index():
 def assets(filename):
     base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
     return send_from_directory(base, filename)
+
+
+@app.route("/api/profiles")
+def profiles():
+    """Which ledgers this dashboard can show, and which one is active.
+
+    Deliberately no DSNs: a connection string names a host and a database
+    user, and nothing in the UI needs either. The client gets names it may
+    ask for and labels it may print.
+    """
+    active = profile_name()
+    out = []
+    for name in ("real", "synthetic"):
+        if name in PROFILES:
+            p = PROFILES[name]
+            out.append({"name": name, "label": p["label"],
+                        "blurb": p["blurb"], "synthetic": p["synthetic"],
+                        "active": name == active})
+    return jsonify({"profiles": out, "active": active,
+                    "default": DEFAULT_PROFILE,
+                    "switchable": len(out) > 1})
 
 
 @app.route("/api/me")
@@ -650,7 +712,12 @@ def ask_endpoint():
             sys.path.insert(0, p)
     import ask as ask_mod
     import ask_io_pg
-    return jsonify(ask_mod.answer(question, ask_io_pg.Retriever(DSN, v)))
+    # profile_dsn(), not DSN: ask builds its own connection rather than
+    # going through q(), so the module-level default would have quietly
+    # answered from the real ledger while the rest of the page showed the
+    # synthetic one.
+    return jsonify(ask_mod.answer(question,
+                                  ask_io_pg.Retriever(profile_dsn(), v)))
 
 
 @app.route("/api/meetings")

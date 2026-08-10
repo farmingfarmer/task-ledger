@@ -21,6 +21,57 @@ export TL_INBOX="$HOME/task-ledger-synthetic-inbox"
 Everything then follows the environment: `cadence_tick.py`, `run_reconcile.py`,
 `cli/review.py --dsn "$DB_DSN"`, the dashboard, the digest, ask.
 
+## The dashboard shows both, and says which
+
+Everything else takes one ledger at a time. The dashboard takes both, so a
+demo can move between real extraction and a synthetic set wide enough to
+cover interactions a real week did not happen to contain — without editing
+an environment and restarting mid-sentence.
+
+```zsh
+export DB_DSN="host=localhost port=5432 dbname=taskintel user=$(whoami)"
+export TL_SYNTH_DSN="host=localhost port=5432 dbname=taskintel_synth user=$(whoami)"
+python3 integration/dashboard/dashboard_api.py     # switch is in the header
+```
+
+With `TL_SYNTH_DSN` unset the switch does not appear and the dashboard
+behaves exactly as it did before. Optional: `TL_DEFAULT_PROFILE=synthetic`
+opens on the synthetic ledger, which is the safer default for a laptop
+that gets opened in front of an audience.
+
+**The client picks a name, never a connection string.** A request carries
+`?profile=real` or `?profile=synthetic`; anything else falls back to the
+default, because an endpoint that accepted a DSN from the page would point
+the dashboard at any database the host can reach. The switch is also not a
+way around authorization — every query still joins through
+`visible_tasks(viewer)`, and the SELF-ONLY endpoints stay self-only under
+either profile. Both properties are asserted in `test_dashboard.py`.
+
+The synthetic profile paints a banner across the header whenever it is
+active. Colour alone would fail a projector or a colourblind viewer, so it
+says the word *synthetic* too: the one failure this feature must never
+allow is an audience that cannot tell which ledger it is looking at.
+
+## Making the synthetic ledger demo-ready
+
+Extraction alone leaves signals and proposals, so the dashboard would show
+a review queue over an empty board. `demo_seed_synthetic.py` walks those
+proposals through the same decision path a person would — several people,
+several rounds, so later rounds match against the board earlier ones built
+— and leaves a queue behind on purpose:
+
+```zsh
+python3 scripts/demo_seed_synthetic.py --dsn "$TL_SYNTH_DSN"
+```
+
+It accepts most, rejects some with reasons (which is what gives the
+calibration panel anything to say), and leaves a few undecided. It is not
+a new write path: accepts go through `cli/review.py`'s `apply_accept()`,
+which goes through `apply_task_event()`, which demands a decision. Every
+decision it files carries a note identifying it as seeded. It refuses to
+run against a database named like the live ledger, because it writes
+decisions in other people's names — fine on invented work, not on theirs.
+
 ## Making more synthetic material
 
 ```zsh

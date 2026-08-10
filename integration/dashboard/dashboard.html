@@ -125,6 +125,36 @@
   .idbox{display:flex;align-items:center;gap:8px;font-size:12.5px;
          color:var(--muted)}
 
+  /* ---- profile switch: which ledger am I looking at? --------------
+     A demo alternates between the real ledger and a synthetic one, and
+     the failure it must never allow is a viewer who cannot tell which.
+     So the control is a segmented switch (both options visible, current
+     one pressed) rather than a toggle whose state you infer, and the
+     synthetic profile additionally paints a banner across the header.
+     Colour alone would fail a colourblind viewer and a projector, so the
+     banner carries a word too. */
+  .profsw{display:inline-flex;margin-left:6px;border-radius:var(--r1);
+          background:var(--well);box-shadow:var(--sh-sink);padding:3px}
+  .profsw button{font:inherit;font-size:12px;font-weight:700;
+          border:1px solid transparent;background:none;color:var(--faint);
+          padding:5px 11px;border-radius:6px;cursor:pointer;
+          transition:all .13s ease}
+  .profsw button:hover{color:var(--ink)}
+  .profsw button[aria-pressed="true"]{background:var(--panel);
+          color:var(--ink);border-color:var(--edge);
+          box-shadow:var(--sh-raise)}
+  .profsw button.synth[aria-pressed="true"]{color:var(--evidence-ink);
+          border-color:var(--evidence);background:var(--evidence-bg)}
+  .profsw button:focus-visible{outline:2px solid var(--brand-lit);
+          outline-offset:1px}
+  .profbanner{margin-top:12px;display:flex;align-items:center;gap:10px;
+          padding:9px 14px;border-radius:var(--r1);font-size:12.5px;
+          background:var(--evidence-bg);color:var(--evidence-ink);
+          border:1px solid var(--evidence);box-shadow:var(--sh-panel)}
+  .profbanner .tag{font:600 11px/1 var(--mono);letter-spacing:.06em;
+          text-transform:uppercase;background:var(--evidence-ink);
+          color:#fff;padding:4px 7px;border-radius:5px;white-space:nowrap}
+
   /* ---- timeline: the hero visual --------------------------------
      Three counts became a strip of small controls above one chart: the
      counts are still the way into each stage, but they no longer take a
@@ -452,8 +482,10 @@
         <select id="viewer-sel" aria-label="Viewing as"></select>
         <input id="viewer-txt" aria-label="Viewing as (type an identity)"
                placeholder="type a ref" size="14" hidden>
+        <div class="profsw" id="profsw" hidden></div>
       </div>
     </div>
+    <div class="profbanner" id="profbanner" hidden></div>
 
     <div class="tlwrap">
       <div class="tlbar" id="tlbar"></div>
@@ -551,9 +583,20 @@
   // Demo viewer switcher. In production the viewer is the signed-in AAD
   // identity and this list disappears.
   var VIEWERS = ["alex","priya","vic","mallory","aad-dev"];
-  var state = { viewer: VIEWERS[0], user: null, task: null };
+  var state = { viewer: VIEWERS[0], user: null, task: null,
+                profile: null, profiles: [] };
+
+  // Every request carries the profile, because a page half-real and
+  // half-synthetic is worse than either. One helper appends it, so a new
+  // endpoint cannot forget to.
+  function withProfile(path){
+    if(!state.profile) return path;
+    return path + (path.indexOf("?") === -1 ? "?" : "&") +
+           "profile=" + encodeURIComponent(state.profile);
+  }
 
   function get(path){
+    path = withProfile(path);
     return fetch(path, {headers: {"X-Viewer": state.viewer}}).then(function(r){
       if(r.status === 403) return r.json().then(function(b){
         var e = new Error(b.error || "not shared with you");
@@ -2248,26 +2291,79 @@
     boot();
   });
 
-  fetch("/api/viewers").then(function(r){
-    return r.ok ? r.json() : null;          // 404 = picker disabled
-  }).then(function(d){
-    if(!d || !d.viewers || !d.viewers.length){
-      sel.hidden = true;                    // no list: type a ref instead
-      txt.hidden = false;
-      return;
-    }
-    sel.innerHTML = "";
-    d.viewers.forEach(function(v){
-      var o = el("option", null, v); o.value = v; sel.appendChild(o);
-    });
-    sel.value = d.viewers[0];
-    txt.value = d.viewers[0];
-    state.viewer = d.viewers[0];
-    boot();
-  })["catch"](function(){ /* keep the built-in list */ });
+  // Identities are per-ledger: a ref with a board in one profile may have
+  // none in the other, so the picker is reloaded on every switch and keeps
+  // the current viewer only if that ledger actually knows them.
+  function loadViewers(){
+    return fetch(withProfile("/api/viewers")).then(function(r){
+      return r.ok ? r.json() : null;        // 404 = picker disabled
+    }).then(function(d){
+      if(!d || !d.viewers || !d.viewers.length){
+        sel.hidden = true;                  // no list: type a ref instead
+        txt.hidden = false;
+        return;
+      }
+      sel.hidden = false; txt.hidden = true;
+      sel.innerHTML = "";
+      d.viewers.forEach(function(v){
+        var o = el("option", null, v); o.value = v; sel.appendChild(o);
+      });
+      var keep = d.viewers.indexOf(state.viewer) !== -1
+                 ? state.viewer : d.viewers[0];
+      sel.value = keep; txt.value = keep; state.viewer = keep;
+    })["catch"](function(){ /* keep the built-in list */ });
+  }
 
-  wireAsk();
-  boot();
+  // ---- which ledger ----
+  function paintProfiles(){
+    var box = document.getElementById("profsw");
+    var ban = document.getElementById("profbanner");
+    if(state.profiles.length < 2){ box.hidden = true; ban.hidden = true; return; }
+    box.hidden = false;
+    box.innerHTML = "";
+    state.profiles.forEach(function(p){
+      var b = el("button", p.synthetic ? "synth" : null, p.label);
+      b.type = "button";
+      b.setAttribute("aria-pressed", p.name === state.profile ? "true" : "false");
+      b.title = p.blurb;
+      b.onclick = function(){ switchProfile(p.name); };
+      box.appendChild(b);
+    });
+    var cur = null;
+    state.profiles.forEach(function(p){ if(p.name === state.profile) cur = p; });
+    if(cur && cur.synthetic){
+      ban.hidden = false;
+      ban.innerHTML = "";
+      ban.appendChild(el("span", "tag", "Synthetic data"));
+      ban.appendChild(el("span", null,
+        "Generated meetings spoken by the real directory about invented " +
+        "work. Owner labels were planted before extraction ran, so every " +
+        "attribution on this screen is checkable against a known answer. " +
+        "Nothing here is a real task."));
+    } else {
+      ban.hidden = true;
+    }
+  }
+
+  function switchProfile(name){
+    if(name === state.profile) return;
+    state.profile = name;
+    state.user = null; state.task = null;
+    paintProfiles();
+    loadViewers().then(boot);
+  }
+
+  fetch("/api/profiles").then(function(r){
+    return r.ok ? r.json() : null;
+  }).then(function(d){
+    if(d && d.profiles && d.profiles.length){
+      state.profiles = d.profiles;
+      state.profile = d.active;
+      paintProfiles();
+    }
+  })["catch"](function(){ /* single-ledger deployment */ })
+   .then(function(){ return loadViewers(); })
+   .then(function(){ wireAsk(); boot(); });
 })();
 </script>
 </body>
