@@ -33,6 +33,20 @@ Endpoints:
   GET /api/meetings                  follow-through per conversation
   GET /api/meeting/<source_ref>      every claim one conversation produced
   GET /api/metrics                   the measures behind the charts
+  GET /api/review                    the nudge popup: unruled claims about
+                                     you, plus your work that has gone
+                                     quiet; SELF ONLY
+  POST /api/decide                   record a decision on one proposal
+  POST /api/nudge                    type where a quiet task got to
+
+The two POSTs are the only writes in this file and they are refused unless
+the active profile is synthetic: the real ledger's session stays read-only,
+because a browser path into colleague data is exactly what that choice
+prevents. On a synthetic ledger they show the invariant working end to end
+-- an accept goes through cli/review.py's apply_accept() into
+apply_task_event(), and a nudge writes actor_type='manual_edit' with a NULL
+decision_id, so "a person typed this" stays distinguishable from "a model
+proposed it and a person agreed" forever.
 
 SELF ONLY is a stricter rule than the grant ladder: pending packets, held
 claims, and reject reasons are unreviewed model output about a person and
@@ -47,6 +61,7 @@ never through this API. Python 3.8 compatible.
 
 import datetime
 import decimal
+import json
 import os
 import sys
 
@@ -718,6 +733,277 @@ def ask_endpoint():
     # synthetic one.
     return jsonify(ask_mod.answer(question,
                                   ask_io_pg.Retriever(profile_dsn(), v)))
+
+
+# ---------------------------------------------------------------- review
+# The nudge popup: what was heard that you have not ruled on, and what you
+# said you would do that has gone quiet. In production this is the Teams
+# Adaptive Card (review_loop/review_card.py); this is the same content over
+# HTTP so it can be shown in a browser.
+# How long silence has to last before the popup asks. A policy number, so
+# it lives in the environment rather than in a literal: a freshly seeded
+# demo ledger has every board event stamped today, and at 7 days nothing is
+# ever quiet, so that half of the popup renders empty and the feature does
+# not exist as far as an audience is concerned.
+QUIET_DAYS = int(os.environ.get("TL_QUIET_DAYS", "7"))
+
+
+def _writable():
+    """Decisions may be recorded only on a synthetic ledger.
+
+    The read-only session is the reason a browser cannot reach real
+    colleague data, and a demo is not a good enough reason to give that up.
+    On the synthetic profile the same guarantee is not at stake, so the
+    popup can show the invariant working end to end: a human decision, and
+    only then a board change.
+    """
+    return bool(PROFILES.get(profile_name(), {}).get("synthetic"))
+
+
+@app.route("/api/review")
+def review_queue():
+    """SELF ONLY. Unreviewed claims about a person, plus their quiet work."""
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    packets = q("""
+        WITH latest AS (SELECT DISTINCT ON (packet_id) packet_id, state
+          FROM packet_state_events ORDER BY packet_id, event_id DESC)
+        SELECT rp.packet_id, rp.generated_at, rp.board_version
+        FROM review_packets rp JOIN latest l USING (packet_id)
+        WHERE rp.user_ref = %s
+          AND l.state IN ('draft','delivered','partially_decided')
+        ORDER BY rp.generated_at DESC LIMIT 1""", (v,))
+    proposals = []
+    if packets:
+        proposals = q("""
+            SELECT p.proposal_id, p.op, p.payload, p.confidence,
+                   p.rationale, p.conflict_type, p.target_task_id,
+                   t.title AS target_title, t.status AS target_status,
+                   count(ev.resource_id) AS sources
+            FROM proposals p
+            LEFT JOIN decisions d ON d.proposal_id = p.proposal_id
+            LEFT JOIN tasks_current t ON t.task_id = p.target_task_id
+            LEFT JOIN proposal_signals ps ON ps.proposal_id = p.proposal_id
+            LEFT JOIN evidence_refs ev ON ev.signal_id = ps.signal_id
+            WHERE p.packet_id = %s AND d.decision_id IS NULL
+            GROUP BY p.proposal_id, p.op, p.payload, p.confidence,
+                     p.rationale, p.conflict_type, p.target_task_id,
+                     t.title, t.status
+            ORDER BY (p.conflict_type IS NULL), p.confidence DESC""",
+            (packets[0]["packet_id"],))
+    # Quiet: open, mine, and nothing has happened to it in a week. Same
+    # definition the board's "Gone quiet" filter uses, so the popup and the
+    # page cannot disagree about what stale means.
+    quiet = q("""
+        SELECT t.task_id, t.title, t.status, t.deadline,
+               max(e.occurred_at) AS last_event,
+               (now()::date - max(e.occurred_at)::date) AS quiet_days
+        FROM tasks_current t
+        JOIN task_events e ON e.task_id = t.task_id
+        WHERE t.user_ref = %s AND t.merged_into IS NULL
+          AND t.status NOT IN ('completed','cancelled')
+        GROUP BY t.task_id, t.title, t.status, t.deadline
+        HAVING (now()::date - max(e.occurred_at)::date) >= %s
+        ORDER BY max(e.occurred_at) ASC LIMIT 8""", (v, QUIET_DAYS))
+    return jsonify({
+        "packet": packets[0] if packets else None,
+        "proposals": proposals,
+        "quiet": quiet,
+        "quiet_days": QUIET_DAYS,
+        "writable": _writable(),
+        "profile": profile_name(),
+    })
+
+
+def _review_cli():
+    """The terminal review loop's decision logic, reused verbatim.
+
+    The browser must not grow its own copy of what a valid accept is: the
+    op-to-event map, the optimistic-concurrency check and the ownerless-
+    create refusal all live in cli/review.py and are imported, not
+    reimplemented.
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    pth = os.path.normpath(os.path.join(here, "..", "..", "cli"))
+    if pth not in sys.path:
+        sys.path.insert(0, pth)
+    import review
+    return review
+
+
+def _write_conn():
+    """A read-write session, used ONLY by the two decision endpoints.
+
+    q() stays read-only for everything else. This is not a second way into
+    the board: accepts are applied by cli/review.py's apply_accept(), which
+    calls apply_task_event(), which refuses an actor_type of user_decision
+    without a decision_id. What the browser adds is a caller, not a path.
+    """
+    return psycopg2.connect(profile_dsn())
+
+
+def _refuse_write():
+    return jsonify({
+        "error": "this ledger is read-only from the browser",
+        "detail": "Decisions are recorded here only on the synthetic "
+                  "profile. The real ledger holds colleague data and its "
+                  "dashboard session is read-only by design -- decide "
+                  "there through the Teams card or cli/review.py."}), 403
+
+
+@app.route("/api/decide", methods=["POST"])
+def decide():
+    """Record a human decision on one proposal. SELF ONLY, synthetic only."""
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    if not _writable():
+        return _refuse_write()
+    body = request.get_json(silent=True) or {}
+    proposal_id = (body.get("proposal_id") or "").strip()
+    choice = (body.get("decision") or "").strip()
+    if choice not in ("accept", "reject", "defer"):
+        return jsonify({"error": "decision must be accept, reject or "
+                                 "defer"}), 400
+    reason = (body.get("reject_reason") or "").strip() or None
+    if choice == "reject" and not reason:
+        return jsonify({"error": "a rejection needs a reason -- that is "
+                                 "the signal the eval set is built "
+                                 "from"}), 400
+
+    review_cli = _review_cli()
+    conn = _write_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # SELF ONLY, enforced against the packet's owner rather than
+            # anything the request claims.
+            cur.execute("""
+                SELECT p.*, rp.user_ref, rp.packet_id,
+                       t.title AS target_title, t.status AS target_status,
+                       t.merged_into AS target_merged
+                FROM proposals p
+                JOIN review_packets rp USING (packet_id)
+                LEFT JOIN tasks_current t ON t.task_id = p.target_task_id
+                LEFT JOIN decisions d ON d.proposal_id = p.proposal_id
+                WHERE p.proposal_id = %s AND d.decision_id IS NULL""",
+                (proposal_id,))
+            prop = cur.fetchone()
+            if not prop:
+                return jsonify({"error": "no such undecided proposal"}), 404
+            if prop["user_ref"] != v:
+                return jsonify({"error": "that packet is not yours"}), 403
+
+            if choice == "defer":
+                review_cli.defer_signals(cur, v, prop)
+                cur.execute("""
+                    INSERT INTO decisions (proposal_id, packet_id, decision,
+                      decided_by, decided_at)
+                    VALUES (%s,%s,'defer',%s,now())
+                    ON CONFLICT (proposal_id, decided_by) DO NOTHING""",
+                    (proposal_id, prop["packet_id"], v))
+                conn.commit()
+                return jsonify({"ok": True, "decision": "defer"})
+
+            if choice == "reject":
+                cur.execute("""
+                    INSERT INTO decisions (proposal_id, packet_id, decision,
+                      reject_reason, decided_by, decided_at)
+                    VALUES (%s,%s,'reject',%s,%s,now())
+                    ON CONFLICT (proposal_id, decided_by) DO NOTHING""",
+                    (proposal_id, prop["packet_id"], reason, v))
+                conn.commit()
+                return jsonify({"ok": True, "decision": "reject",
+                                "reject_reason": reason})
+
+            ok, why = review_cli.still_valid(prop)
+            if not ok:
+                # The board moved under the proposal; recording it anyway
+                # would apply a change to a state nobody reviewed.
+                cur.execute("""
+                    INSERT INTO decisions (proposal_id, packet_id, decision,
+                      decided_by, decided_at, invalidated_reason)
+                    VALUES (%s,%s,'accept',%s,now(),%s)
+                    ON CONFLICT (proposal_id, decided_by) DO NOTHING""",
+                    (proposal_id, prop["packet_id"], v, why))
+                conn.commit()
+                return jsonify({"ok": False, "invalidated": why})
+
+            payload = dict(prop["payload"] or {})
+            if review_cli.needs_owner(prop):
+                payload["owner_ref"] = body.get("owner_ref") or v
+            cur.execute("""
+                INSERT INTO decisions (proposal_id, packet_id, decision,
+                  decided_by, decided_at)
+                VALUES (%s,%s,'accept',%s,now())
+                ON CONFLICT (proposal_id, decided_by) DO NOTHING
+                RETURNING decision_id""",
+                (proposal_id, prop["packet_id"], v))
+            if cur.fetchone() is None:
+                return jsonify({"error": "already decided"}), 409
+            task_id = review_cli.apply_accept(cur, v, prop, payload)
+            conn.commit()
+            return jsonify({"ok": True, "decision": "accept",
+                            "task_id": task_id})
+    finally:
+        conn.close()
+
+
+@app.route("/api/nudge", methods=["POST"])
+def nudge():
+    """Answer 'where did this get to?' on a task that has gone quiet.
+
+    Not a proposal and not a model output: a person typing what is true.
+    The schema has carried a place for this from the start --
+    actor_type='manual_edit' with a NULL decision_id -- so that "human
+    typed it" stays as auditable as "model proposed it", and the
+    provenance rail can tell the two apart forever.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    if not _writable():
+        return _refuse_write()
+    body = request.get_json(silent=True) or {}
+    task_id = (body.get("task_id") or "").strip()
+    status = (body.get("status") or "").strip()
+    if status not in ("in_progress", "blocked", "completed"):
+        return jsonify({"error": "status must be in_progress, blocked or "
+                                 "completed"}), 400
+    note = (body.get("note") or "").strip()[:200] or None
+
+    conn = _write_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT user_ref, status FROM tasks_current "
+                        "WHERE task_id = %s AND merged_into IS NULL",
+                        (task_id,))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "no such task"}), 404
+            if row[0] != v:
+                return jsonify({"error": "not your task"}), 403
+            event = ("completed" if status == "completed"
+                     else "blocker_added" if status == "blocked"
+                     else "status_changed")
+            # Payload keys are apply_task_event's contract, not this
+            # endpoint's preference: status_changed reads to_status, and
+            # blocker_added opens a row in task_blockers from description.
+            if status == "blocked":
+                payload = {"description": note or "raised from the nudge, "
+                                                  "reason not given",
+                           "blocking_party": None,
+                           "source": "dashboard nudge"}
+            else:
+                payload = {"to_status": status, "note": note,
+                           "source": "dashboard nudge"}
+            cur.execute("SELECT apply_task_event(%s,%s,%s,'manual_edit',"
+                        "NULL,%s::jsonb)",
+                        (task_id, v, event, json.dumps(payload)))
+        conn.commit()
+        return jsonify({"ok": True, "task_id": task_id, "status": status})
+    finally:
+        conn.close()
 
 
 @app.route("/api/meetings")

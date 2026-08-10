@@ -52,6 +52,26 @@ active. Colour alone would fail a projector or a colourblind viewer, so it
 says the word *synthetic* too: the one failure this feature must never
 allow is an audience that cannot tell which ledger it is looking at.
 
+## The nudge popup
+
+The dashboard asks the two questions the Teams card asks: what was heard
+that you have not ruled on, and what you took on that has gone quiet.
+Decisions are **recorded only on the synthetic profile** -- on the real
+ledger the buttons are disabled and say why, because the read-only session
+is what keeps a browser away from colleague data.
+
+```zsh
+export TL_QUIET_DAYS=0    # a freshly seeded demo has every event stamped
+                          # today, so at the 7-day default nothing is quiet
+                          # and that half of the popup renders empty
+```
+
+An accept goes through `cli/review.py`'s `apply_accept()` into
+`apply_task_event()` -- the browser adds a caller, not a second write path.
+A nudge writes `actor_type='manual_edit'` with a NULL `decision_id`, the
+place the schema has kept for hand-typed truth since the beginning, so the
+provenance rail can always tell it from a model proposal a human accepted.
+
 ## Making the synthetic ledger demo-ready
 
 Extraction alone leaves signals and proposals, so the dashboard would show

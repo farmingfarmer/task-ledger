@@ -22,6 +22,9 @@ var code = js
   .replace(/\/(?:[^\/\\\n\[]|\\.|\[[^\]]*\])+\/[gimsuy]*/g, "/re/");
 
 var declared = Object.create(null);
+// Built-in globals that match the SCREAMING_CASE shape. Only ones that
+// genuinely are all-caps qualify -- Math and Object never trip the regex.
+["JSON", "NaN", "URL", "DOM"].forEach(function (g) { declared[g] = true; });
 // `var a = 1, b = 2, c;` declares three names. Reading only the first is
 // how this checker cried wolf over a chart's layout constants.
 var vre = /\bvar\s+([^;{}]+)/g, vm;

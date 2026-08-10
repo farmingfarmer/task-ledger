@@ -476,6 +476,60 @@
   .proj{display:inline-block;border:1px solid #C3D8F2;border-radius:5px;
         background:var(--tint);color:var(--brand-deep);font-size:11px;
         padding:1px 8px;margin-left:8px;vertical-align:1px}
+  /* ---- the nudge popup ------------------------------------------
+     In production this is the Teams card. Same content, same decisions,
+     same refusal to move the board without one. */
+  .revbtn{margin-left:10px;font:inherit;font-size:12px;font-weight:700;
+          border:1px solid var(--edge);border-bottom-color:var(--edge-deep);
+          background:linear-gradient(180deg,#FFFFFF,#EFF4FA);
+          box-shadow:var(--sh-raise);border-radius:999px;padding:7px 14px;
+          cursor:pointer;color:var(--ink);transition:all .13s ease}
+  .revbtn:hover{transform:translateY(-1px);box-shadow:var(--sh-hover)}
+  .revbtn:active{transform:translateY(1px);box-shadow:var(--sh-press)}
+  .revbtn .cnt{display:inline-block;min-width:18px;margin-left:6px;
+          padding:1px 6px;border-radius:999px;background:var(--brick);
+          color:#fff;font-size:11px;font-weight:800}
+  .modal{position:fixed;inset:0;background:rgba(16,24,34,.55);z-index:60;
+         display:flex;align-items:flex-start;justify-content:center;
+         padding:44px 18px;overflow:auto}
+  .modal-card{background:var(--panel);border-radius:var(--r3);width:100%;
+         max-width:660px;box-shadow:0 24px 70px rgba(12,20,30,.45);
+         overflow:hidden}
+  .modal-head{display:flex;align-items:center;justify-content:space-between;
+         padding:16px 20px;border-bottom:1px solid var(--line);
+         background:linear-gradient(180deg,var(--tint),#F4F9FF)}
+  .modal-head h2{font-size:17px;letter-spacing:-.01em}
+  .modal-x{background:none;border:0;font-size:24px;line-height:1;
+         color:var(--muted);cursor:pointer;padding:0 4px}
+  .modal-body{padding:6px 20px 14px}
+  .modal-foot{padding:12px 20px;border-top:1px solid var(--line);
+         background:var(--panel-2);font-size:12px;color:var(--faint)}
+  .revsec{margin-top:16px}
+  .revsec h3{font-size:12px;text-transform:uppercase;letter-spacing:.07em;
+         color:var(--muted);margin-bottom:2px}
+  .revsec .lede{font-size:12.5px;color:var(--faint);margin-bottom:10px}
+  .revitem{border:1px solid var(--line);border-radius:var(--r1);
+         padding:12px 14px;margin-bottom:9px;background:var(--panel)}
+  .revitem .op{display:inline-block;font:700 10.5px/1 var(--mono);
+         letter-spacing:.06em;text-transform:uppercase;padding:4px 7px;
+         border-radius:5px;background:var(--tint);color:var(--brand-deep);
+         margin-bottom:7px}
+  .revitem .ttl{font-weight:700;font-size:14px;color:var(--ink)}
+  .revitem .meta{font-size:12px;color:var(--faint);margin-top:3px}
+  .revitem .why{font-size:12.5px;color:var(--muted);margin-top:6px}
+  .revacts{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+  .revacts button, .revacts select{font:inherit;font-size:12px;
+         font-weight:700;border-radius:7px;padding:6px 12px;
+         border:1px solid var(--edge);background:linear-gradient(
+         180deg,#FFFFFF,#EFF4FA);box-shadow:var(--sh-raise);cursor:pointer}
+  .revacts button:hover:not(:disabled){transform:translateY(-1px);
+         box-shadow:var(--sh-hover)}
+  .revacts button:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+  .revacts .yes{border-color:var(--brand);color:var(--brand-deep)}
+  .revdone{font-size:12.5px;color:var(--pine);font-weight:700}
+  .revnote{font-size:12.5px;color:var(--evidence-ink);
+         background:var(--evidence-bg);border:1px solid var(--evidence);
+         border-radius:var(--r1);padding:9px 12px;margin-top:12px}
   .viztip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;
           font-size:12px;padding:8px 11px;border-radius:var(--r1);opacity:0;
           transition:opacity .1s;z-index:30;max-width:250px;
@@ -498,6 +552,7 @@
         <input id="viewer-txt" aria-label="Viewing as (type an identity)"
                placeholder="type a ref" size="14" hidden>
         <div class="profsw" id="profsw" hidden></div>
+        <button type="button" class="revbtn" id="revbtn" hidden></button>
       </div>
     </div>
     <div class="profbanner" id="profbanner" hidden></div>
@@ -513,6 +568,19 @@
          was somewhere below the fold. -->
     <div class="tlbar" id="tlbar"></div>
     <section class="drawer" id="drawer" aria-live="polite"></section>
+
+    <div class="modal" id="reviewmodal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true"
+           aria-labelledby="revtitle">
+        <div class="modal-head">
+          <h2 id="revtitle">Before you go</h2>
+          <button type="button" class="modal-x" id="revclose"
+                  aria-label="Close">&times;</button>
+        </div>
+        <div class="modal-body" id="revbody"></div>
+        <div class="modal-foot" id="revfoot"></div>
+      </div>
+    </div>
 
     <form id="askform" class="askbar">
       <input id="askq" type="search" autocomplete="off"
@@ -695,6 +763,9 @@
     document.getElementById("askhint").textContent =
       "Answers come from confirmed board state, with their receipts. " +
       "Unconfirmed claims are labelled as such, never asserted.";
+    // Auto-opens once per ledger. A prompt that reappears on every click
+    // stops being a prompt and becomes a nuisance.
+    loadReview(!REVIEW.shown);
   }
 
   // ---- projects you own or have been given ----
@@ -978,6 +1049,189 @@
     if(it.kind !== "claim") STATE.filter = "all";
     paintPipe();
     paintDrawer();
+  }
+
+  // ---- the nudge popup ----------------------------------------------
+  // Two questions, which are the two halves of keeping a board true: what
+  // was heard that you have not ruled on, and what you took on that has
+  // since gone quiet. Production asks them in a Teams card; this asks them
+  // here, through the same decision path.
+  var REVIEW = {data: null, shown: false};
+
+  function post(path, body){
+    return fetch(withProfile(path), {
+      method: "POST",
+      headers: {"Content-Type": "application/json",
+                "X-Viewer": state.viewer},
+      body: JSON.stringify(body)
+    }).then(function(r){
+      return r.json().then(function(b){
+        if(!r.ok) throw new Error(b.detail || b.error || ("HTTP " + r.status));
+        return b;
+      });
+    });
+  }
+
+  function loadReview(autoOpen){
+    return get("/api/review").then(function(d){
+      REVIEW.data = d;
+      var n = (d.proposals || []).length + (d.quiet || []).length;
+      var btn = document.getElementById("revbtn");
+      btn.hidden = n === 0;
+      btn.innerHTML = "";
+      btn.appendChild(document.createTextNode("Review"));
+      if(n) btn.appendChild(el("span","cnt", String(n)));
+      if(autoOpen && n && !REVIEW.shown){ REVIEW.shown = true; openReview(); }
+    })["catch"](function(){ /* endpoint absent: no popup, no noise */ });
+  }
+
+  function openReview(){
+    paintReview();
+    document.getElementById("reviewmodal").hidden = false;
+  }
+  function closeReview(){
+    document.getElementById("reviewmodal").hidden = true;
+  }
+
+  function opLabel(op){
+    var L = {create_task: "New task", add_subtask: "New subtask",
+             update_status: "Status", update_deadline: "Deadline",
+             reassign: "Owner", add_blocker: "Blocker",
+             resolve_blocker: "Blocker cleared", complete_task: "Complete",
+             cancel_task: "Cancel", merge_tasks: "Merge"};
+    return L[op] || op;
+  }
+
+  function paintReview(){
+    var d = REVIEW.data || {};
+    var body = document.getElementById("revbody");
+    body.innerHTML = "";
+
+    var props = d.proposals || [];
+    var sec = el2("div","revsec");
+    sec.appendChild(el("h3", null, "Heard in your meetings"));
+    sec.appendChild(el("p","lede", props.length
+      ? "Claims from conversation that nobody has ruled on. Nothing below "
+        + "is on your board until you say so."
+      : "Nothing new since your last review."));
+    props.forEach(function(p){ sec.appendChild(proposalRow(p, d.writable)); });
+    body.appendChild(sec);
+
+    var quiet = d.quiet || [];
+    var sec2 = el2("div","revsec");
+    sec2.appendChild(el("h3", null, "Nothing heard lately"));
+    sec2.appendChild(el("p","lede", quiet.length
+      ? (((d.quiet_days || 0) > 0
+          ? "Open work with no movement in " + d.quiet_days + "+ days. "
+          : "Open work nobody has moved since it was created. ")
+         + "A one-tap answer keeps the board honest \u2014 and it is "
+         + "recorded as typed by you, never inferred.")
+      : "Everything open has moved recently."));
+    quiet.forEach(function(t){ sec2.appendChild(quietRow(t, d.writable)); });
+    body.appendChild(sec2);
+
+    if(!d.writable)
+      body.appendChild(el("div","revnote",
+        "This is the real ledger, and the dashboard reads it without ever "
+        + "writing to it. The buttons are live on the synthetic demo; here "
+        + "decisions are recorded through the Teams card or cli/review.py."));
+
+    var foot = document.getElementById("revfoot");
+    foot.textContent = d.packet
+      ? ("Packet " + String(d.packet.packet_id).slice(0, 8)
+         + " \u00b7 board v" + d.packet.board_version
+         + " \u00b7 nothing moves without a decision recorded against it")
+      : "Nothing moves without a decision recorded against it.";
+  }
+
+  function proposalRow(p, writable){
+    var row = el2("div","revitem");
+    row.appendChild(el("span","op", opLabel(p.op)));
+    var title = (p.payload && p.payload.title) || p.target_title
+                || "(untitled)";
+    row.appendChild(el("div","ttl", title));
+    row.appendChild(el("div","meta",
+      Math.round((p.confidence || 0) * 100) + "% confident \u00b7 "
+      + (p.sources || 0) + " source(s)"
+      + (p.conflict_type ? " \u00b7 conflict: " + p.conflict_type : "")));
+    if(p.rationale) row.appendChild(el("div","why", p.rationale));
+
+    var acts = el2("div","revacts");
+    var yes = el2("button","yes"); yes.type = "button";
+    yes.textContent = "Yes, that is right";
+    var sel = document.createElement("select");
+    ["why not?","wrong_owner","not_a_task","duplicate","wrong_status",
+     "wrong_task_match","bad_date_resolution","stale","other"]
+      .forEach(function(r, i){
+        var o = el("option", null, i === 0 ? r : r.replace(/_/g, " "));
+        o.value = i === 0 ? "" : r; sel.appendChild(o);
+      });
+    var no = el2("button", null); no.type = "button";
+    no.textContent = "No";
+    var later = el2("button", null); later.type = "button";
+    later.textContent = "Later";
+
+    function done(word){
+      acts.innerHTML = "";
+      acts.appendChild(el("span","revdone", word));
+      loadReview(false);
+      boot();
+    }
+    yes.onclick = function(){
+      post("/api/decide", {proposal_id: p.proposal_id, decision: "accept"})
+        .then(function(r){ done(r.ok ? "Recorded \u2014 it is on your board"
+                                     : "Board moved: " + r.invalidated); })
+        ["catch"](function(e){ done(e.message); });
+    };
+    no.onclick = function(){
+      if(!sel.value){ sel.focus(); return; }
+      post("/api/decide", {proposal_id: p.proposal_id, decision: "reject",
+                           reject_reason: sel.value})
+        .then(function(){ done("Rejected \u2014 the reason trains the eval"); })
+        ["catch"](function(e){ done(e.message); });
+    };
+    later.onclick = function(){
+      post("/api/decide", {proposal_id: p.proposal_id, decision: "defer"})
+        .then(function(){ done("Deferred \u2014 it returns to the pool"); })
+        ["catch"](function(e){ done(e.message); });
+    };
+    [yes, no, later].forEach(function(b){ b.disabled = !writable; });
+    sel.disabled = !writable;
+    acts.appendChild(yes); acts.appendChild(no); acts.appendChild(sel);
+    acts.appendChild(later);
+    row.appendChild(acts);
+    return row;
+  }
+
+  function quietRow(t, writable){
+    var row = el2("div","revitem");
+    row.appendChild(el("div","ttl", t.title));
+    row.appendChild(el("div","meta",
+      t.status + " \u00b7 nothing for " + t.quiet_days + " days"
+      + (t.deadline ? " \u00b7 due " + t.deadline : "")));
+    var acts = el2("div","revacts");
+    function ask(label, status){
+      var b = el2("button", status === "completed" ? "yes" : null);
+      b.type = "button"; b.textContent = label; b.disabled = !writable;
+      b.onclick = function(){
+        post("/api/nudge", {task_id: t.task_id, status: status})
+          .then(function(){
+            acts.innerHTML = "";
+            acts.appendChild(el("span","revdone",
+              "Recorded \u2014 typed by you, not inferred"));
+            loadReview(false); boot();
+          })["catch"](function(e){
+            acts.innerHTML = "";
+            acts.appendChild(el("span","revdone", e.message));
+          });
+      };
+      return b;
+    }
+    acts.appendChild(ask("Still going", "in_progress"));
+    acts.appendChild(ask("Blocked", "blocked"));
+    acts.appendChild(ask("Done", "completed"));
+    row.appendChild(acts);
+    return row;
   }
 
   function paintFoot(){
@@ -2421,6 +2675,8 @@
     if(name === state.profile) return;
     state.profile = name;
     state.user = null; state.task = null;
+    REVIEW.shown = false;          // a different ledger asks its own questions
+    closeReview();
     paintProfiles();
     loadViewers().then(boot);
   }
@@ -2435,7 +2691,19 @@
     }
   })["catch"](function(){ /* single-ledger deployment */ })
    .then(function(){ return loadViewers(); })
-   .then(function(){ wireAsk(); boot(); });
+   .then(function(){
+     wireAsk();
+     document.getElementById("revbtn").onclick = openReview;
+     document.getElementById("revclose").onclick = closeReview;
+     document.getElementById("reviewmodal").addEventListener(
+       "click", function(e){
+         if(e.target.id === "reviewmodal") closeReview();   // click-away
+       });
+     document.addEventListener("keydown", function(e){
+       if(e.key === "Escape") closeReview();
+     });
+     boot();
+   });
 })();
 </script>
 </body>

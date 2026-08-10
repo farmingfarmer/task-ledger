@@ -508,6 +508,74 @@ def main():
        "identity picker answers only when explicitly enabled")
     os.environ.pop("TL_VIEWER_PICKER", None)
 
+    print("review popup")
+    code, rv = as_viewer(client, "/api/review", OWNER)
+    ok(code == 200 and "proposals" in rv and "quiet" in rv,
+       "the popup asks both questions: unruled claims and quiet work")
+    ok(rv["writable"] is False,
+       "on the real ledger it is read-only, so nothing can be decided")
+    code, _ = as_viewer(client, "/api/review")
+    ok(code == 401, "and it needs an identity like every other endpoint")
+
+    # SELF ONLY: unreviewed claims about a person are not board state, so a
+    # full_trace grant over their whole board must not reach them.
+    code, mate_rv = as_viewer(client, "/api/review", MATE)
+    ok(code == 200 and mate_rv["proposals"] == [],
+       "a full_trace grantee sees none of the owner's unruled claims")
+
+    print("write guards")
+    r = client.post("/api/decide", json={"proposal_id": "x",
+                                         "decision": "accept"},
+                    headers={"X-Viewer": OWNER})
+    ok(r.status_code == 403,
+       "the real ledger refuses writes from the browser outright")
+    body = r.get_json()
+    ok("read-only" in json.dumps(body),
+       "and says why, rather than failing opaquely")
+    r = client.post("/api/nudge", json={"task_id": TASK,
+                                        "status": "completed"},
+                    headers={"X-Viewer": OWNER})
+    ok(r.status_code == 403, "same for a status nudge")
+    r = client.post("/api/decide", json={"proposal_id": "x",
+                                         "decision": "accept"})
+    ok(r.status_code == 401, "anonymous writes are refused before anything")
+
+    # With the ledger marked synthetic, the guards that remain are the ones
+    # that matter: your own packet, a real decision word, a reason on every
+    # rejection.
+    dashboard_api.PROFILES["synthetic"] = {
+        "dsn": dsn, "synthetic": True, "label": "Synthetic demo",
+        "blurb": "invented work"}
+    try:
+        def post(path, payload, who=OWNER):
+            r = client.post(path + "?profile=synthetic", json=payload,
+                            headers={"X-Viewer": who})
+            return r.status_code, r.get_json()
+
+        code, _ = post("/api/decide", {"proposal_id": "nope",
+                                       "decision": "accept"})
+        ok(code == 404, "an unknown proposal is a 404, not a write")
+        code, _ = post("/api/decide", {"proposal_id": "nope",
+                                       "decision": "sideways"})
+        ok(code == 400, "only accept, reject or defer are decisions")
+        code, b = post("/api/decide", {"proposal_id": "prop-dash-open",
+                                       "decision": "reject"})
+        ok(code == 400 and "reason" in json.dumps(b),
+           "a rejection without a reason is refused -- the reason IS the "
+           "signal the eval set is built from")
+        code, _ = post("/api/decide", {"proposal_id": "prop-dash-open",
+                                       "decision": "accept"}, who=MATE)
+        ok(code == 403,
+           "a full_trace grantee cannot decide on the owner's packet")
+        code, _ = post("/api/nudge", {"task_id": TASK,
+                                      "status": "completed"}, who=STRANGER)
+        ok(code in (403, 404),
+           "and cannot type a status onto someone else's task")
+        code, _ = post("/api/nudge", {"task_id": TASK, "status": "vibes"})
+        ok(code == 400, "a nudge status is a closed set")
+    finally:
+        dashboard_api.PROFILES.pop("synthetic", None)
+
     print("profile switch")
     code, prof = as_viewer(client, "/api/profiles", OWNER)
     ok(code == 200 and prof["switchable"] is False
