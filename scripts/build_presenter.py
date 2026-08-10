@@ -29,7 +29,7 @@ P = {
         "person, and only an accepted proposal touches the board. Every "
         "confirmed fact carries a receipt: click it and you're at the "
         "exact message that produced it.",
-        "Two numbers before we start: extraction recall is 94 to 97 "
+        "Two numbers before we start: extraction recall is 94 to 100 "
         "percent on synthetic messy-communication benchmarks I built to "
         "stress it, with zero fabrications and zero negation-trap hits -- "
         "and marginal inference cost is zero, because every model runs "
@@ -174,15 +174,15 @@ P = {
                     "an eval run, not a leap of faith.",
          "questions": [
              ["What recall/precision, really?",
-              "On extract-v1.2, seed 7 (used during prompt "
-              "development): 100% recall, 74% attribution, 1 negation "
+              "On extract-v1.3, seed 7 (used during prompt "
+              "development): 100% recall, 79% attribution, 1 negation "
               "trap. Seed 11, never seen during development: 94% "
               "recall, 81% attribution, no traps. Both: 100% "
-              "vague-date safety, zero fabrications. Attribution "
-              "splits because v1.2 refuses to name an owner when the "
-              "sentence names nobody -- a large win on meeting and "
-              "chat text (81% to 92% against planted labels, 99% "
-              "held out) and a loss on single-author email, where the "
+              "vague-date safety, zero fabrications. Attribution is "
+              "channel-aware: refusing to name an owner when the "
+              "sentence names nobody won 81% to 92% against planted "
+              "labels on meeting text (99% held out), while an "
+              "authored email gets the opposite reading, since its "
               "sender usually is the owner. The residual is absorbed "
               "by fail-closed gates: an unowned signal proposes "
               "nothing on its own."],

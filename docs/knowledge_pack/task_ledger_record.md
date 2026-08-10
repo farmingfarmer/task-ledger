@@ -44,9 +44,25 @@ identical claims, and 98.6 percent on a held-out set — the two corpora
 encode different conventions for authored messages, and the rule does
 not yet distinguish them.
 
-Test suites: 21 extraction checks, 26 reconciler checks, 7 supersede
-checks, 11 review CLI checks, 7 cadence checks, 7 tenant webhook
-checks, plus storage and access SQL validation suites; the reconciler
+Prompt extract-v1.3 gave authored sources -- email threads and documents
+-- one exception to that rule: when a message does not identify who holds
+the work, the sender does. Every other source type keeps prompt text
+byte-identical, so the meeting figures above stand without re-running.
+The first attempt at this exception measured as a no-op on both corpora,
+because it fired only when a message named nobody while the sentence it
+was written for names the team the work waits on; the precondition was
+corrected from "no name appears" to "no owner is identified". Final:
+seed 7 recall 100 percent, attribution 79 percent, 1 negation trap hit, 0
+fabrications; seed 11 recall 94 percent, attribution 81 percent, 0 traps,
+0 fabrications -- unchanged because its email windows had no headroom
+left.
+
+Test suites, run from one script against a scratch database: 56
+extraction, 40 reconciler, 7 supersede, 18 review CLI, 12 share CLI, 31
+digest, 22 ask, 27 attribution-eval, 14 synthetic-generator and 16
+cadence checks, plus 49 dashboard access checks and an inline-JS check --
+292 in total, with storage and access SQL validation suites alongside and
+tenant webhook checks outside the runner; the reconciler
 suite was triple-run clean (26, 26, 26) on a fresh database to prove the
 Windows replay fix. The Windows port completed on a locked-down no-admin
 ThinkPad (portable PostgreSQL 18.4, Python 3.14) with the full offline

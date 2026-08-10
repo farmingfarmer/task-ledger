@@ -57,13 +57,13 @@ channel registers, guaranteed negation traps, third-party completion
 claims, vague deadlines, name variants, distractor chatter -- and a scorer
 that runs the real worker against golden labels. The harness is verified
 honest (a cheating LLM scores 100%, an empty one 0%). Current state on
-mistral-small3.1, prompt `extract-v1.2` plus deterministic guards, across
+mistral-small3.1, prompt `extract-v1.3` plus deterministic guards, across
 two seeds (one never seen during prompt development):
 
 | metric | seed 7 | seed 11 (unseen) |
 |---|---|---|
 | recall | 100% | 94% |
-| attribution (owner+basis) | 74% | 81% |
+| attribution (owner+basis) | 79% | 81% |
 | vague-date safety | 100% | 100% |
 | negation trap hits | 1 | 0 |
 | fabrications | 0 | 0 |
@@ -73,30 +73,35 @@ a deadline signal, 3/3 at temperature 0) was moved into a code guard with
 a recorded drop reason. Reports are committed alongside the prompts;
 re-run any seed to reproduce.
 
-**Attribution moved in both directions, and the reason is worth stating.**
-v1.2 rewrote owner attribution around a rule the previous prompt never
-gave: leave the owner empty when the sentence identifies nobody. Measured
-against planted labels on synthetic meetings that use a real participant
-directory, that was a large win — 81.2% to 92.2% on the set it was tuned
-against, 98.6% on a held-out set, with sentences-naming-nobody going from
-15/21 to 20/21 and wrong-person attributions to zero (`eval/EVAL.md`).
+**Attribution is channel-aware, and the road there is the point.** v1.2
+rewrote owner attribution around a rule the earlier prompts never gave:
+leave the owner empty when the sentence identifies nobody. Against planted
+labels on synthetic meetings using a real participant directory that was a
+large win — 81.2% to 92.2% on the tuned set, 98.6% held out, with
+sentences-naming-nobody going from 15/21 to 20/21 and wrong-person
+attributions to zero (`eval/EVAL.md`).
 
-Here it costs seed 7 nine points, reproducibly (two identical runs), and
-the failure is a channel disagreement rather than a defect. This corpus
-scores an email whose sender writes *"the drift monitor is blocked —
-waiting on another team"* as owned by that sender, which is fair: a person
-writing about work in their own email is usually writing about their own
-work. v1.2 reads the same sentence structurally — impersonal subject, no
-first person, nobody named — and leaves it unowned, which is what the live
-run demanded, since attributing that shape to whoever said it produced 15
-of 22 real `wrong_owner` rejections. The rule does not yet know that an
-authored message is different from a remark in a meeting.
+It also cost seed 7 nine points, reproducibly, because a room is not a
+mailbox. *"The drift monitor is blocked, waiting on another team"* said
+aloud names nobody, and attributing it to whoever said it is what produced
+15 of 22 real `wrong_owner` rejections. Typed by one person in their own
+email, it is that person reporting their own work — which this corpus
+labels accordingly. v1.3 gives authored sources (email, documents) that
+one exception and leaves every other source type byte-identical, so the
+meeting numbers above stand without re-running.
 
-So the number to trust depends on the channel mix. Where work is discussed
-in meetings and chat, v1.2 is substantially better; on single-author email,
-v1.1's willingness to attribute happened to match. Unowned signals are
-routed to their author and still reach a human either way, and the gates
-downstream fail closed — an unowned signal proposes nothing on its own.
+The first attempt at it changed nothing at all: it fired only when a
+message named nobody, but the sentence it was written for names the team
+the work waits on. The precondition was wrong — not *no name appears* but
+*no owner is identified*, since a reviewer or a blocking team leaves the
+owner unstated. Corrected, seed 7 attribution recovers 74% to 79% and
+exactly one window moves; seed 11 is unchanged because its email windows
+had no headroom left.
+
+Seed 7 attribution is still 4 points under v1.1, which traded away far
+more on meeting text than it gained here. Unowned signals route to their
+author and still reach a human, and the gates downstream fail closed —
+an unowned signal proposes nothing on its own.
 
 ## Repository map
 
