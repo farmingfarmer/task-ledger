@@ -170,8 +170,15 @@
   .tlwrap{margin-top:18px;background:var(--panel);border:1px solid var(--line);
           border-radius:var(--r2);box-shadow:var(--sh-panel);overflow:hidden}
   .tlbar{display:flex;flex-wrap:wrap;gap:9px;padding:12px 16px;
-         border-bottom:1px solid var(--line);
+         margin-top:14px;border:1px solid var(--line);
+         border-radius:var(--r2);box-shadow:var(--sh-panel);
          background:linear-gradient(180deg,var(--tint),#F6FAFF)}
+  /* When the drawer is open the two read as one unit: the row is what
+     opened it, so they join rather than float apart. */
+  .tlbar.open{border-bottom-left-radius:0;border-bottom-right-radius:0;
+              border-bottom-color:transparent;margin-bottom:0}
+  .tlbar.open + .drawer{margin-top:0;border-top-left-radius:0;
+              border-top-right-radius:0}
   .tlstage{display:inline-flex;align-items:baseline;gap:8px;font:inherit;
            cursor:pointer;border-radius:999px;padding:6px 15px 6px 12px;
            border:1px solid var(--edge);border-bottom-color:var(--edge-deep);
@@ -496,11 +503,15 @@
     <div class="profbanner" id="profbanner" hidden></div>
 
     <div class="tlwrap">
-      <div class="tlbar" id="tlbar"></div>
       <div class="tlopts" id="tlopts"></div>
       <div class="tlchart viz" id="timeline"></div>
     </div>
     <div class="pipe-foot" id="pipefoot"></div>
+    <!-- These three filter the DRAWER, not the chart, so they belong
+         beside what they change. Above the chart they pushed their own
+         output off-screen: you pressed a button and the thing that moved
+         was somewhere below the fold. -->
+    <div class="tlbar" id="tlbar"></div>
     <section class="drawer" id="drawer" aria-live="polite"></section>
 
     <form id="askform" class="askbar">
@@ -991,6 +1002,10 @@
   function paintDrawer(){
     var st = stageByKey(STATE.stage);
     var box = document.getElementById("drawer");
+    // The stage row sits directly above and joins to the drawer, so it
+    // carries the open state with it.
+    var bar = document.getElementById("tlbar");
+    if(bar) bar.className = "tlbar open";
     box.innerHTML = "";
     var head = el2("div","drawer-head");
     head.appendChild(el("h2", null, st.head));
@@ -2070,6 +2085,24 @@
       "text-anchor": "end", fill: "var(--muted)", "font-size": 10,
       "font-weight": 600})).textContent = "today";
 
+    // Owner labels: the surname carries the identity and "aad-hari-
+    // krishna-rekapalli" would eat two thirds of the label column,
+    // leaving nine characters of title. Shorten to the last segment, and
+    // only fall back to the fuller form for people who would collide.
+    var seen = {}, shortOf = {};
+    items.forEach(function(it){
+      if(it.mine) return;
+      var full = it.board.replace(/^aad-/, "");
+      var last = full.split("-").pop();
+      if(seen[last] && seen[last] !== full) shortOf["__dup_" + last] = true;
+      seen[last] = full;
+      shortOf[it.board] = last;
+    });
+    items.forEach(function(it){
+      if(!it.mine && shortOf["__dup_" + shortOf[it.board]])
+        shortOf[it.board] = it.board.replace(/^aad-/, "");
+    });
+
     var lastBoard = null, groupOffset = 0;
     items.forEach(function(it, i){
       var y = TOP + i * ROW + ROW / 2 + (grouped ? groupOffset : 0);
@@ -2090,16 +2123,30 @@
       var end = it.ended_at ? Date.parse(it.ended_at) : now;
       if(isNaN(end)) end = now;
 
-      // Label column: title, and whose it is when it is not yours.
-      var label = it.title.length > 30 ? it.title.slice(0, 29) + "…"
-                                       : it.title;
+      // Label column: title, and whose it is when it is not yours. The
+      // title used to truncate at a flat 30 characters whether or not an
+      // owner was drawn beside it, so on other people's rows the two
+      // collided into an unreadable overlap. Budget the space instead:
+      // the owner takes what it needs from the right, the title gets the
+      // rest. Widths are estimated from the font size (SVG cannot measure
+      // text before layout) and deliberately over-estimated, so the error
+      // is a slightly short title rather than another collision.
+      // Grouped mode already prints the person as a band heading, so the
+      // per-row owner is repetition that costs the title its width.
+      var owner = (it.mine || grouped) ? "" : (shortOf[it.board] || "");
+      var ownerW = owner ? owner.length * 5.4 + 10 : 0;
+      // 10px of clear air between the two, because the width estimate is
+      // an average and a title full of capitals runs wider than one.
+      var titleMax = Math.max(8, Math.floor((LAB - 8 - ownerW - 10) / 6.6));
+      var label = it.title.length > titleMax
+        ? it.title.slice(0, titleMax - 1) + "…" : it.title;
       svg.appendChild(sv("text", {x: 0, y: y + 4, fill: "var(--ink)",
         "font-size": 12, "font-weight": it.mine ? 600 : 400}))
         .textContent = label;
-      if(!it.mine)
+      if(owner)
         svg.appendChild(sv("text", {x: LAB - 8, y: y + 4,
           "text-anchor": "end", fill: "var(--faint)", "font-size": 10}))
-          .textContent = it.board;
+          .textContent = owner;
 
       // The life, in two spans. Everything before the first board event
       // is time the work existed only as something somebody said, so it
