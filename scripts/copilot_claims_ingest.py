@@ -262,16 +262,25 @@ def load_records(path):
     """Tolerant of how this arrives: pasted out of a chat window.
 
     Copilot wraps JSON in markdown fences, sometimes prefixes a sentence,
-    and sometimes trails one. Failing on that would be technically correct
-    and practically useless, so the array is sliced out of whatever came
-    with it -- the same tolerance the extraction worker applies to model
-    responses.
+    and sometimes trails one -- and the file often arrives via Word, which
+    curls every quote into a character JSON does not accept. Failing on any
+    of that would be technically correct and practically useless, so the
+    array is sliced out of whatever came with it and the quotes are
+    straightened -- the same tolerance the extraction worker applies to
+    model responses, for the same reason.
     """
     with open(path, encoding="utf-8-sig") as f:
         text = f.read()
     try:
         data = json.loads(text)
     except ValueError:
+        # Word, Outlook and Teams all "helpfully" curl quotes on paste, and
+        # JSON only accepts straight ones. The resulting error names a
+        # column number and explains nothing, so normalise rather than make
+        # someone find it by hand. Only on the fallback path: text that
+        # already parses is never touched.
+        text = (text.replace(u"\u201c", '"').replace(u"\u201d", '"')
+                    .replace(u"\u2018", "'").replace(u"\u2019", "'"))
         start, end = text.find("["), text.rfind("]")
         if start == -1 or end <= start:
             raise SystemExit(
