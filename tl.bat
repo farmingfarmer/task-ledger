@@ -48,6 +48,10 @@ if /i "%CMD%"=="share" goto :share
 if /i "%CMD%"=="dashboard" goto :dashboard
 if /i "%CMD%"=="extract" goto :extract
 if /i "%CMD%"=="ingest" goto :ingest
+if /i "%CMD%"=="transcripts" goto :transcripts
+if /i "%CMD%"=="demo-set" goto :demoset
+if /i "%CMD%"=="demo-tx" goto :demotx
+if /i "%CMD%"=="score" goto :score
 if /i "%CMD%"=="demo" goto :demo
 if /i "%CMD%"=="demo-check" goto :democheck
 if /i "%CMD%"=="test" goto :test
@@ -68,6 +72,10 @@ echo   share ^<args^>    grant / revoke / list access
 echo   dashboard       serve http://127.0.0.1:8090
 echo   extract ^<file^>  one transcript -^> typed signals (writes)
 echo   ingest ^<file^>   a Copilot paste -^> the inbox
+echo   transcripts ^<f^> a Teams transcript (Word .txt) -^> the inbox
+echo   demo-set        generate the synthetic transcript demo set
+echo   demo-tx ^<src^>   build the demo board from transcripts (writes)
+echo   score ^<dir^>     extraction vs golden labels, measured
 echo   demo            seed a reviewable state, no Ollama needed
 echo   demo-check      drive the real app and assert the demo holds up
 echo   test            every suite, forced onto a scratch database
@@ -165,6 +173,45 @@ if "%~1"=="" (
 )
 call :banner
 python scripts\copilot_ingest.py "%~1" --out "%TL_INBOX%"
+exit /b %errorlevel%
+
+:transcripts
+if "%~1"=="" (
+  echo tl: transcripts needs a .txt, e.g. tl transcripts transcripts_raw.txt 1>&2
+  exit /b 2
+)
+call :banner
+set "TX=%~1"
+shift
+python scripts\transcript_ingest.py "%TX%" --out "%TL_INBOX%" %*
+exit /b %errorlevel%
+
+:demoset
+python testdata\synth_transcripts.py --ingest %*
+exit /b %errorlevel%
+
+:demotx
+rem Its own database on purpose: this seeds decisions in other people's
+rem names, which is defensible on invented work and on nothing else.
+if "%~1"=="" (
+  echo tl: demo-tx needs a transcripts .txt or a window directory 1>&2
+  exit /b 2
+)
+if not defined TL_DEMO_DSN set "TL_DEMO_DSN=host=localhost port=%TL_PORT% dbname=taskintel_txdemo user=%USERNAME%"
+set "SRC=%~1"
+shift
+python scripts\demo_transcript_build.py "%SRC%" --dsn "%TL_DEMO_DSN%" %*
+exit /b %errorlevel%
+
+:score
+if "%~1"=="" (
+  echo tl: score needs a corpus directory (with golden.json) 1>&2
+  exit /b 2
+)
+set "CORPUS=%~f1"
+shift
+cd /d "%~dp0testdata"
+python score_extraction.py --corpus "%CORPUS%" --model "%TL_JUDGE_MODEL%" %*
 exit /b %errorlevel%
 
 :demo

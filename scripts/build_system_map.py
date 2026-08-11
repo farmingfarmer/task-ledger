@@ -135,6 +135,16 @@ ATLAS = {
                                "swallows the next meeting's title and puts it "
                                "in the last speaker's mouth. Each body stops "
                                "at the following title instead."},
+                     {"symbol": "with_aliases",
+                      "blurb": "The owners worth catching did not speak -- "
+                               "the person handed the work, the person "
+                               "reported on -- and the worker drops any owner "
+                               "whose name will not resolve. So the directory "
+                               "is everyone in the file, not the speakers, "
+                               "with first-name and surname aliases because "
+                               "a room says 'Ada' where the export prints "
+                               "'Okonkwo, Ada'. Shared first names resolve to "
+                               "nobody rather than to a guess."},
                  ]},
             ],
         },
@@ -479,6 +489,35 @@ ATLAS = {
                                "fillers, chat mangling, email quoting. "
                                "The golden label rides along with each "
                                "rendering."},
+                 ]},
+                {"name": "Transcript demo set",
+                 "file": "testdata/synth_transcripts.py",
+                 "components": [
+                     {"symbol": "render",
+                      "blurb": "Writes the .txt a Teams transcript becomes "
+                               "after Word, artefacts included, so the demo "
+                               "runs the same parse the real file runs. "
+                               "synth_meetings.py starts at the inbox and "
+                               "therefore exercises no ingestion at all."},
+                     {"symbol": "build_golden",
+                      "blurb": "Every planted claim carries its expected "
+                               "owner and basis, keyed to the resource ids "
+                               "the ingester will mint, so attribution is "
+                               "measured rather than asserted. Scoring this "
+                               "set is what proved the labels wrong, not "
+                               "the model, on impersonal closures."},
+                 ]},
+                {"name": "Transcript demo builder",
+                 "file": "scripts/demo_transcript_build.py",
+                 "components": [
+                     {"symbol": "main",
+                      "blurb": "Carries each meeting the whole way -- "
+                               "extract, reconcile, decide -- before "
+                               "reading the next, because a completion "
+                               "needs a task to complete and a cold board "
+                               "has none. Extract-all-then-reconcile drops "
+                               "every closure and blocker as "
+                               "no_open_target, and drops are not errors."},
                  ]},
                 {"name": "Scorer",
                  "file": "testdata/score_extraction.py",
@@ -879,6 +918,19 @@ NARRATIVE = {
              "a format that drifts then shows up as a number rather than "
              "as speech that quietly went missing"],
         ],
+        "scripts/transcript_ingest.py::with_aliases": [
+            ["Whoever speaks is rarely whoever owns",
+             "the useful signal is work handed to someone across the room, "
+             "or somebody reporting what a third person did, and neither "
+             "of those people need have said a word"],
+            ["An owner whose name will not resolve is dropped in silence",
+             "so a directory built from the speaker list loses exactly the "
+             "attributions the ladder exists to make"],
+            ["So carry everyone, under every name they are called",
+             "the whole file's roster in every window, plus first-name and "
+             "surname aliases -- and where two people share one, no alias "
+             "at all, because a wrong owner is worse than none"],
+        ],
         "scripts/transcript_ingest.py::split_meetings": [
             ["Several meetings arrive in one file",
              "each with a title line sitting above its date line, which "
@@ -1180,6 +1232,35 @@ NARRATIVE = {
              "is the test"],
             ["Attach the answer key as it renders",
              "every window ships with its golden labels for scoring"],
+        ],
+        "testdata/synth_transcripts.py::render": [
+            ["The demo should read the file the meeting actually produces",
+             "not an inbox window that skips the parsing entirely, which "
+             "is the half most likely to break on a real export"],
+            ["So it writes Word's output, artefacts and all",
+             "the doubled offset, the repeated speaker line, the wrapped "
+             "navigation blurb, the initials beside an avatar"],
+        ],
+        "testdata/synth_transcripts.py::build_golden": [
+            ["A claim is only useful if you know who should own it",
+             "so every planted sentence carries its expected owner and "
+             "basis, pinned to the resource id the ingester will mint"],
+            ["Which is how the labels got caught being wrong",
+             "an impersonal closure names nobody and the extractor "
+             "returned no owner, correctly; the golden had claimed a "
+             "self-reference, and scoring is what surfaced it"],
+        ],
+        "scripts/demo_transcript_build.py::main": [
+            ["A meeting cannot complete work that no board holds",
+             "on a cold ledger every completion and every blocker is "
+             "dropped as no_open_target, and dropped signals are not "
+             "errors, so the demo just quietly comes out thin"],
+            ["So each meeting goes the whole way before the next is read",
+             "extracted, reconciled, and decided onto boards -- which is "
+             "also exactly what the cadence tick does one day at a time"],
+            ["The last meeting keeps its queue",
+             "a demo needs a board with history AND something still "
+             "waiting on a person, and those come from opposite ends"],
         ],
         "testdata/score_extraction.py::score_window": [
             ["Match extracted claims to the answer key",

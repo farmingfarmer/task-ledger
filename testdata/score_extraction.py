@@ -155,11 +155,25 @@ def main():
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--llm-fake", default=None,
                     help="path to a JSON of canned responses (testing)")
+    # Two generators write scoreable windows and they name them differently:
+    # synthesize.py writes window-*, transcript_ingest.py writes teams-*.
+    # Globbing one prefix silently scored nothing and still exited 0, which
+    # reads exactly like a corpus with no findings.
+    ap.add_argument("--pattern", default="window-*.json,teams-*.json",
+                    help="comma-separated window filename globs")
     args = ap.parse_args()
 
     with open(os.path.join(args.corpus, "golden.json")) as f:
         golden_all = json.load(f)
-    files = sorted(glob.glob(os.path.join(args.corpus, "window-*.json")))
+    files = []
+    for pat in args.pattern.split(","):
+        files.extend(glob.glob(os.path.join(args.corpus, pat.strip())))
+    files = sorted(set(files))
+    if not files:
+        sys.stderr.write(
+            "no windows matched {0} in {1} -- nothing was scored\n".format(
+                args.pattern, args.corpus))
+        return 2
     if args.limit:
         files = files[:args.limit]
 
@@ -217,4 +231,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main() or 0)

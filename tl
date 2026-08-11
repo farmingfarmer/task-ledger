@@ -94,6 +94,10 @@ usage() {
   echo "  dashboard       serve http://127.0.0.1:8090"
   echo "  extract <file>  one transcript -> typed signals (writes)"
   echo "  ingest <file>   a Copilot paste -> the inbox"
+  echo "  transcripts <f> a Teams transcript (Word .txt) -> the inbox"
+  echo "  demo-set        generate the synthetic transcript demo set"
+  echo "  demo-tx <src>   build the demo board from transcripts (writes)"
+  echo "  score <dir>     extraction vs golden labels, measured"
   echo "  demo            seed a reviewable state, no Ollama needed"
   echo "  demo-check      drive the real app and assert the demo holds up"
   echo "  test            every suite, forced onto a scratch database"
@@ -173,6 +177,44 @@ case "$CMD" in
     fi
     banner
     python3 scripts/copilot_ingest.py "$1" --out "$TL_INBOX" "${@:2}"
+    ;;
+
+  transcripts)
+    if [ $# -eq 0 ]; then
+      echo "tl: transcripts needs a .txt, e.g." >&2
+      echo "    ./tl transcripts ~/transcripts_raw.txt" >&2
+      exit 2
+    fi
+    banner
+    TX="$1"; shift
+    python3 scripts/transcript_ingest.py "$TX" --out "$TL_INBOX" "$@"
+    ;;
+
+  demo-set)
+    python3 testdata/synth_transcripts.py --ingest "$@"
+    ;;
+
+  demo-tx)
+    # Its own database on purpose: this seeds decisions in other people's
+    # names, which is defensible on invented work and on nothing else.
+    if [ $# -eq 0 ]; then
+      echo "tl: demo-tx needs a transcripts .txt or a window directory" >&2
+      exit 2
+    fi
+    SRC="$1"; shift
+    DEMO_DSN="${TL_DEMO_DSN:-host=localhost port=5432 dbname=taskintel_txdemo user=$ME}"
+    echo "tl: demo board -> $(dbname_of "$DEMO_DSN")"
+    python3 scripts/demo_transcript_build.py "$SRC" --dsn "$DEMO_DSN" "$@"
+    ;;
+
+  score)
+    if [ $# -eq 0 ]; then
+      echo "tl: score needs a corpus directory (with golden.json)" >&2
+      exit 2
+    fi
+    CORPUS="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"; shift
+    ( cd testdata && python3 score_extraction.py --corpus "$CORPUS" \
+        --model "$JUDGE_MODEL" "$@" )
     ;;
 
   demo)

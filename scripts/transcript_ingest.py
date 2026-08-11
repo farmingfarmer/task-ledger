@@ -40,12 +40,20 @@ one-to-three-letter lines are the initials Teams renders beside an avatar;
 anything this could not place, so a format drift surfaces as a number
 rather than as silently missing speech.
 
-IDENTITY. 'Last, First' becomes 'First Last' becomes aad-first-last, which
-is the ref convention already in the ledger. Where a person is ALREADY on
-the board under a different ref, pass --directory with a JSON object
-mapping the transcript's display name to the ref to use -- otherwise the
-same human arrives as a second person and the board quietly forks. That
-file names real people: keep it out of this repository.
+IDENTITY, which decides whether any of this is useful. 'Last, First'
+becomes 'First Last' becomes aad-first-last, the ref convention already in
+the ledger. But the owners worth catching are mostly people who did NOT
+speak -- the one handed the work, the one somebody else reported on -- and
+the worker drops any owner candidate whose name it cannot resolve. So the
+directory is deliberately not the speaker list: it is everyone in the file,
+carried into every window, plus unambiguous first-name and surname aliases,
+because a room says a first name where the transcript prints 'Last, First'.
+
+--directory takes a JSON object of display name -> ref and does two jobs:
+it pins someone ALREADY on the board under a different ref, so the same
+human does not arrive twice and fork the board, and it ADDS people who
+never speak in these meetings but are handed work in them. That file names
+real people: keep it out of this repository.
 
 Timestamps follow copilot_ingest: the meeting's own clock, stamped Z. It
 is a local wall clock either way; nothing downstream compares across
@@ -117,6 +125,31 @@ def canonical(display):
 def ref_for(display):
     return "aad-" + re.sub(r"[^a-z0-9]+", "-",
                            (display or "unknown").lower()).strip("-")
+
+
+def with_aliases(roster):
+    """Add surname and first-name keys pointing at the same ref.
+
+    People are named in half a dozen forms and almost never the full one:
+    the transcript labels a speaker 'Last, First' while the room calls them
+    by a first name. An owner whose name does not resolve is dropped by the
+    worker, so an alias missing here is an owner silently lost. Ambiguous
+    aliases -- two people sharing a first name -- are left out rather than
+    guessed, which is the same trade the Copilot ingester makes.
+    """
+    out = dict(roster)
+    firsts, lasts = {}, {}
+    for name, ref in roster.items():
+        parts = name.split()
+        if not parts:
+            continue
+        firsts.setdefault(parts[0], set()).add(ref)
+        lasts.setdefault(parts[-1], set()).add(ref)
+    for alias_map in (firsts, lasts):
+        for alias, refs in alias_map.items():
+            if len(refs) == 1 and alias not in out:
+                out[alias] = sorted(refs)[0]
+    return out
 
 
 def slug(text, n=40):
@@ -260,8 +293,10 @@ def main():
     ap.add_argument("--out", default=os.path.expanduser(
         "~/task-ledger-inbox"))
     ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--directory", help="JSON object: display name -> ref, "
-                                        "for people already on the board")
+    ap.add_argument("--directory", help="JSON object: display name -> ref. "
+                                        "Pins people already on the board "
+                                        "under another ref, and adds people "
+                                        "who never speak but are given work")
     ap.add_argument("--max-items", type=int, default=35,
                     help="split a meeting into sub-windows of at most this "
                          "many utterances (0 = never split)")
@@ -293,13 +328,25 @@ def main():
             print("SKIP {0} {1} -- no utterances".format(
                 dm.group("month"), dm.group("day")))
             continue
-        window, fname = parsed
-        for name, ref in override.items():
-            if name in window["directory"]:
-                window["directory"][name] = ref
+        built.append(parsed)
+
+    # The directory is what an owner's NAME is resolved through, and the
+    # owners worth catching are mostly people who did not speak -- the one
+    # handed the work, the one somebody reported on. A directory built from
+    # speakers alone silently drops exactly those. So: everyone in the file,
+    # in every window, plus --directory for people who appear in neither.
+    roster = {}
+    for window, _ in built:
+        for name in window["directory"]:
+            roster.setdefault(name, ref_for(name))
+    for name, ref in override.items():
+        roster[canonical(name)] = ref
+    resolved = with_aliases(roster)
+
+    for window, _ in built:
+        window["directory"] = dict(resolved)
         for it in window["items"]:
-            it["author_ref"] = window["directory"][it["author_name"]]
-        built.append((window, fname))
+            it["author_ref"] = roster[it["author_name"]]
 
     expanded = []
     for window, fname in built:
