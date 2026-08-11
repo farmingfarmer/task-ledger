@@ -146,6 +146,40 @@ def test_no_chatter_labelled():
         shutil.rmtree(d)
 
 
+def test_fictional_cast():
+    print("invented cast")
+    directory, speakers, source_type = sm.fictional_cast()
+    ok(len(speakers) == 8 and source_type == "meeting_transcript",
+       "eight invented people, in the shape load_cast returns")
+    ok(all(r.startswith("aad-") for r in speakers),
+       "refs look like directory refs, because that is what resolves")
+    # Surname-only speakers are the case attribution has to survive, so the
+    # invented directory has to carry the same aliases a real one does.
+    ok(directory.get("Vale") == "aad-robin-vale"
+       and directory.get("Robin") == "aad-robin-vale",
+       "surname and first-name aliases both resolve")
+    ok(directory.get("Pfeiffer-Roy") == "aad-ida-pfeiffer-roy"
+       and directory.get("Vries") == "aad-marta-de-vries",
+       "double-barrelled and two-word surnames resolve too -- the shapes "
+       "a directory actually contains")
+
+    d = tempfile.mkdtemp()
+    try:
+        rng = random.Random(11)
+        import datetime
+        cast = sm.fictional_cast()
+        ref, window, golden = sm.build_meeting(
+            rng, cast, "meeting_transcript", datetime.date(2026, 2, 1),
+            0, 16, 11)
+        names = set(i["author_name"] for i in window["items"])
+        ok(names <= set(sm.FICTIONAL_CAST),
+           "every speaker in a generated window is one of the invented "
+           "people -- this material is committable only if that holds")
+        ok(golden["claims"], "golden labels are planted as usual")
+    finally:
+        shutil.rmtree(d)
+
+
 def test_repo_guard():
     print("privacy guard")
     try:
@@ -177,8 +211,15 @@ def test_cast_from_template():
            "directory and source type carry over from the template")
         src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "synth_meetings.py")).read()
-        ok("aad-" not in src.replace("aad-{0}", ""),
-           "the generator source hardcodes no directory ids")
+        # This file DOES hardcode ids now -- the invented cast, so the
+        # material can be committed. The invariant that still matters is
+        # that every one of them is invented: a real ref appearing here
+        # would put a colleague's identity in the repository.
+        import re as _re
+        hardcoded = set(_re.findall(r'"(aad-[a-z0-9-]+)"', src))
+        ok(hardcoded and hardcoded <= set(sm.FICTIONAL_CAST.values()),
+           "every directory id in the source belongs to the invented cast "
+           "({0} of them)".format(len(hardcoded)))
     finally:
         shutil.rmtree(d)
 
@@ -188,6 +229,7 @@ if __name__ == "__main__":
     test_determinism()
     test_golden_labels()
     test_no_chatter_labelled()
+    test_fictional_cast()
     test_repo_guard()
     test_cast_from_template()
     print("\nall {0} synth generator checks passed".format(CHECKS[0]))

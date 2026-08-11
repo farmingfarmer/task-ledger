@@ -1,0 +1,148 @@
+{
+ "job": {
+  "source_type": "meeting_transcript",
+  "source_ref": "synth-s11-2026-08-03-standup-8",
+  "window_start": "2026-08-03T10:00:00Z",
+  "window_end": "2026-08-03T10:32:00Z"
+ },
+ "directory": {
+  "Robin Vale": "aad-robin-vale",
+  "Sam Okonjo": "aad-sam-okonjo",
+  "Ida Pfeiffer-Roy": "aad-ida-pfeiffer-roy",
+  "Marta de Vries": "aad-marta-de-vries",
+  "Jean-Luc Barre": "aad-jean-luc-barre",
+  "Tobias Grant": "aad-tobias-grant",
+  "Nell Achebe": "aad-nell-achebe",
+  "Otto Lindqvist": "aad-otto-lindqvist",
+  "Robin": "aad-robin-vale",
+  "Vale": "aad-robin-vale",
+  "Sam": "aad-sam-okonjo",
+  "Okonjo": "aad-sam-okonjo",
+  "Ida": "aad-ida-pfeiffer-roy",
+  "Pfeiffer-Roy": "aad-ida-pfeiffer-roy",
+  "Marta": "aad-marta-de-vries",
+  "Vries": "aad-marta-de-vries",
+  "Jean-Luc": "aad-jean-luc-barre",
+  "Barre": "aad-jean-luc-barre",
+  "Tobias": "aad-tobias-grant",
+  "Grant": "aad-tobias-grant",
+  "Nell": "aad-nell-achebe",
+  "Achebe": "aad-nell-achebe",
+  "Otto": "aad-otto-lindqvist",
+  "Lindqvist": "aad-otto-lindqvist"
+ },
+ "items": [
+  {
+   "resource_id": "syf13aa97b-001",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-08-03T10:00:00Z",
+   "text": "I think Otto should own the load-test profile"
+  },
+  {
+   "resource_id": "syf13aa97b-002",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-08-03T10:02:00Z",
+   "text": "can we prioritise the changelog builder over the rest?"
+  },
+  {
+   "resource_id": "syf13aa97b-003",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-08-03T10:04:00Z",
+   "text": "I'm going to pick up the metrics rollup after standup"
+  },
+  {
+   "resource_id": "syf13aa97b-004",
+   "author_name": "Nell Achebe",
+   "author_ref": "aad-nell-achebe",
+   "timestamp": "2026-08-03T10:06:00Z",
+   "text": "I'll take the schema linter this week"
+  },
+  {
+   "resource_id": "syf13aa97b-005",
+   "author_name": "Robin Vale",
+   "author_ref": "aad-robin-vale",
+   "timestamp": "2026-08-03T10:08:00Z",
+   "text": "I finished the load-test profile yesterday"
+  },
+  {
+   "resource_id": "syf13aa97b-006",
+   "author_name": "Tobias Grant",
+   "author_ref": "aad-tobias-grant",
+   "timestamp": "2026-08-03T10:10:00Z",
+   "text": "would also like to start on the changelog builder"
+  },
+  {
+   "resource_id": "syf13aa97b-007",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-08-03T10:12:00Z",
+   "text": "I'll have the schema linter ready by end of next sprint"
+  },
+  {
+   "resource_id": "syf13aa97b-008",
+   "author_name": "Nell Achebe",
+   "author_ref": "aad-nell-achebe",
+   "timestamp": "2026-08-03T10:14:00Z",
+   "text": "sorry, I dropped off for a second, could you repeat that"
+  },
+  {
+   "resource_id": "syf13aa97b-009",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-08-03T10:16:00Z",
+   "text": "the sandbox reset script is done as far as I'm concerned"
+  },
+  {
+   "resource_id": "syf13aa97b-010",
+   "author_name": "Marta de Vries",
+   "author_ref": "aad-marta-de-vries",
+   "timestamp": "2026-08-03T10:18:00Z",
+   "text": "the permissions audit needs to land before the audit"
+  },
+  {
+   "resource_id": "syf13aa97b-011",
+   "author_name": "Nell Achebe",
+   "author_ref": "aad-nell-achebe",
+   "timestamp": "2026-08-03T10:20:00Z",
+   "text": "I'll have the archive migration ready by end of next sprint"
+  },
+  {
+   "resource_id": "syf13aa97b-012",
+   "author_name": "Marta de Vries",
+   "author_ref": "aad-marta-de-vries",
+   "timestamp": "2026-08-03T10:22:00Z",
+   "text": "Sam is already deep in the permissions audit, so it makes sense there"
+  },
+  {
+   "resource_id": "syf13aa97b-013",
+   "author_name": "Robin Vale",
+   "author_ref": "aad-robin-vale",
+   "timestamp": "2026-08-03T10:24:00Z",
+   "text": "Marta, can you take the load-test profile?"
+  },
+  {
+   "resource_id": "syf13aa97b-014",
+   "author_name": "Robin Vale",
+   "author_ref": "aad-robin-vale",
+   "timestamp": "2026-08-03T10:26:00Z",
+   "text": "I think Jean-Luc should own the retention sweep"
+  },
+  {
+   "resource_id": "syf13aa97b-015",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-08-03T10:28:00Z",
+   "text": "Will start on the metrics rollup tomorrow"
+  },
+  {
+   "resource_id": "syf13aa97b-016",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-08-03T10:30:00Z",
+   "text": "can we prioritise the staging cutover over the rest?"
+  }
+ ]
+}

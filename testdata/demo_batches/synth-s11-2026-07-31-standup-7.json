@@ -1,0 +1,355 @@
+{
+  "batch_id": "b26a45b0c25068db2b01b3fdecec14b5460c3fe48a8b979133e40d796eda6a1d",
+  "extracted_at": "2026-08-11T06:15:58.983732+00:00",
+  "extractor": {
+    "model": "ollama:mistral-small3.1",
+    "prompt_version": "extract-v1.3"
+  },
+  "window": {
+    "source_type": "meeting_transcript",
+    "source_ref": "synth-s11-2026-07-31-standup-7",
+    "time_start": "2026-07-31T10:00:00Z",
+    "time_end": "2026-07-31T10:32:00Z"
+  },
+  "signals": [
+    {
+      "signal_id": "8e86a0c0bc13fae8fdc369bba46bf4bc12e07d5c901ac57bc410ee19f0a7039d",
+      "type": "task_mention",
+      "title": "land the permissions audit before the audit",
+      "author_ref": "aad-marta-de-vries",
+      "owner_candidates": [],
+      "status_signal": null,
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-001",
+          "span": null,
+          "content_hash": "4a2600fc4d31e85453fbe5fc59944608dfd3bb02f16ac5159dfa939077930ae6"
+        }
+      ]
+    },
+    {
+      "signal_id": "c0903edb63b50cd63274653a1fa4dfe050ccefc5c3682cd3fea63de863cd737c",
+      "type": "blocker",
+      "title": "unblock the archive migration",
+      "author_ref": "aad-marta-de-vries",
+      "description": "waiting on the platform team",
+      "owner_candidates": [],
+      "status_signal": "blocked",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-002",
+          "span": null,
+          "content_hash": "93bee610d9429ef290565dce37a1f7bc0e29bc3b18e3d0f07f673948faae3975"
+        }
+      ]
+    },
+    {
+      "signal_id": "8384cc7310cd31107335762b5a90756b1cb0fae7e2342f1f3cf02c02574a5922",
+      "type": "blocker",
+      "title": "unblock the changelog builder",
+      "author_ref": "aad-tobias-grant",
+      "description": "waiting on the platform team",
+      "owner_candidates": [],
+      "status_signal": "blocked",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-003",
+          "span": null,
+          "content_hash": "e1faa608a6dac56a94a074840fd678c52beecb1497d80306e5ca3b91be6c2297"
+        }
+      ]
+    },
+    {
+      "signal_id": "51b197b92c2a5a3ec463f5971b6de764bf168b5c6a552cb880412d6d3140d5cf",
+      "type": "task_mention",
+      "title": "work on the archive migration",
+      "author_ref": "aad-jean-luc-barre",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-otto-lindqvist",
+          "confidence": 0.8,
+          "basis": "inferred"
+        }
+      ],
+      "status_signal": null,
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.8,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-004",
+          "span": null,
+          "content_hash": "9eb71783a188ff20faf8c708056f26d9d56e0760794b7f9bafad3d01912f4c02"
+        }
+      ]
+    },
+    {
+      "signal_id": "7f046122c4b0b6645f749905b91fdacd8175a8fac5e57bb2d907366dc27ca61e",
+      "type": "task_mention",
+      "title": "land the metrics rollup before the audit",
+      "author_ref": "aad-otto-lindqvist",
+      "owner_candidates": [],
+      "status_signal": null,
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-005",
+          "span": null,
+          "content_hash": "df75b3245e36dd532498c7781986ff0dbe288583761248256efc9fc7cf070d48"
+        }
+      ]
+    },
+    {
+      "signal_id": "daad17b50f56dd1b1dafc12581cfa1fcc34addea9361bcd871ec0bd7ad7ea4ed",
+      "type": "proposal",
+      "title": "scope the sandbox reset script",
+      "author_ref": "aad-otto-lindqvist",
+      "owner_candidates": [],
+      "status_signal": "proposed",
+      "deadline": {
+        "raw_text": "end of the month",
+        "precision": "month",
+        "date": "2026-07-31"
+      },
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-006",
+          "span": null,
+          "content_hash": "7c690ccd91659fc5440d780153fb0a3f1eaddf55116b474fd0d86ae3535aba39"
+        }
+      ]
+    },
+    {
+      "signal_id": "80b099daf9a88b63a421cae3f597f833e99fc725227b91768f048d6268145c7e",
+      "type": "proposal",
+      "title": "scope the metrics rollup",
+      "author_ref": "aad-nell-achebe",
+      "owner_candidates": [],
+      "status_signal": "proposed",
+      "deadline": {
+        "raw_text": "end of the month",
+        "precision": "month",
+        "date": "2026-07-31"
+      },
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-007",
+          "span": null,
+          "content_hash": "b85a62c9f97c0007672a8563058c08030bb5c603f97a7e7cb2f340b19c5cba1f"
+        }
+      ]
+    },
+    {
+      "signal_id": "7c7973c2dc98abe7e12931085a1420f25323cf732568c89d3870919843869664",
+      "type": "cancellation",
+      "title": "cancel the retention sweep",
+      "author_ref": "aad-otto-lindqvist",
+      "owner_candidates": [],
+      "status_signal": "cancelled",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-008",
+          "span": null,
+          "content_hash": "44adb3daa8a3d1ed09114ad8b06cf6d797642e68abed4d7b90c07394f790654d"
+        }
+      ]
+    },
+    {
+      "signal_id": "698290c3c7bdf483764a56ad69a37805a674ff09181ce3174d7a1c5ab63e6198",
+      "type": "task_mention",
+      "title": "land the archive migration before the audit",
+      "author_ref": "aad-sam-okonjo",
+      "owner_candidates": [],
+      "status_signal": null,
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-009",
+          "span": null,
+          "content_hash": "55c5a9f758bd790c1afa959eb254ffb307b55e54e69a5c5cad18334e5a9c7a07"
+        }
+      ]
+    },
+    {
+      "signal_id": "8aaf7f348499bd8695ae3a8530112411109a305eb75b3fd53297bccff76a1108",
+      "type": "blocker_resolved",
+      "title": "unblock the ingest replay harness",
+      "author_ref": "aad-ida-pfeiffer-roy",
+      "owner_candidates": [],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-010",
+          "span": null,
+          "content_hash": "aa25079edeae0db0cbf7e484e97ac13f31c05fbee0bba3dd3fe0ec91a226e468"
+        }
+      ]
+    },
+    {
+      "signal_id": "a7b28bfd5fe824c27e64221d000ec66f11b32f2aea81bf33334858d4cc052dcb",
+      "type": "assignment",
+      "title": "complete the archive migration",
+      "author_ref": "aad-ida-pfeiffer-roy",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-ida-pfeiffer-roy",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": {
+        "raw_text": "end of next sprint",
+        "precision": "week",
+        "date": "2026-08-14"
+      },
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-011",
+          "span": null,
+          "content_hash": "0e887f76d2c410d7959b4d292a5cb86fbed381353b272bb95223dc8e0464c2d8"
+        }
+      ]
+    },
+    {
+      "signal_id": "6a328cbb92b94596cde9907c4edcbc109f25f80f2cb5378f1e9e71365024a98d",
+      "type": "blocker",
+      "title": "unblock the changelog builder",
+      "author_ref": "aad-jean-luc-barre",
+      "description": "waiting on the platform team",
+      "owner_candidates": [],
+      "status_signal": "blocked",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-012",
+          "span": null,
+          "content_hash": "e1faa608a6dac56a94a074840fd678c52beecb1497d80306e5ca3b91be6c2297"
+        }
+      ]
+    },
+    {
+      "signal_id": "fb6fb2ca0e49d88800890a00ef4846450ff975364bb11103e1d24c3b70d36070",
+      "type": "assignment",
+      "title": "own the cost report generator",
+      "author_ref": "aad-marta-de-vries",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-marta-de-vries",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-013",
+          "span": null,
+          "content_hash": "a70a36bb5ef9d8c37acdaeebd6d71a95dd2d574e77e3477ec1cbe12123ca156f"
+        }
+      ]
+    },
+    {
+      "signal_id": "d9da4daf1ed9456f9b8c12a1b9cd171f33b20f73e48fc54419c291aad0d75688",
+      "type": "completion_claim",
+      "title": "complete the retention sweep",
+      "author_ref": "aad-sam-okonjo",
+      "owner_candidates": [],
+      "status_signal": "completed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.8,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-014",
+          "span": null,
+          "content_hash": "2e7349d7ed678f7f00182d5c2175f19d437ac0757bce60c39ca2d6261c3cef0e"
+        }
+      ]
+    },
+    {
+      "signal_id": "c2e85a9ba50eebef774c0235fa731f4dcbe422c1cbb46be66cd5c9d49b6942fc",
+      "type": "blocker",
+      "title": "unblock the alert routing rules",
+      "author_ref": "aad-tobias-grant",
+      "description": "waiting on the platform team",
+      "owner_candidates": [],
+      "status_signal": "blocked",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-015",
+          "span": null,
+          "content_hash": "0c3e107fe51447b73ea25390f103c5aa3f9297df0432ebfefa7a1fd3af5c8f8f"
+        }
+      ]
+    },
+    {
+      "signal_id": "d596169fccae11cc482ec763fc148551696fff85e573611705aed84953644720",
+      "type": "blocker",
+      "title": "unblock the alert routing rules",
+      "author_ref": "aad-sam-okonjo",
+      "description": "waiting on the platform team",
+      "owner_candidates": [],
+      "status_signal": "blocked",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sybd352d87-016",
+          "span": null,
+          "content_hash": "0c3e107fe51447b73ea25390f103c5aa3f9297df0432ebfefa7a1fd3af5c8f8f"
+        }
+      ]
+    }
+  ]
+}

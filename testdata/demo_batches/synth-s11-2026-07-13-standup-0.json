@@ -1,0 +1,267 @@
+{
+  "batch_id": "5bb3af17234b65f68061c3a6053b7cb84ac7bb91453b7e0ea7d3f0cead239082",
+  "extracted_at": "2026-08-11T05:59:00.109825+00:00",
+  "extractor": {
+    "model": "ollama:mistral-small3.1",
+    "prompt_version": "extract-v1.3"
+  },
+  "window": {
+    "source_type": "meeting_transcript",
+    "source_ref": "synth-s11-2026-07-13-standup-0",
+    "time_start": "2026-07-13T10:00:00Z",
+    "time_end": "2026-07-13T10:32:00Z"
+  },
+  "signals": [
+    {
+      "signal_id": "40fdd2469513da2dd7351120e2bd02c0867b5aafb9f5ff818268475ef0a59266",
+      "type": "task_mention",
+      "title": "land the cost report generator before the audit",
+      "author_ref": "aad-tobias-grant",
+      "owner_candidates": [],
+      "status_signal": null,
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syd12ce247-001",
+          "span": null,
+          "content_hash": "bb50758e46baf7ac5802750c3b40e0e3f612f0c17def3cd5a06b6b215d8110ae"
+        }
+      ]
+    },
+    {
+      "signal_id": "95608ff7fbd43381a785df95ad85057d76dc35ef408277c0740bd41e02ceb423",
+      "type": "assignment",
+      "title": "prepare the load-test profile",
+      "author_ref": "aad-tobias-grant",
+      "description": "by end of next sprint",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-tobias-grant",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "proposed",
+      "deadline": {
+        "raw_text": "end of next sprint",
+        "precision": "week",
+        "date": "2026-07-27"
+      },
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syd12ce247-002",
+          "span": null,
+          "content_hash": "21bbe12695d540da973f5d115f9ce874d468a41300795efb019ef2462a2a208a"
+        }
+      ]
+    },
+    {
+      "signal_id": "6a8e4afbf8d4aae555581a1267bbe88705eab075a852b53ebacf062cb74f352c",
+      "type": "assignment",
+      "title": "perform the archive migration",
+      "author_ref": "aad-nell-achebe",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-tobias-grant",
+          "confidence": 1.0,
+          "basis": "explicit_assignment"
+        }
+      ],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syd12ce247-003",
+          "span": null,
+          "content_hash": "62b0cddb0b068af343ef44d32a067ac73717251c22e515a6e4f1844a13a440cf"
+        }
+      ]
+    },
+    {
+      "signal_id": "652cc5b38b41338f8bda0aaef15ef2f922cdeff1b67ca14ab9e9050960845060",
+      "type": "status_update",
+      "title": "unblock the cost report generator",
+      "author_ref": "aad-ida-pfeiffer-roy",
+      "owner_candidates": [],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syd12ce247-007",
+          "span": null,
+          "content_hash": "06104abfd7a8ba3541bf54fe10a898cc83e344afadc1ae2393468bf9e310665c"
+        }
+      ]
+    },
+    {
+      "signal_id": "a2622315cdae08bed3fd42bfad5552a11205b299ad95d0ad06f4310053498fe2",
+      "type": "status_update",
+      "title": "unblock the archive migration",
+      "author_ref": "aad-marta-de-vries",
+      "owner_candidates": [],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syd12ce247-008",
+          "span": null,
+          "content_hash": "ed6fae289fa0a2a74ebc4839207b02a9c7b490ec710fd1024ed04627083ba1ee"
+        }
+      ]
+    },
+    {
+      "signal_id": "dcb0610f4959d76beffe707490dcdc903fcff9139f837c5d84f6c3cec4bdb703",
+      "type": "assignment",
+      "title": "perform the retention sweep",
+      "author_ref": "aad-jean-luc-barre",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-jean-luc-barre",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syd12ce247-009",
+          "span": null,
+          "content_hash": "a2ab33cb9fa5182227f3f4b1d4555fd9d79649dad0a08d7b723328ae1ccff7f5"
+        }
+      ]
+    },
+    {
+      "signal_id": "0dede2402edeab509a0c198d03241644430ca928c32203b73f7301a9db6bb226",
+      "type": "blocker",
+      "title": "unblock the metrics rollup",
+      "author_ref": "aad-jean-luc-barre",
+      "owner_candidates": [],
+      "status_signal": "blocked",
+      "deadline": null,
+      "blocker": {
+        "description": "access request",
+        "blocking_party_ref": null
+      },
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syd12ce247-005",
+          "span": null,
+          "content_hash": "26b1f2c4e8a944287fb8701f4143d5ffaf4c01e8ffe715d01e10d4416ec50cdc"
+        }
+      ]
+    },
+    {
+      "signal_id": "8831bda895656801f95ad2af6ea28bb5d4e351e2ec71983c1fa66a9b38742015",
+      "type": "task_mention",
+      "title": "land the changelog builder before the audit",
+      "author_ref": "aad-jean-luc-barre",
+      "owner_candidates": [],
+      "status_signal": null,
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syd12ce247-006",
+          "span": null,
+          "content_hash": "68ce693f1b2a827a45a0cbae30a989139f2aa51d01b7f579691d6af3b3b60a72"
+        }
+      ]
+    },
+    {
+      "signal_id": "ea611feaa5122bcb4cf6b6811714bfd98d5a7cc0d910648acfe0bfdceb53e330",
+      "type": "blocker",
+      "title": "unblock the retention sweep",
+      "author_ref": "aad-robin-vale",
+      "owner_candidates": [],
+      "status_signal": "blocked",
+      "deadline": null,
+      "blocker": {
+        "description": "access request",
+        "blocking_party_ref": null
+      },
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syd12ce247-011",
+          "span": null,
+          "content_hash": "9dfbf668973b94207b1f4c047c245d36afaade4b2f08d6badfe358811e2980ba"
+        }
+      ]
+    },
+    {
+      "signal_id": "711d91dd0d7645338bf88791fe9b83abeb3820c8a5d081afa6a386fb0d5a269b",
+      "type": "completion_claim",
+      "title": "finish the staging cutover",
+      "author_ref": "aad-otto-lindqvist",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-robin-vale",
+          "confidence": 0.8,
+          "basis": "inferred"
+        }
+      ],
+      "status_signal": "completed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.8,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syd12ce247-014",
+          "span": null,
+          "content_hash": "f97cad12c7c63c4bb93994c4aad53747caf16dacfb9f60751b36a4eceae60308"
+        }
+      ]
+    },
+    {
+      "signal_id": "dec50be149a1b5c656f5edb8926c56a453aaa0381b4b1cf4d03f958c813c5a3b",
+      "type": "assignment",
+      "title": "prepare the load-test profile",
+      "author_ref": "aad-otto-lindqvist",
+      "description": "this week",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-otto-lindqvist",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syd12ce247-016",
+          "span": null,
+          "content_hash": "df5aaa215beadb97532feb34ca724abf4e10e9d9d4c20e56166e4d327d1f8efb"
+        }
+      ]
+    }
+  ]
+}

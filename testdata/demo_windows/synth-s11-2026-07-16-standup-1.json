@@ -1,0 +1,148 @@
+{
+ "job": {
+  "source_type": "meeting_transcript",
+  "source_ref": "synth-s11-2026-07-16-standup-1",
+  "window_start": "2026-07-16T10:00:00Z",
+  "window_end": "2026-07-16T10:32:00Z"
+ },
+ "directory": {
+  "Robin Vale": "aad-robin-vale",
+  "Sam Okonjo": "aad-sam-okonjo",
+  "Ida Pfeiffer-Roy": "aad-ida-pfeiffer-roy",
+  "Marta de Vries": "aad-marta-de-vries",
+  "Jean-Luc Barre": "aad-jean-luc-barre",
+  "Tobias Grant": "aad-tobias-grant",
+  "Nell Achebe": "aad-nell-achebe",
+  "Otto Lindqvist": "aad-otto-lindqvist",
+  "Robin": "aad-robin-vale",
+  "Vale": "aad-robin-vale",
+  "Sam": "aad-sam-okonjo",
+  "Okonjo": "aad-sam-okonjo",
+  "Ida": "aad-ida-pfeiffer-roy",
+  "Pfeiffer-Roy": "aad-ida-pfeiffer-roy",
+  "Marta": "aad-marta-de-vries",
+  "Vries": "aad-marta-de-vries",
+  "Jean-Luc": "aad-jean-luc-barre",
+  "Barre": "aad-jean-luc-barre",
+  "Tobias": "aad-tobias-grant",
+  "Grant": "aad-tobias-grant",
+  "Nell": "aad-nell-achebe",
+  "Achebe": "aad-nell-achebe",
+  "Otto": "aad-otto-lindqvist",
+  "Lindqvist": "aad-otto-lindqvist"
+ },
+ "items": [
+  {
+   "resource_id": "sy2a3d0718-001",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-07-16T10:00:00Z",
+   "text": "the schema linter is done as far as I'm concerned"
+  },
+  {
+   "resource_id": "sy2a3d0718-002",
+   "author_name": "Sam Okonjo",
+   "author_ref": "aad-sam-okonjo",
+   "timestamp": "2026-07-16T10:02:00Z",
+   "text": "let me own the permissions audit for now"
+  },
+  {
+   "resource_id": "sy2a3d0718-003",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-07-16T10:04:00Z",
+   "text": "I think Marta should own the ingest replay harness"
+  },
+  {
+   "resource_id": "sy2a3d0718-004",
+   "author_name": "Tobias Grant",
+   "author_ref": "aad-tobias-grant",
+   "timestamp": "2026-07-16T10:06:00Z",
+   "text": "the sandbox reset script is done as far as I'm concerned"
+  },
+  {
+   "resource_id": "sy2a3d0718-005",
+   "author_name": "Sam Okonjo",
+   "author_ref": "aad-sam-okonjo",
+   "timestamp": "2026-07-16T10:08:00Z",
+   "text": "let me own the permissions audit for now"
+  },
+  {
+   "resource_id": "sy2a3d0718-006",
+   "author_name": "Nell Achebe",
+   "author_ref": "aad-nell-achebe",
+   "timestamp": "2026-07-16T10:10:00Z",
+   "text": "has anyone got a lunch recommendation near the office"
+  },
+  {
+   "resource_id": "sy2a3d0718-007",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-07-16T10:12:00Z",
+   "text": "let's get the ingest replay harness scoped before the end of the month"
+  },
+  {
+   "resource_id": "sy2a3d0718-008",
+   "author_name": "Sam Okonjo",
+   "author_ref": "aad-sam-okonjo",
+   "timestamp": "2026-07-16T10:14:00Z",
+   "text": "would also like to start on the retention sweep"
+  },
+  {
+   "resource_id": "sy2a3d0718-009",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-07-16T10:16:00Z",
+   "text": "I'll take the cost report generator this week"
+  },
+  {
+   "resource_id": "sy2a3d0718-010",
+   "author_name": "Tobias Grant",
+   "author_ref": "aad-tobias-grant",
+   "timestamp": "2026-07-16T10:18:00Z",
+   "text": "Robin, can you take the archive migration?"
+  },
+  {
+   "resource_id": "sy2a3d0718-011",
+   "author_name": "Nell Achebe",
+   "author_ref": "aad-nell-achebe",
+   "timestamp": "2026-07-16T10:20:00Z",
+   "text": "I'm blocked on the retention sweep until the access request clears"
+  },
+  {
+   "resource_id": "sy2a3d0718-012",
+   "author_name": "Marta de Vries",
+   "author_ref": "aad-marta-de-vries",
+   "timestamp": "2026-07-16T10:22:00Z",
+   "text": "I think Sam finished the sandbox reset script last week"
+  },
+  {
+   "resource_id": "sy2a3d0718-013",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-07-16T10:24:00Z",
+   "text": "the retention sweep is done as far as I'm concerned"
+  },
+  {
+   "resource_id": "sy2a3d0718-014",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-07-16T10:26:00Z",
+   "text": "can we prioritise the load-test profile over the rest?"
+  },
+  {
+   "resource_id": "sy2a3d0718-015",
+   "author_name": "Otto Lindqvist",
+   "author_ref": "aad-otto-lindqvist",
+   "timestamp": "2026-07-16T10:28:00Z",
+   "text": "I'll take the metrics rollup this week"
+  },
+  {
+   "resource_id": "sy2a3d0718-016",
+   "author_name": "Sam Okonjo",
+   "author_ref": "aad-sam-okonjo",
+   "timestamp": "2026-07-16T10:30:00Z",
+   "text": "the load-test profile is no longer blocked, that cleared on Friday"
+  }
+ ]
+}

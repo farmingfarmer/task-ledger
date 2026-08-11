@@ -1,0 +1,148 @@
+{
+ "job": {
+  "source_type": "meeting_transcript",
+  "source_ref": "synth-s11-2026-07-19-standup-2",
+  "window_start": "2026-07-19T10:00:00Z",
+  "window_end": "2026-07-19T10:32:00Z"
+ },
+ "directory": {
+  "Robin Vale": "aad-robin-vale",
+  "Sam Okonjo": "aad-sam-okonjo",
+  "Ida Pfeiffer-Roy": "aad-ida-pfeiffer-roy",
+  "Marta de Vries": "aad-marta-de-vries",
+  "Jean-Luc Barre": "aad-jean-luc-barre",
+  "Tobias Grant": "aad-tobias-grant",
+  "Nell Achebe": "aad-nell-achebe",
+  "Otto Lindqvist": "aad-otto-lindqvist",
+  "Robin": "aad-robin-vale",
+  "Vale": "aad-robin-vale",
+  "Sam": "aad-sam-okonjo",
+  "Okonjo": "aad-sam-okonjo",
+  "Ida": "aad-ida-pfeiffer-roy",
+  "Pfeiffer-Roy": "aad-ida-pfeiffer-roy",
+  "Marta": "aad-marta-de-vries",
+  "Vries": "aad-marta-de-vries",
+  "Jean-Luc": "aad-jean-luc-barre",
+  "Barre": "aad-jean-luc-barre",
+  "Tobias": "aad-tobias-grant",
+  "Grant": "aad-tobias-grant",
+  "Nell": "aad-nell-achebe",
+  "Achebe": "aad-nell-achebe",
+  "Otto": "aad-otto-lindqvist",
+  "Lindqvist": "aad-otto-lindqvist"
+ },
+ "items": [
+  {
+   "resource_id": "syf7bf8511-001",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-07-19T10:00:00Z",
+   "text": "I'm going to pick up the retention sweep after standup"
+  },
+  {
+   "resource_id": "syf7bf8511-002",
+   "author_name": "Tobias Grant",
+   "author_ref": "aad-tobias-grant",
+   "timestamp": "2026-07-19T10:02:00Z",
+   "text": "can we prioritise the load-test profile over the rest?"
+  },
+  {
+   "resource_id": "syf7bf8511-003",
+   "author_name": "Robin Vale",
+   "author_ref": "aad-robin-vale",
+   "timestamp": "2026-07-19T10:04:00Z",
+   "text": "let's get the staging cutover scoped before the end of the month"
+  },
+  {
+   "resource_id": "syf7bf8511-004",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-07-19T10:06:00Z",
+   "text": "let me own the load-test profile for now"
+  },
+  {
+   "resource_id": "syf7bf8511-005",
+   "author_name": "Nell Achebe",
+   "author_ref": "aad-nell-achebe",
+   "timestamp": "2026-07-19T10:08:00Z",
+   "text": "I'll take the alert routing rules this week"
+  },
+  {
+   "resource_id": "syf7bf8511-006",
+   "author_name": "Robin Vale",
+   "author_ref": "aad-robin-vale",
+   "timestamp": "2026-07-19T10:10:00Z",
+   "text": "the metrics rollup is no longer blocked, that cleared on Friday"
+  },
+  {
+   "resource_id": "syf7bf8511-007",
+   "author_name": "Tobias Grant",
+   "author_ref": "aad-tobias-grant",
+   "timestamp": "2026-07-19T10:12:00Z",
+   "text": "we are NOT doing the sandbox reset script this quarter"
+  },
+  {
+   "resource_id": "syf7bf8511-008",
+   "author_name": "Marta de Vries",
+   "author_ref": "aad-marta-de-vries",
+   "timestamp": "2026-07-19T10:14:00Z",
+   "text": "good work on the demo yesterday, that landed well"
+  },
+  {
+   "resource_id": "syf7bf8511-009",
+   "author_name": "Nell Achebe",
+   "author_ref": "aad-nell-achebe",
+   "timestamp": "2026-07-19T10:16:00Z",
+   "text": "the changelog builder is no longer blocked, that cleared on Friday"
+  },
+  {
+   "resource_id": "syf7bf8511-010",
+   "author_name": "Nell Achebe",
+   "author_ref": "aad-nell-achebe",
+   "timestamp": "2026-07-19T10:18:00Z",
+   "text": "Sam, can you take the permissions audit?"
+  },
+  {
+   "resource_id": "syf7bf8511-011",
+   "author_name": "Nell Achebe",
+   "author_ref": "aad-nell-achebe",
+   "timestamp": "2026-07-19T10:20:00Z",
+   "text": "has anyone got a lunch recommendation near the office"
+  },
+  {
+   "resource_id": "syf7bf8511-012",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-07-19T10:22:00Z",
+   "text": "I think Ida finished the staging cutover last week"
+  },
+  {
+   "resource_id": "syf7bf8511-013",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-07-19T10:24:00Z",
+   "text": "I'm going to pick up the schema linter after standup"
+  },
+  {
+   "resource_id": "syf7bf8511-014",
+   "author_name": "Nell Achebe",
+   "author_ref": "aad-nell-achebe",
+   "timestamp": "2026-07-19T10:26:00Z",
+   "text": "sorry, I dropped off for a second, could you repeat that"
+  },
+  {
+   "resource_id": "syf7bf8511-015",
+   "author_name": "Sam Okonjo",
+   "author_ref": "aad-sam-okonjo",
+   "timestamp": "2026-07-19T10:28:00Z",
+   "text": "the schema linter is no longer blocked, that cleared on Friday"
+  },
+  {
+   "resource_id": "syf7bf8511-016",
+   "author_name": "Marta de Vries",
+   "author_ref": "aad-marta-de-vries",
+   "timestamp": "2026-07-19T10:30:00Z",
+   "text": "let me own the retention sweep for now"
+  }
+ ]
+}

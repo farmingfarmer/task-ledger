@@ -1,0 +1,306 @@
+{
+  "batch_id": "2fb98e343607219872a87713686c46c8496d7d68b0db71c39a960e1fbfa807ab",
+  "extracted_at": "2026-08-11T06:24:54.411487+00:00",
+  "extractor": {
+    "model": "ollama:mistral-small3.1",
+    "prompt_version": "extract-v1.3"
+  },
+  "window": {
+    "source_type": "meeting_transcript",
+    "source_ref": "synth-s11-2026-08-10-standup-11",
+    "time_start": "2026-08-10T10:00:00Z",
+    "time_end": "2026-08-10T10:32:00Z"
+  },
+  "signals": [
+    {
+      "signal_id": "4e70f66e79a539040d2abec0085b46fadf86a471b7481020a02c32cb87d4d013",
+      "type": "proposal",
+      "title": "Prioritise sandbox reset script",
+      "author_ref": "aad-nell-achebe",
+      "owner_candidates": [],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy300a1193-001",
+          "span": null,
+          "content_hash": "8f3a98dc65c8e4ba67e56ebd5095bf3f58406b4f0a0fe0166180e4087d2c7b19"
+        }
+      ]
+    },
+    {
+      "signal_id": "9e383d1a7a17e9601f043604e4f73f6e348e874a86480d74f520212a29e475dd",
+      "type": "assignment",
+      "title": "Assign sandbox reset script to Sam",
+      "author_ref": "aad-ida-pfeiffer-roy",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-sam-okonjo",
+          "confidence": 1.0,
+          "basis": "explicit_assignment"
+        }
+      ],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy300a1193-002",
+          "span": null,
+          "content_hash": "3d1985f0939db43a85a8fbb6d9223fb9e5500e5ac7921ffe34364026801b00af"
+        }
+      ]
+    },
+    {
+      "signal_id": "aabab53c9df556e494a2f4c0b66b5851cd77e72ae8cdb8e2ff0aca0153bfebca",
+      "type": "proposal",
+      "title": "Start schema linter",
+      "author_ref": "aad-ida-pfeiffer-roy",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-ida-pfeiffer-roy",
+          "basis": "self_reference",
+          "confidence": 0.75
+        }
+      ],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy300a1193-003",
+          "span": null,
+          "content_hash": "5d81d4ac8e2d8d414f7c4c0fac95d6eb3b9f5eadd732c51a871875702465010a"
+        }
+      ]
+    },
+    {
+      "signal_id": "72eb2aea56331510dad5267f78bec95676cd315b044c5363d2e527996c4acfa4",
+      "type": "proposal",
+      "title": "Look at archive migration",
+      "author_ref": "aad-otto-lindqvist",
+      "owner_candidates": [],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy300a1193-004",
+          "span": null,
+          "content_hash": "488f9de4eaae9e386e95938648c06e990ba226ea00f8f177d3d83901477c46ea"
+        }
+      ]
+    },
+    {
+      "signal_id": "a8383e2f1f0499f5599df8907cdf846179b48c2865154ecedd20f900da51d348",
+      "type": "assignment",
+      "title": "Prepare staging cutover",
+      "author_ref": "aad-sam-okonjo",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-sam-okonjo",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": {
+        "raw_text": "end of next sprint",
+        "precision": "week",
+        "date": "2026-08-24"
+      },
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy300a1193-005",
+          "span": null,
+          "content_hash": "8f824dd0d9261c90227bb29302ce5a9bd91a0a01d1f1ae579afdcb3fc0e15aa3"
+        }
+      ]
+    },
+    {
+      "signal_id": "a4b1300be0ddd25ac8c97b81db23b6ad101af5ba27878795eda534905e867f06",
+      "type": "completion_claim",
+      "title": "Complete sandbox reset script",
+      "author_ref": "aad-ida-pfeiffer-roy",
+      "owner_candidates": [],
+      "status_signal": "completed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy300a1193-007",
+          "span": null,
+          "content_hash": "5a35b3530c903b79e1797f7c488b8254cc0c7868418f93033610480ee9e9142c"
+        }
+      ]
+    },
+    {
+      "signal_id": "872b4fd914e1845a01039e045a8c389df9999ea1ab455958796da548b8d3b147",
+      "type": "assignment",
+      "title": "Build cost report generator",
+      "author_ref": "aad-tobias-grant",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-sam-okonjo",
+          "confidence": 1.0,
+          "basis": "explicit_assignment"
+        }
+      ],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy300a1193-008",
+          "span": null,
+          "content_hash": "6ad6d00ab780dc0a7ba4a1a9f70f69e98774949b535ab7231a6b3912c6d699c9"
+        }
+      ]
+    },
+    {
+      "signal_id": "a39fb74609d5f5af4af20f7426c122f479ceaeb39e17cf0a6cc263cb1489423d",
+      "type": "completion_claim",
+      "title": "Complete sandbox reset script",
+      "author_ref": "aad-ida-pfeiffer-roy",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-otto-lindqvist",
+          "confidence": 0.7,
+          "basis": "inferred"
+        }
+      ],
+      "status_signal": "completed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.7,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy300a1193-009",
+          "span": null,
+          "content_hash": "283f4b59e4cda24a3b9147005b1a49ff95291103cd55cd8d226e53d1517a75ac"
+        }
+      ]
+    },
+    {
+      "signal_id": "2c0e1b5c7d9f36eaab21ec3080add1366174eddd1edf9b681360cdbd48cd931e",
+      "type": "assignment",
+      "title": "Prepare load-test profile",
+      "author_ref": "aad-otto-lindqvist",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-otto-lindqvist",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": {
+        "raw_text": "end of next sprint",
+        "precision": "week",
+        "date": "2026-08-24"
+      },
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy300a1193-010",
+          "span": null,
+          "content_hash": "21bbe12695d540da973f5d115f9ce874d468a41300795efb019ef2462a2a208a"
+        }
+      ]
+    },
+    {
+      "signal_id": "14a7c06c35f0966b12d7a56d61a558a115a60f327c1b3b80e11caad50304cad4",
+      "type": "completion_claim",
+      "title": "Complete schema linter",
+      "author_ref": "aad-otto-lindqvist",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-otto-lindqvist",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "completed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy300a1193-011",
+          "span": null,
+          "content_hash": "5a6eb5634a25636f4bfdd51ba9336508b8aa1d1d14aa88d2bc42a2eadd7fa4e5"
+        }
+      ]
+    },
+    {
+      "signal_id": "fc6980c5f76ed056f06cd49cb489a2debb520052ee675dd4352927504735bb80",
+      "type": "assignment",
+      "title": "Take retention sweep",
+      "author_ref": "aad-otto-lindqvist",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-otto-lindqvist",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy300a1193-014",
+          "span": null,
+          "content_hash": "a49133831c39c1fbe7f6edf3e7bee5f1544efd62155af98ad0e9af3b33b28a81"
+        }
+      ]
+    },
+    {
+      "signal_id": "90c650979ece993029c46841c3d2caa97ae4cbf48ff0fe0420f1f6877d2853ee",
+      "type": "assignment",
+      "title": "Build changelog builder",
+      "author_ref": "aad-sam-okonjo",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-sam-okonjo",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy300a1193-016",
+          "span": null,
+          "content_hash": "283365f959c996f1ea280d4f1378ac3bc1077589751489cbaa1adc7e84383126"
+        }
+      ]
+    }
+  ]
+}

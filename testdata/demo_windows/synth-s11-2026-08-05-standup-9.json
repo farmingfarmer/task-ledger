@@ -1,0 +1,148 @@
+{
+ "job": {
+  "source_type": "meeting_transcript",
+  "source_ref": "synth-s11-2026-08-05-standup-9",
+  "window_start": "2026-08-05T10:00:00Z",
+  "window_end": "2026-08-05T10:32:00Z"
+ },
+ "directory": {
+  "Robin Vale": "aad-robin-vale",
+  "Sam Okonjo": "aad-sam-okonjo",
+  "Ida Pfeiffer-Roy": "aad-ida-pfeiffer-roy",
+  "Marta de Vries": "aad-marta-de-vries",
+  "Jean-Luc Barre": "aad-jean-luc-barre",
+  "Tobias Grant": "aad-tobias-grant",
+  "Nell Achebe": "aad-nell-achebe",
+  "Otto Lindqvist": "aad-otto-lindqvist",
+  "Robin": "aad-robin-vale",
+  "Vale": "aad-robin-vale",
+  "Sam": "aad-sam-okonjo",
+  "Okonjo": "aad-sam-okonjo",
+  "Ida": "aad-ida-pfeiffer-roy",
+  "Pfeiffer-Roy": "aad-ida-pfeiffer-roy",
+  "Marta": "aad-marta-de-vries",
+  "Vries": "aad-marta-de-vries",
+  "Jean-Luc": "aad-jean-luc-barre",
+  "Barre": "aad-jean-luc-barre",
+  "Tobias": "aad-tobias-grant",
+  "Grant": "aad-tobias-grant",
+  "Nell": "aad-nell-achebe",
+  "Achebe": "aad-nell-achebe",
+  "Otto": "aad-otto-lindqvist",
+  "Lindqvist": "aad-otto-lindqvist"
+ },
+ "items": [
+  {
+   "resource_id": "sy9f79fa6e-001",
+   "author_name": "Sam Okonjo",
+   "author_ref": "aad-sam-okonjo",
+   "timestamp": "2026-08-05T10:00:00Z",
+   "text": "I think Otto finished the changelog builder last week"
+  },
+  {
+   "resource_id": "sy9f79fa6e-002",
+   "author_name": "Marta de Vries",
+   "author_ref": "aad-marta-de-vries",
+   "timestamp": "2026-08-05T10:02:00Z",
+   "text": "I think Otto should own the permissions audit"
+  },
+  {
+   "resource_id": "sy9f79fa6e-003",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-08-05T10:04:00Z",
+   "text": "would also like to start on the load-test profile"
+  },
+  {
+   "resource_id": "sy9f79fa6e-004",
+   "author_name": "Robin Vale",
+   "author_ref": "aad-robin-vale",
+   "timestamp": "2026-08-05T10:06:00Z",
+   "text": "I finished the changelog builder yesterday"
+  },
+  {
+   "resource_id": "sy9f79fa6e-005",
+   "author_name": "Robin Vale",
+   "author_ref": "aad-robin-vale",
+   "timestamp": "2026-08-05T10:08:00Z",
+   "text": "I'll have the retention sweep ready by end of next sprint"
+  },
+  {
+   "resource_id": "sy9f79fa6e-006",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-08-05T10:10:00Z",
+   "text": "the ingest replay harness is stuck waiting on the platform team"
+  },
+  {
+   "resource_id": "sy9f79fa6e-007",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-08-05T10:12:00Z",
+   "text": "the archive migration needs to land before the audit"
+  },
+  {
+   "resource_id": "sy9f79fa6e-008",
+   "author_name": "Tobias Grant",
+   "author_ref": "aad-tobias-grant",
+   "timestamp": "2026-08-05T10:14:00Z",
+   "text": "Will start on the metrics rollup tomorrow"
+  },
+  {
+   "resource_id": "sy9f79fa6e-009",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-08-05T10:16:00Z",
+   "text": "I think Marta should own the metrics rollup"
+  },
+  {
+   "resource_id": "sy9f79fa6e-010",
+   "author_name": "Otto Lindqvist",
+   "author_ref": "aad-otto-lindqvist",
+   "timestamp": "2026-08-05T10:18:00Z",
+   "text": "has anyone got a lunch recommendation near the office"
+  },
+  {
+   "resource_id": "sy9f79fa6e-011",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-08-05T10:20:00Z",
+   "text": "Will start on the cost report generator tomorrow"
+  },
+  {
+   "resource_id": "sy9f79fa6e-012",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-08-05T10:22:00Z",
+   "text": "would also like to start on the sandbox reset script"
+  },
+  {
+   "resource_id": "sy9f79fa6e-013",
+   "author_name": "Tobias Grant",
+   "author_ref": "aad-tobias-grant",
+   "timestamp": "2026-08-05T10:24:00Z",
+   "text": "I think Otto finished the alert routing rules last week"
+  },
+  {
+   "resource_id": "sy9f79fa6e-014",
+   "author_name": "Sam Okonjo",
+   "author_ref": "aad-sam-okonjo",
+   "timestamp": "2026-08-05T10:26:00Z",
+   "text": "I think Otto should own the alert routing rules"
+  },
+  {
+   "resource_id": "sy9f79fa6e-015",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-08-05T10:28:00Z",
+   "text": "good work on the demo yesterday, that landed well"
+  },
+  {
+   "resource_id": "sy9f79fa6e-016",
+   "author_name": "Nell Achebe",
+   "author_ref": "aad-nell-achebe",
+   "timestamp": "2026-08-05T10:30:00Z",
+   "text": "Otto, can you take the cost report generator?"
+  }
+ ]
+}

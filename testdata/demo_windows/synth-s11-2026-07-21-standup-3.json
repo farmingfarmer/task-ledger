@@ -1,0 +1,148 @@
+{
+ "job": {
+  "source_type": "meeting_transcript",
+  "source_ref": "synth-s11-2026-07-21-standup-3",
+  "window_start": "2026-07-21T10:00:00Z",
+  "window_end": "2026-07-21T10:32:00Z"
+ },
+ "directory": {
+  "Robin Vale": "aad-robin-vale",
+  "Sam Okonjo": "aad-sam-okonjo",
+  "Ida Pfeiffer-Roy": "aad-ida-pfeiffer-roy",
+  "Marta de Vries": "aad-marta-de-vries",
+  "Jean-Luc Barre": "aad-jean-luc-barre",
+  "Tobias Grant": "aad-tobias-grant",
+  "Nell Achebe": "aad-nell-achebe",
+  "Otto Lindqvist": "aad-otto-lindqvist",
+  "Robin": "aad-robin-vale",
+  "Vale": "aad-robin-vale",
+  "Sam": "aad-sam-okonjo",
+  "Okonjo": "aad-sam-okonjo",
+  "Ida": "aad-ida-pfeiffer-roy",
+  "Pfeiffer-Roy": "aad-ida-pfeiffer-roy",
+  "Marta": "aad-marta-de-vries",
+  "Vries": "aad-marta-de-vries",
+  "Jean-Luc": "aad-jean-luc-barre",
+  "Barre": "aad-jean-luc-barre",
+  "Tobias": "aad-tobias-grant",
+  "Grant": "aad-tobias-grant",
+  "Nell": "aad-nell-achebe",
+  "Achebe": "aad-nell-achebe",
+  "Otto": "aad-otto-lindqvist",
+  "Lindqvist": "aad-otto-lindqvist"
+ },
+ "items": [
+  {
+   "resource_id": "sy6fd3acfd-001",
+   "author_name": "Tobias Grant",
+   "author_ref": "aad-tobias-grant",
+   "timestamp": "2026-07-21T10:00:00Z",
+   "text": "the load-test profile needs to land before the audit"
+  },
+  {
+   "resource_id": "sy6fd3acfd-002",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-07-21T10:02:00Z",
+   "text": "can we prioritise the retention sweep over the rest?"
+  },
+  {
+   "resource_id": "sy6fd3acfd-003",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-07-21T10:04:00Z",
+   "text": "let me own the sandbox reset script for now"
+  },
+  {
+   "resource_id": "sy6fd3acfd-004",
+   "author_name": "Tobias Grant",
+   "author_ref": "aad-tobias-grant",
+   "timestamp": "2026-07-21T10:06:00Z",
+   "text": "Ida is already deep in the ingest replay harness, so it makes sense there"
+  },
+  {
+   "resource_id": "sy6fd3acfd-005",
+   "author_name": "Marta de Vries",
+   "author_ref": "aad-marta-de-vries",
+   "timestamp": "2026-07-21T10:08:00Z",
+   "text": "let's get the archive migration scoped before the end of the month"
+  },
+  {
+   "resource_id": "sy6fd3acfd-006",
+   "author_name": "Marta de Vries",
+   "author_ref": "aad-marta-de-vries",
+   "timestamp": "2026-07-21T10:10:00Z",
+   "text": "let me own the metrics rollup for now"
+  },
+  {
+   "resource_id": "sy6fd3acfd-007",
+   "author_name": "Tobias Grant",
+   "author_ref": "aad-tobias-grant",
+   "timestamp": "2026-07-21T10:12:00Z",
+   "text": "someone should look at the changelog builder at some point"
+  },
+  {
+   "resource_id": "sy6fd3acfd-008",
+   "author_name": "Marta de Vries",
+   "author_ref": "aad-marta-de-vries",
+   "timestamp": "2026-07-21T10:14:00Z",
+   "text": "we are NOT doing the ingest replay harness this quarter"
+  },
+  {
+   "resource_id": "sy6fd3acfd-009",
+   "author_name": "Tobias Grant",
+   "author_ref": "aad-tobias-grant",
+   "timestamp": "2026-07-21T10:16:00Z",
+   "text": "I finished the schema linter yesterday"
+  },
+  {
+   "resource_id": "sy6fd3acfd-010",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-07-21T10:18:00Z",
+   "text": "I'll take the permissions audit this week"
+  },
+  {
+   "resource_id": "sy6fd3acfd-011",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-07-21T10:20:00Z",
+   "text": "the changelog builder is stuck waiting on the platform team"
+  },
+  {
+   "resource_id": "sy6fd3acfd-012",
+   "author_name": "Otto Lindqvist",
+   "author_ref": "aad-otto-lindqvist",
+   "timestamp": "2026-07-21T10:22:00Z",
+   "text": "someone should look at the staging cutover at some point"
+  },
+  {
+   "resource_id": "sy6fd3acfd-013",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-07-21T10:24:00Z",
+   "text": "I'm blocked on the alert routing rules until the access request clears"
+  },
+  {
+   "resource_id": "sy6fd3acfd-014",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-07-21T10:26:00Z",
+   "text": "sorry, I dropped off for a second, could you repeat that"
+  },
+  {
+   "resource_id": "sy6fd3acfd-015",
+   "author_name": "Robin Vale",
+   "author_ref": "aad-robin-vale",
+   "timestamp": "2026-07-21T10:28:00Z",
+   "text": "let me own the cost report generator for now"
+  },
+  {
+   "resource_id": "sy6fd3acfd-016",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-07-21T10:30:00Z",
+   "text": "I think Tobias finished the ingest replay harness last week"
+  }
+ ]
+}

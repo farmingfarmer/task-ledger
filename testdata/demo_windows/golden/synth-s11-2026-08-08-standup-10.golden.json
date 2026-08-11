@@ -1,0 +1,125 @@
+{
+ "source_ref": "synth-s11-2026-08-08-standup-10",
+ "claims": [
+  {
+   "resource_id": "sya00b3ec4-001",
+   "kind": "completion_claim",
+   "speaker_ref": "aad-robin-vale",
+   "expected_owner_ref": "aad-robin-vale",
+   "owner_rule": "speaker",
+   "text": "I finished the retention sweep yesterday"
+  },
+  {
+   "resource_id": "sya00b3ec4-002",
+   "kind": "assignment",
+   "speaker_ref": "aad-marta-de-vries",
+   "expected_owner_ref": "aad-marta-de-vries",
+   "owner_rule": "speaker",
+   "text": "would also like to start on the ingest replay harness"
+  },
+  {
+   "resource_id": "sya00b3ec4-003",
+   "kind": "assignment",
+   "speaker_ref": "aad-robin-vale",
+   "expected_owner_ref": "aad-robin-vale",
+   "owner_rule": "speaker",
+   "text": "let me own the changelog builder for now"
+  },
+  {
+   "resource_id": "sya00b3ec4-004",
+   "kind": "cancellation",
+   "speaker_ref": "aad-sam-okonjo",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "we are NOT doing the retention sweep this quarter"
+  },
+  {
+   "resource_id": "sya00b3ec4-005",
+   "kind": "proposal",
+   "speaker_ref": "aad-robin-vale",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "can we prioritise the staging cutover over the rest?"
+  },
+  {
+   "resource_id": "sya00b3ec4-006",
+   "kind": "completion_claim",
+   "speaker_ref": "aad-marta-de-vries",
+   "expected_owner_ref": "aad-marta-de-vries",
+   "owner_rule": "speaker",
+   "text": "the alert routing rules is done as far as I'm concerned"
+  },
+  {
+   "resource_id": "sya00b3ec4-007",
+   "kind": "completion_claim",
+   "speaker_ref": "aad-robin-vale",
+   "expected_owner_ref": "aad-tobias-grant",
+   "owner_rule": "target",
+   "text": "I think Tobias finished the metrics rollup last week"
+  },
+  {
+   "resource_id": "sya00b3ec4-008",
+   "kind": "assignment",
+   "speaker_ref": "aad-sam-okonjo",
+   "expected_owner_ref": "aad-robin-vale",
+   "owner_rule": "target",
+   "text": "I think Robin should own the metrics rollup"
+  },
+  {
+   "resource_id": "sya00b3ec4-009",
+   "kind": "proposal",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "someone should look at the cost report generator at some point"
+  },
+  {
+   "resource_id": "sya00b3ec4-010",
+   "kind": "assignment",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": "aad-jean-luc-barre",
+   "owner_rule": "speaker",
+   "text": "I'll take the permissions audit this week"
+  },
+  {
+   "resource_id": "sya00b3ec4-011",
+   "kind": "assignment",
+   "speaker_ref": "aad-ida-pfeiffer-roy",
+   "expected_owner_ref": "aad-nell-achebe",
+   "owner_rule": "target",
+   "text": "Nell is already deep in the permissions audit, so it makes sense there"
+  },
+  {
+   "resource_id": "sya00b3ec4-012",
+   "kind": "proposal",
+   "speaker_ref": "aad-otto-lindqvist",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "someone should look at the permissions audit at some point"
+  },
+  {
+   "resource_id": "sya00b3ec4-013",
+   "kind": "cancellation",
+   "speaker_ref": "aad-sam-okonjo",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "we are NOT doing the archive migration this quarter"
+  },
+  {
+   "resource_id": "sya00b3ec4-014",
+   "kind": "completion_claim",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": "aad-jean-luc-barre",
+   "owner_rule": "speaker",
+   "text": "the cost report generator is done as far as I'm concerned"
+  },
+  {
+   "resource_id": "sya00b3ec4-016",
+   "kind": "assignment",
+   "speaker_ref": "aad-ida-pfeiffer-roy",
+   "expected_owner_ref": "aad-ida-pfeiffer-roy",
+   "owner_rule": "speaker",
+   "text": "would also like to start on the staging cutover"
+  }
+ ]
+}

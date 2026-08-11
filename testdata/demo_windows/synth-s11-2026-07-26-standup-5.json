@@ -1,0 +1,148 @@
+{
+ "job": {
+  "source_type": "meeting_transcript",
+  "source_ref": "synth-s11-2026-07-26-standup-5",
+  "window_start": "2026-07-26T10:00:00Z",
+  "window_end": "2026-07-26T10:32:00Z"
+ },
+ "directory": {
+  "Robin Vale": "aad-robin-vale",
+  "Sam Okonjo": "aad-sam-okonjo",
+  "Ida Pfeiffer-Roy": "aad-ida-pfeiffer-roy",
+  "Marta de Vries": "aad-marta-de-vries",
+  "Jean-Luc Barre": "aad-jean-luc-barre",
+  "Tobias Grant": "aad-tobias-grant",
+  "Nell Achebe": "aad-nell-achebe",
+  "Otto Lindqvist": "aad-otto-lindqvist",
+  "Robin": "aad-robin-vale",
+  "Vale": "aad-robin-vale",
+  "Sam": "aad-sam-okonjo",
+  "Okonjo": "aad-sam-okonjo",
+  "Ida": "aad-ida-pfeiffer-roy",
+  "Pfeiffer-Roy": "aad-ida-pfeiffer-roy",
+  "Marta": "aad-marta-de-vries",
+  "Vries": "aad-marta-de-vries",
+  "Jean-Luc": "aad-jean-luc-barre",
+  "Barre": "aad-jean-luc-barre",
+  "Tobias": "aad-tobias-grant",
+  "Grant": "aad-tobias-grant",
+  "Nell": "aad-nell-achebe",
+  "Achebe": "aad-nell-achebe",
+  "Otto": "aad-otto-lindqvist",
+  "Lindqvist": "aad-otto-lindqvist"
+ },
+ "items": [
+  {
+   "resource_id": "syd024848a-001",
+   "author_name": "Nell Achebe",
+   "author_ref": "aad-nell-achebe",
+   "timestamp": "2026-07-26T10:00:00Z",
+   "text": "we are NOT doing the retention sweep this quarter"
+  },
+  {
+   "resource_id": "syd024848a-002",
+   "author_name": "Marta de Vries",
+   "author_ref": "aad-marta-de-vries",
+   "timestamp": "2026-07-26T10:02:00Z",
+   "text": "Will start on the alert routing rules tomorrow"
+  },
+  {
+   "resource_id": "syd024848a-003",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-07-26T10:04:00Z",
+   "text": "sorry, I dropped off for a second, could you repeat that"
+  },
+  {
+   "resource_id": "syd024848a-004",
+   "author_name": "Marta de Vries",
+   "author_ref": "aad-marta-de-vries",
+   "timestamp": "2026-07-26T10:06:00Z",
+   "text": "would also like to start on the cost report generator"
+  },
+  {
+   "resource_id": "syd024848a-005",
+   "author_name": "Otto Lindqvist",
+   "author_ref": "aad-otto-lindqvist",
+   "timestamp": "2026-07-26T10:08:00Z",
+   "text": "I think Tobias should own the sandbox reset script"
+  },
+  {
+   "resource_id": "syd024848a-006",
+   "author_name": "Sam Okonjo",
+   "author_ref": "aad-sam-okonjo",
+   "timestamp": "2026-07-26T10:10:00Z",
+   "text": "good work on the demo yesterday, that landed well"
+  },
+  {
+   "resource_id": "syd024848a-007",
+   "author_name": "Robin Vale",
+   "author_ref": "aad-robin-vale",
+   "timestamp": "2026-07-26T10:12:00Z",
+   "text": "sorry, I dropped off for a second, could you repeat that"
+  },
+  {
+   "resource_id": "syd024848a-008",
+   "author_name": "Tobias Grant",
+   "author_ref": "aad-tobias-grant",
+   "timestamp": "2026-07-26T10:14:00Z",
+   "text": "someone should look at the ingest replay harness at some point"
+  },
+  {
+   "resource_id": "syd024848a-009",
+   "author_name": "Otto Lindqvist",
+   "author_ref": "aad-otto-lindqvist",
+   "timestamp": "2026-07-26T10:16:00Z",
+   "text": "the permissions audit is no longer blocked, that cleared on Friday"
+  },
+  {
+   "resource_id": "syd024848a-010",
+   "author_name": "Otto Lindqvist",
+   "author_ref": "aad-otto-lindqvist",
+   "timestamp": "2026-07-26T10:18:00Z",
+   "text": "we are NOT doing the schema linter this quarter"
+  },
+  {
+   "resource_id": "syd024848a-011",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-07-26T10:20:00Z",
+   "text": "good work on the demo yesterday, that landed well"
+  },
+  {
+   "resource_id": "syd024848a-012",
+   "author_name": "Tobias Grant",
+   "author_ref": "aad-tobias-grant",
+   "timestamp": "2026-07-26T10:22:00Z",
+   "text": "I think Ida should own the schema linter"
+  },
+  {
+   "resource_id": "syd024848a-013",
+   "author_name": "Nell Achebe",
+   "author_ref": "aad-nell-achebe",
+   "timestamp": "2026-07-26T10:24:00Z",
+   "text": "Will start on the ingest replay harness tomorrow"
+  },
+  {
+   "resource_id": "syd024848a-014",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-07-26T10:26:00Z",
+   "text": "I'm blocked on the permissions audit until the access request clears"
+  },
+  {
+   "resource_id": "syd024848a-015",
+   "author_name": "Robin Vale",
+   "author_ref": "aad-robin-vale",
+   "timestamp": "2026-07-26T10:28:00Z",
+   "text": "let me own the retention sweep for now"
+  },
+  {
+   "resource_id": "syd024848a-016",
+   "author_name": "Nell Achebe",
+   "author_ref": "aad-nell-achebe",
+   "timestamp": "2026-07-26T10:30:00Z",
+   "text": "the metrics rollup is stuck waiting on the platform team"
+  }
+ ]
+}

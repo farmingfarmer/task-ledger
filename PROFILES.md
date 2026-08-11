@@ -52,6 +52,51 @@ active. Colour alone would fail a projector or a colourblind viewer, so it
 says the word *synthetic* too: the one failure this feature must never
 allow is an audience that cannot tell which ledger it is looking at.
 
+## Rebuilding the demo where nothing can be copied to
+
+The section below assumes you can carry a file between the two machines.
+When you cannot -- no shared network, no removable media, git as the only
+channel -- the database dumps are stuck, because the synthetic ledger was
+generated against the **real** participant directory and that can never
+enter this repository.
+
+The way through is to generate the same kind of material against an
+invented cast, so the fixtures themselves are committable:
+
+```zsh
+# once, on a machine with a model:
+python3 testdata/synth_meetings.py --fictional --out testdata/demo_windows \
+    --meetings 12 --turns 16 --days 28 --seed 11
+for w in testdata/demo_windows/*.json; do
+  python3 extraction/run_local.py --transcript "$w" --model mistral-small3.1 \
+      > "testdata/demo_batches/$(basename $w)"
+done
+git add testdata/demo_windows testdata/demo_batches && git commit
+```
+
+`--fictional` is the only path whose output belongs in git: eight invented
+people, with the surname and first-name aliases a real directory carries,
+because surname-only speakers are what attribution has to survive. A test
+asserts that every `aad-` id hardcoded in the generator belongs to that
+invented cast -- a real ref appearing there would put a colleague's
+identity in the repository.
+
+`testdata/demo_batches/` is what the real extractor made of those windows.
+Committing extraction output rather than re-running it is what lets a
+machine with no model rebuild the board:
+
+```zsh
+createdb taskintel_synth      # + schema.sql, access_control.sql, migrations
+python3 scripts/demo_build.py --dsn "$TL_SYNTH_DSN"
+```
+
+That loads the fixtures through the same store the live pipeline uses,
+reconciles offline, decides most proposals, rejects a few with reasons and
+shares boards at both access levels. One thing is missing without a model
+and the script says so rather than letting you find out in front of people:
+closure signals need the judge band, so **nothing reaches 'completed'**.
+Pass `--judge-model` where Ollama exists.
+
 ## Moving a demo to another machine
 
 The code travels through git. **The ledgers do not and must not** -- two of

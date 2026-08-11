@@ -1,0 +1,148 @@
+{
+ "job": {
+  "source_type": "meeting_transcript",
+  "source_ref": "synth-s11-2026-08-08-standup-10",
+  "window_start": "2026-08-08T10:00:00Z",
+  "window_end": "2026-08-08T10:32:00Z"
+ },
+ "directory": {
+  "Robin Vale": "aad-robin-vale",
+  "Sam Okonjo": "aad-sam-okonjo",
+  "Ida Pfeiffer-Roy": "aad-ida-pfeiffer-roy",
+  "Marta de Vries": "aad-marta-de-vries",
+  "Jean-Luc Barre": "aad-jean-luc-barre",
+  "Tobias Grant": "aad-tobias-grant",
+  "Nell Achebe": "aad-nell-achebe",
+  "Otto Lindqvist": "aad-otto-lindqvist",
+  "Robin": "aad-robin-vale",
+  "Vale": "aad-robin-vale",
+  "Sam": "aad-sam-okonjo",
+  "Okonjo": "aad-sam-okonjo",
+  "Ida": "aad-ida-pfeiffer-roy",
+  "Pfeiffer-Roy": "aad-ida-pfeiffer-roy",
+  "Marta": "aad-marta-de-vries",
+  "Vries": "aad-marta-de-vries",
+  "Jean-Luc": "aad-jean-luc-barre",
+  "Barre": "aad-jean-luc-barre",
+  "Tobias": "aad-tobias-grant",
+  "Grant": "aad-tobias-grant",
+  "Nell": "aad-nell-achebe",
+  "Achebe": "aad-nell-achebe",
+  "Otto": "aad-otto-lindqvist",
+  "Lindqvist": "aad-otto-lindqvist"
+ },
+ "items": [
+  {
+   "resource_id": "sya00b3ec4-001",
+   "author_name": "Robin Vale",
+   "author_ref": "aad-robin-vale",
+   "timestamp": "2026-08-08T10:00:00Z",
+   "text": "I finished the retention sweep yesterday"
+  },
+  {
+   "resource_id": "sya00b3ec4-002",
+   "author_name": "Marta de Vries",
+   "author_ref": "aad-marta-de-vries",
+   "timestamp": "2026-08-08T10:02:00Z",
+   "text": "would also like to start on the ingest replay harness"
+  },
+  {
+   "resource_id": "sya00b3ec4-003",
+   "author_name": "Robin Vale",
+   "author_ref": "aad-robin-vale",
+   "timestamp": "2026-08-08T10:04:00Z",
+   "text": "let me own the changelog builder for now"
+  },
+  {
+   "resource_id": "sya00b3ec4-004",
+   "author_name": "Sam Okonjo",
+   "author_ref": "aad-sam-okonjo",
+   "timestamp": "2026-08-08T10:06:00Z",
+   "text": "we are NOT doing the retention sweep this quarter"
+  },
+  {
+   "resource_id": "sya00b3ec4-005",
+   "author_name": "Robin Vale",
+   "author_ref": "aad-robin-vale",
+   "timestamp": "2026-08-08T10:08:00Z",
+   "text": "can we prioritise the staging cutover over the rest?"
+  },
+  {
+   "resource_id": "sya00b3ec4-006",
+   "author_name": "Marta de Vries",
+   "author_ref": "aad-marta-de-vries",
+   "timestamp": "2026-08-08T10:10:00Z",
+   "text": "the alert routing rules is done as far as I'm concerned"
+  },
+  {
+   "resource_id": "sya00b3ec4-007",
+   "author_name": "Robin Vale",
+   "author_ref": "aad-robin-vale",
+   "timestamp": "2026-08-08T10:12:00Z",
+   "text": "I think Tobias finished the metrics rollup last week"
+  },
+  {
+   "resource_id": "sya00b3ec4-008",
+   "author_name": "Sam Okonjo",
+   "author_ref": "aad-sam-okonjo",
+   "timestamp": "2026-08-08T10:14:00Z",
+   "text": "I think Robin should own the metrics rollup"
+  },
+  {
+   "resource_id": "sya00b3ec4-009",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-08-08T10:16:00Z",
+   "text": "someone should look at the cost report generator at some point"
+  },
+  {
+   "resource_id": "sya00b3ec4-010",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-08-08T10:18:00Z",
+   "text": "I'll take the permissions audit this week"
+  },
+  {
+   "resource_id": "sya00b3ec4-011",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-08-08T10:20:00Z",
+   "text": "Nell is already deep in the permissions audit, so it makes sense there"
+  },
+  {
+   "resource_id": "sya00b3ec4-012",
+   "author_name": "Otto Lindqvist",
+   "author_ref": "aad-otto-lindqvist",
+   "timestamp": "2026-08-08T10:22:00Z",
+   "text": "someone should look at the permissions audit at some point"
+  },
+  {
+   "resource_id": "sya00b3ec4-013",
+   "author_name": "Sam Okonjo",
+   "author_ref": "aad-sam-okonjo",
+   "timestamp": "2026-08-08T10:24:00Z",
+   "text": "we are NOT doing the archive migration this quarter"
+  },
+  {
+   "resource_id": "sya00b3ec4-014",
+   "author_name": "Jean-Luc Barre",
+   "author_ref": "aad-jean-luc-barre",
+   "timestamp": "2026-08-08T10:26:00Z",
+   "text": "the cost report generator is done as far as I'm concerned"
+  },
+  {
+   "resource_id": "sya00b3ec4-015",
+   "author_name": "Nell Achebe",
+   "author_ref": "aad-nell-achebe",
+   "timestamp": "2026-08-08T10:28:00Z",
+   "text": "sorry, I dropped off for a second, could you repeat that"
+  },
+  {
+   "resource_id": "sya00b3ec4-016",
+   "author_name": "Ida Pfeiffer-Roy",
+   "author_ref": "aad-ida-pfeiffer-roy",
+   "timestamp": "2026-08-08T10:30:00Z",
+   "text": "would also like to start on the staging cutover"
+  }
+ ]
+}

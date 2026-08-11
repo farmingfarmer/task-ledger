@@ -1,0 +1,133 @@
+{
+ "source_ref": "synth-s11-2026-07-31-standup-7",
+ "claims": [
+  {
+   "resource_id": "sybd352d87-001",
+   "kind": "deadline_signal",
+   "speaker_ref": "aad-marta-de-vries",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the permissions audit needs to land before the audit"
+  },
+  {
+   "resource_id": "sybd352d87-002",
+   "kind": "blocker",
+   "speaker_ref": "aad-marta-de-vries",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the archive migration is stuck waiting on the platform team"
+  },
+  {
+   "resource_id": "sybd352d87-003",
+   "kind": "blocker",
+   "speaker_ref": "aad-tobias-grant",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the changelog builder is stuck waiting on the platform team"
+  },
+  {
+   "resource_id": "sybd352d87-004",
+   "kind": "assignment",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": "aad-otto-lindqvist",
+   "owner_rule": "target",
+   "text": "Otto is already deep in the archive migration, so it makes sense there"
+  },
+  {
+   "resource_id": "sybd352d87-005",
+   "kind": "deadline_signal",
+   "speaker_ref": "aad-otto-lindqvist",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the metrics rollup needs to land before the audit"
+  },
+  {
+   "resource_id": "sybd352d87-006",
+   "kind": "proposal",
+   "speaker_ref": "aad-otto-lindqvist",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "let's get the sandbox reset script scoped before the end of the month"
+  },
+  {
+   "resource_id": "sybd352d87-007",
+   "kind": "proposal",
+   "speaker_ref": "aad-nell-achebe",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "let's get the metrics rollup scoped before the end of the month"
+  },
+  {
+   "resource_id": "sybd352d87-008",
+   "kind": "cancellation",
+   "speaker_ref": "aad-otto-lindqvist",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "we are NOT doing the retention sweep this quarter"
+  },
+  {
+   "resource_id": "sybd352d87-009",
+   "kind": "deadline_signal",
+   "speaker_ref": "aad-sam-okonjo",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the archive migration needs to land before the audit"
+  },
+  {
+   "resource_id": "sybd352d87-010",
+   "kind": "blocker_resolved",
+   "speaker_ref": "aad-ida-pfeiffer-roy",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the ingest replay harness is no longer blocked, that cleared on Friday"
+  },
+  {
+   "resource_id": "sybd352d87-011",
+   "kind": "deadline_signal",
+   "speaker_ref": "aad-ida-pfeiffer-roy",
+   "expected_owner_ref": "aad-ida-pfeiffer-roy",
+   "owner_rule": "speaker",
+   "text": "I'll have the archive migration ready by end of next sprint"
+  },
+  {
+   "resource_id": "sybd352d87-012",
+   "kind": "blocker",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the changelog builder is stuck waiting on the platform team"
+  },
+  {
+   "resource_id": "sybd352d87-013",
+   "kind": "assignment",
+   "speaker_ref": "aad-marta-de-vries",
+   "expected_owner_ref": "aad-marta-de-vries",
+   "owner_rule": "speaker",
+   "text": "let me own the cost report generator for now"
+  },
+  {
+   "resource_id": "sybd352d87-014",
+   "kind": "completion_claim",
+   "speaker_ref": "aad-sam-okonjo",
+   "expected_owner_ref": "aad-sam-okonjo",
+   "owner_rule": "speaker",
+   "text": "the retention sweep is done as far as I'm concerned"
+  },
+  {
+   "resource_id": "sybd352d87-015",
+   "kind": "blocker",
+   "speaker_ref": "aad-tobias-grant",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the alert routing rules is stuck waiting on the platform team"
+  },
+  {
+   "resource_id": "sybd352d87-016",
+   "kind": "blocker",
+   "speaker_ref": "aad-sam-okonjo",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the alert routing rules is stuck waiting on the platform team"
+  }
+ ]
+}

@@ -1,0 +1,117 @@
+{
+ "source_ref": "synth-s11-2026-07-29-standup-6",
+ "claims": [
+  {
+   "resource_id": "sy616d5233-001",
+   "kind": "blocker",
+   "speaker_ref": "aad-ida-pfeiffer-roy",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the changelog builder is stuck waiting on the platform team"
+  },
+  {
+   "resource_id": "sy616d5233-002",
+   "kind": "assignment",
+   "speaker_ref": "aad-ida-pfeiffer-roy",
+   "expected_owner_ref": "aad-marta-de-vries",
+   "owner_rule": "target",
+   "text": "Marta, can you take the schema linter?"
+  },
+  {
+   "resource_id": "sy616d5233-003",
+   "kind": "deadline_signal",
+   "speaker_ref": "aad-robin-vale",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the archive migration needs to land before the audit"
+  },
+  {
+   "resource_id": "sy616d5233-004",
+   "kind": "completion_claim",
+   "speaker_ref": "aad-marta-de-vries",
+   "expected_owner_ref": "aad-marta-de-vries",
+   "owner_rule": "speaker",
+   "text": "the changelog builder is done as far as I'm concerned"
+  },
+  {
+   "resource_id": "sy616d5233-005",
+   "kind": "assignment",
+   "speaker_ref": "aad-nell-achebe",
+   "expected_owner_ref": "aad-nell-achebe",
+   "owner_rule": "speaker",
+   "text": "let me own the changelog builder for now"
+  },
+  {
+   "resource_id": "sy616d5233-006",
+   "kind": "assignment",
+   "speaker_ref": "aad-sam-okonjo",
+   "expected_owner_ref": "aad-sam-okonjo",
+   "owner_rule": "speaker",
+   "text": "Will start on the cost report generator tomorrow"
+  },
+  {
+   "resource_id": "sy616d5233-008",
+   "kind": "blocker",
+   "speaker_ref": "aad-robin-vale",
+   "expected_owner_ref": "aad-robin-vale",
+   "owner_rule": "speaker",
+   "text": "I'm blocked on the permissions audit until the access request clears"
+  },
+  {
+   "resource_id": "sy616d5233-009",
+   "kind": "assignment",
+   "speaker_ref": "aad-nell-achebe",
+   "expected_owner_ref": "aad-nell-achebe",
+   "owner_rule": "speaker",
+   "text": "would also like to start on the permissions audit"
+  },
+  {
+   "resource_id": "sy616d5233-010",
+   "kind": "assignment",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": "aad-marta-de-vries",
+   "owner_rule": "target",
+   "text": "I think Marta should own the sandbox reset script"
+  },
+  {
+   "resource_id": "sy616d5233-011",
+   "kind": "proposal",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "let's get the alert routing rules scoped before the end of the month"
+  },
+  {
+   "resource_id": "sy616d5233-013",
+   "kind": "deadline_signal",
+   "speaker_ref": "aad-robin-vale",
+   "expected_owner_ref": "aad-robin-vale",
+   "owner_rule": "speaker",
+   "text": "I'll have the ingest replay harness ready by end of next sprint"
+  },
+  {
+   "resource_id": "sy616d5233-014",
+   "kind": "proposal",
+   "speaker_ref": "aad-tobias-grant",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "someone should look at the sandbox reset script at some point"
+  },
+  {
+   "resource_id": "sy616d5233-015",
+   "kind": "blocker",
+   "speaker_ref": "aad-otto-lindqvist",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the retention sweep is stuck waiting on the platform team"
+  },
+  {
+   "resource_id": "sy616d5233-016",
+   "kind": "completion_claim",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": "aad-tobias-grant",
+   "owner_rule": "target",
+   "text": "I think Tobias finished the ingest replay harness last week"
+  }
+ ]
+}

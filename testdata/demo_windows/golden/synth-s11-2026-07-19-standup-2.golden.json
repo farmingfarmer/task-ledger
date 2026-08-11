@@ -1,0 +1,109 @@
+{
+ "source_ref": "synth-s11-2026-07-19-standup-2",
+ "claims": [
+  {
+   "resource_id": "syf7bf8511-001",
+   "kind": "assignment",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": "aad-jean-luc-barre",
+   "owner_rule": "speaker",
+   "text": "I'm going to pick up the retention sweep after standup"
+  },
+  {
+   "resource_id": "syf7bf8511-002",
+   "kind": "proposal",
+   "speaker_ref": "aad-tobias-grant",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "can we prioritise the load-test profile over the rest?"
+  },
+  {
+   "resource_id": "syf7bf8511-003",
+   "kind": "proposal",
+   "speaker_ref": "aad-robin-vale",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "let's get the staging cutover scoped before the end of the month"
+  },
+  {
+   "resource_id": "syf7bf8511-004",
+   "kind": "assignment",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": "aad-jean-luc-barre",
+   "owner_rule": "speaker",
+   "text": "let me own the load-test profile for now"
+  },
+  {
+   "resource_id": "syf7bf8511-005",
+   "kind": "assignment",
+   "speaker_ref": "aad-nell-achebe",
+   "expected_owner_ref": "aad-nell-achebe",
+   "owner_rule": "speaker",
+   "text": "I'll take the alert routing rules this week"
+  },
+  {
+   "resource_id": "syf7bf8511-006",
+   "kind": "blocker_resolved",
+   "speaker_ref": "aad-robin-vale",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the metrics rollup is no longer blocked, that cleared on Friday"
+  },
+  {
+   "resource_id": "syf7bf8511-007",
+   "kind": "cancellation",
+   "speaker_ref": "aad-tobias-grant",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "we are NOT doing the sandbox reset script this quarter"
+  },
+  {
+   "resource_id": "syf7bf8511-009",
+   "kind": "blocker_resolved",
+   "speaker_ref": "aad-nell-achebe",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the changelog builder is no longer blocked, that cleared on Friday"
+  },
+  {
+   "resource_id": "syf7bf8511-010",
+   "kind": "assignment",
+   "speaker_ref": "aad-nell-achebe",
+   "expected_owner_ref": "aad-sam-okonjo",
+   "owner_rule": "target",
+   "text": "Sam, can you take the permissions audit?"
+  },
+  {
+   "resource_id": "syf7bf8511-012",
+   "kind": "completion_claim",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": "aad-ida-pfeiffer-roy",
+   "owner_rule": "target",
+   "text": "I think Ida finished the staging cutover last week"
+  },
+  {
+   "resource_id": "syf7bf8511-013",
+   "kind": "assignment",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": "aad-jean-luc-barre",
+   "owner_rule": "speaker",
+   "text": "I'm going to pick up the schema linter after standup"
+  },
+  {
+   "resource_id": "syf7bf8511-015",
+   "kind": "blocker_resolved",
+   "speaker_ref": "aad-sam-okonjo",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the schema linter is no longer blocked, that cleared on Friday"
+  },
+  {
+   "resource_id": "syf7bf8511-016",
+   "kind": "assignment",
+   "speaker_ref": "aad-marta-de-vries",
+   "expected_owner_ref": "aad-marta-de-vries",
+   "owner_rule": "speaker",
+   "text": "let me own the retention sweep for now"
+  }
+ ]
+}

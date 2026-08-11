@@ -1,0 +1,101 @@
+{
+ "source_ref": "synth-s11-2026-08-10-standup-11",
+ "claims": [
+  {
+   "resource_id": "sy300a1193-001",
+   "kind": "proposal",
+   "speaker_ref": "aad-nell-achebe",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "can we prioritise the sandbox reset script over the rest?"
+  },
+  {
+   "resource_id": "sy300a1193-002",
+   "kind": "assignment",
+   "speaker_ref": "aad-ida-pfeiffer-roy",
+   "expected_owner_ref": "aad-sam-okonjo",
+   "owner_rule": "target",
+   "text": "I think Sam should own the sandbox reset script"
+  },
+  {
+   "resource_id": "sy300a1193-003",
+   "kind": "assignment",
+   "speaker_ref": "aad-ida-pfeiffer-roy",
+   "expected_owner_ref": "aad-ida-pfeiffer-roy",
+   "owner_rule": "speaker",
+   "text": "would also like to start on the schema linter"
+  },
+  {
+   "resource_id": "sy300a1193-004",
+   "kind": "proposal",
+   "speaker_ref": "aad-otto-lindqvist",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "someone should look at the archive migration at some point"
+  },
+  {
+   "resource_id": "sy300a1193-005",
+   "kind": "deadline_signal",
+   "speaker_ref": "aad-sam-okonjo",
+   "expected_owner_ref": "aad-sam-okonjo",
+   "owner_rule": "speaker",
+   "text": "I'll have the staging cutover ready by end of next sprint"
+  },
+  {
+   "resource_id": "sy300a1193-007",
+   "kind": "completion_claim",
+   "speaker_ref": "aad-ida-pfeiffer-roy",
+   "expected_owner_ref": "aad-ida-pfeiffer-roy",
+   "owner_rule": "speaker",
+   "text": "the sandbox reset script is done as far as I'm concerned"
+  },
+  {
+   "resource_id": "sy300a1193-008",
+   "kind": "assignment",
+   "speaker_ref": "aad-tobias-grant",
+   "expected_owner_ref": "aad-sam-okonjo",
+   "owner_rule": "target",
+   "text": "Sam, can you take the cost report generator?"
+  },
+  {
+   "resource_id": "sy300a1193-009",
+   "kind": "completion_claim",
+   "speaker_ref": "aad-ida-pfeiffer-roy",
+   "expected_owner_ref": "aad-otto-lindqvist",
+   "owner_rule": "target",
+   "text": "I think Otto finished the sandbox reset script last week"
+  },
+  {
+   "resource_id": "sy300a1193-010",
+   "kind": "deadline_signal",
+   "speaker_ref": "aad-otto-lindqvist",
+   "expected_owner_ref": "aad-otto-lindqvist",
+   "owner_rule": "speaker",
+   "text": "I'll have the load-test profile ready by end of next sprint"
+  },
+  {
+   "resource_id": "sy300a1193-011",
+   "kind": "completion_claim",
+   "speaker_ref": "aad-otto-lindqvist",
+   "expected_owner_ref": "aad-otto-lindqvist",
+   "owner_rule": "speaker",
+   "text": "I finished the schema linter yesterday"
+  },
+  {
+   "resource_id": "sy300a1193-014",
+   "kind": "assignment",
+   "speaker_ref": "aad-otto-lindqvist",
+   "expected_owner_ref": "aad-otto-lindqvist",
+   "owner_rule": "speaker",
+   "text": "I'll take the retention sweep this week"
+  },
+  {
+   "resource_id": "sy300a1193-016",
+   "kind": "assignment",
+   "speaker_ref": "aad-sam-okonjo",
+   "expected_owner_ref": "aad-sam-okonjo",
+   "owner_rule": "speaker",
+   "text": "I'm going to pick up the changelog builder after standup"
+  }
+ ]
+}

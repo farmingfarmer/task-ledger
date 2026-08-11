@@ -94,6 +94,41 @@ LINES = [
 ]
 
 
+# An invented cast, for material that has to be committable. The real
+# directory can never live in this repository, which is why --template
+# reads it at runtime -- but that also means a generated set cannot travel
+# to a machine that has no copy of a real window. These people do not
+# exist, so windows built from them are ordinary test fixtures: they can be
+# committed, cloned, and rebuilt anywhere with nothing to leak.
+#
+# Deliberately varied in shape, because the directory is what attribution
+# resolves through: a double-barrelled surname, a hyphenated first name, a
+# two-word surname, and two people who share an initial.
+FICTIONAL_CAST = {
+    "Robin Vale": "aad-robin-vale",
+    "Sam Okonjo": "aad-sam-okonjo",
+    "Ida Pfeiffer-Roy": "aad-ida-pfeiffer-roy",
+    "Marta de Vries": "aad-marta-de-vries",
+    "Jean-Luc Barre": "aad-jean-luc-barre",
+    "Tobias Grant": "aad-tobias-grant",
+    "Nell Achebe": "aad-nell-achebe",
+    "Otto Lindqvist": "aad-otto-lindqvist",
+}
+
+
+def fictional_cast():
+    """The same three-tuple load_cast returns, from invented people."""
+    directory = dict(FICTIONAL_CAST)
+    # Surname and first-name aliases, exactly as a real directory carries
+    # them -- surname-only speakers are what attribution has to survive.
+    for name, ref in list(FICTIONAL_CAST.items()):
+        parts = name.split()
+        directory.setdefault(parts[0], ref)
+        directory.setdefault(parts[-1], ref)
+    speakers = dict((ref, name) for name, ref in FICTIONAL_CAST.items())
+    return directory, speakers, "meeting_transcript"
+
+
 def load_cast(template_path):
     """People and format, from a real window. Nothing else is copied: not
     a subject, not a sentence, not a task."""
@@ -177,9 +212,13 @@ def build_meeting(rng, cast, source_type, day, index, turns, seed):
 def main():
     ap = argparse.ArgumentParser(
         description="Synthetic meetings with the real cast.")
-    ap.add_argument("--template", required=True,
+    ap.add_argument("--template", default=None,
                     help="a real processed window; supplies the directory "
                          "and format, nothing else")
+    ap.add_argument("--fictional", action="store_true",
+                    help="use an invented cast instead of a real directory, "
+                         "so the output can be committed and rebuilt on a "
+                         "machine that has no real window to read")
     ap.add_argument("--out", required=True,
                     help="inbox directory OUTSIDE the repository")
     ap.add_argument("--meetings", type=int, default=6)
@@ -189,8 +228,16 @@ def main():
     ap.add_argument("--seed", type=int, default=7)
     args = ap.parse_args()
 
-    out = assert_outside_repo(args.out)
-    cast = load_cast(os.path.expanduser(args.template))
+    if not args.template and not args.fictional:
+        raise SystemExit("pass --template <a real window> or --fictional")
+    if args.fictional:
+        cast = fictional_cast()
+        # Invented people cannot leak anybody, so the repo guard does not
+        # apply -- this is the one path whose output belongs in git.
+        out = os.path.abspath(os.path.expanduser(args.out))
+    else:
+        out = assert_outside_repo(args.out)
+        cast = load_cast(os.path.expanduser(args.template))
     directory, speakers, source_type = cast
     rng = random.Random(args.seed)
 

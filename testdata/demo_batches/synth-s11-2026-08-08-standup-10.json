@@ -1,0 +1,361 @@
+{
+  "batch_id": "c703d443649fcb461212b47538a92bf7a680304a47ef8ac47f109bcc87ff1c47",
+  "extracted_at": "2026-08-11T06:22:58.872324+00:00",
+  "extractor": {
+    "model": "ollama:mistral-small3.1",
+    "prompt_version": "extract-v1.3"
+  },
+  "window": {
+    "source_type": "meeting_transcript",
+    "source_ref": "synth-s11-2026-08-08-standup-10",
+    "time_start": "2026-08-08T10:00:00Z",
+    "time_end": "2026-08-08T10:32:00Z"
+  },
+  "signals": [
+    {
+      "signal_id": "599af88cf69a3b85500a0a23e295de65a0237a1bd0af83be9a9653f1ccef4c72",
+      "type": "completion_claim",
+      "title": "complete retention sweep",
+      "author_ref": "aad-robin-vale",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-robin-vale",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "completed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sya00b3ec4-001",
+          "span": null,
+          "content_hash": "b5211a706e02e716b98acf64294dd4ad8c79faeb4ec3880935ff51cd202c0431"
+        }
+      ]
+    },
+    {
+      "signal_id": "999aaf54c49393622b3ae332401fbd8a7d0bc52ad9ce97f439c165c59907f127",
+      "type": "proposal",
+      "title": "start ingest replay harness",
+      "author_ref": "aad-marta-de-vries",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-marta-de-vries",
+          "basis": "self_reference",
+          "confidence": 0.75
+        }
+      ],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sya00b3ec4-002",
+          "span": null,
+          "content_hash": "2917c97c319297c2d6beefdaccbc14ebccdb3a5b33f399d5e0117870fed72bc0"
+        }
+      ]
+    },
+    {
+      "signal_id": "5b2c1b1f9605ffeaa70d71b55b0c3ba124f899f52210c39ee1aaacec28018340",
+      "type": "assignment",
+      "title": "own changelog builder",
+      "author_ref": "aad-robin-vale",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-robin-vale",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sya00b3ec4-003",
+          "span": null,
+          "content_hash": "beffbff4a6a590df012f224237ee4a0c8c478c7b5fa8ef566dae3aa52b91b998"
+        }
+      ]
+    },
+    {
+      "signal_id": "75458ac18d6e7902054575ad189e2a7b61fd663371b6d8964753fbcba05d8ab8",
+      "type": "cancellation",
+      "title": "cancel retention sweep",
+      "author_ref": "aad-sam-okonjo",
+      "owner_candidates": [],
+      "status_signal": "cancelled",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sya00b3ec4-004",
+          "span": null,
+          "content_hash": "44adb3daa8a3d1ed09114ad8b06cf6d797642e68abed4d7b90c07394f790654d"
+        }
+      ]
+    },
+    {
+      "signal_id": "3ef4eb5524725d18d80d53dcc73bde6dcb0d2146a53889bfaa8684dd408f5ecf",
+      "type": "proposal",
+      "title": "prioritise staging cutover",
+      "author_ref": "aad-robin-vale",
+      "owner_candidates": [],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sya00b3ec4-005",
+          "span": null,
+          "content_hash": "87d3191c85844a82605c9230aaddb5c1211612508d592307845262a367ae0c12"
+        }
+      ]
+    },
+    {
+      "signal_id": "6e14d72f0449edfd473f17069aa0efd7f0820d5f84757acab3210dab5d126872",
+      "type": "completion_claim",
+      "title": "complete alert routing rules",
+      "author_ref": "aad-marta-de-vries",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-marta-de-vries",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "completed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sya00b3ec4-006",
+          "span": null,
+          "content_hash": "24a0edb822e12f034949301dbb1115d9493be7bf24df951fcb47560e0a6a9104"
+        }
+      ]
+    },
+    {
+      "signal_id": "e5faa40d0543adac8bdeda78be8fd6c6027d2512ec678a72feebb3f0295d34c6",
+      "type": "completion_claim",
+      "title": "complete metrics rollup",
+      "author_ref": "aad-robin-vale",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-tobias-grant",
+          "confidence": 0.7,
+          "basis": "inferred"
+        }
+      ],
+      "status_signal": "completed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.7,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sya00b3ec4-007",
+          "span": null,
+          "content_hash": "21997c591034c70d2b35c5ef0bd12431369f13bf6efd79678f53b183deb2285b"
+        }
+      ]
+    },
+    {
+      "signal_id": "ff98298915283b6fe8a9ad928e91d738a792f80bc693aa68a12b1b50d5fb326e",
+      "type": "assignment",
+      "title": "own metrics rollup",
+      "author_ref": "aad-sam-okonjo",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-robin-vale",
+          "confidence": 1.0,
+          "basis": "explicit_assignment"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sya00b3ec4-008",
+          "span": null,
+          "content_hash": "cdae26366566320efc8eb6608bc25ef1e2b932d669780148e089139d177594bc"
+        }
+      ]
+    },
+    {
+      "signal_id": "af044e7fbbbdcff9a293372fa03dcc8d532fc95345f26175930c5c21e51507be",
+      "type": "proposal",
+      "title": "start cost report generator",
+      "author_ref": "aad-jean-luc-barre",
+      "owner_candidates": [],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sya00b3ec4-009",
+          "span": null,
+          "content_hash": "86a9f011c0e26bea25f219c60734a2f732e3db1057735085c308e524519e6d51"
+        }
+      ]
+    },
+    {
+      "signal_id": "e939ee93b409a85564e6aa0c1fe033a4de3a5588f9b206df1db128df04a899d5",
+      "type": "assignment",
+      "title": "start permissions audit",
+      "author_ref": "aad-jean-luc-barre",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-jean-luc-barre",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sya00b3ec4-010",
+          "span": null,
+          "content_hash": "6fc254a00dc87e6eb76b3436503e661428631b8f8a4b6768ef6c023120992f7f"
+        }
+      ]
+    },
+    {
+      "signal_id": "0bd1359ddcac24e5b6c69260cf8acbe207a82b09bd965c6d83bc2c5911e7ebbb",
+      "type": "task_mention",
+      "title": "mention permissions audit",
+      "author_ref": "aad-ida-pfeiffer-roy",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-nell-achebe",
+          "confidence": 1.0,
+          "basis": "inferred"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sya00b3ec4-011",
+          "span": null,
+          "content_hash": "c7721cf12c820beb42131bf542d3a5d5aa9b1aa1e906a08ba7d9a19055058d26"
+        }
+      ]
+    },
+    {
+      "signal_id": "3dab8a5d4c18712c612140629acb828927a15a8504be5254da66e90fbc16c663",
+      "type": "proposal",
+      "title": "start permissions audit",
+      "author_ref": "aad-otto-lindqvist",
+      "owner_candidates": [],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sya00b3ec4-012",
+          "span": null,
+          "content_hash": "04f70535eb7fc9f0c525b20a2cce5e0d529e83f6568d3b7d33f96070fa832a3e"
+        }
+      ]
+    },
+    {
+      "signal_id": "6fa01d9633140d5a0330b2af59b2263bbeb43023e214f151075fed467e6f88c3",
+      "type": "cancellation",
+      "title": "cancel archive migration",
+      "author_ref": "aad-sam-okonjo",
+      "owner_candidates": [],
+      "status_signal": "cancelled",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sya00b3ec4-013",
+          "span": null,
+          "content_hash": "a277f0f35b578b8010843853a31498aae0132673204e879009cb7efae3c396fb"
+        }
+      ]
+    },
+    {
+      "signal_id": "d127a98049342ecd01cb93bb2761c83830e18bfa0387c1c69ca2ef2855a08dd0",
+      "type": "completion_claim",
+      "title": "complete cost report generator",
+      "author_ref": "aad-jean-luc-barre",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-jean-luc-barre",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "completed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sya00b3ec4-014",
+          "span": null,
+          "content_hash": "1b2eed2e83dde3d6575a1c2d10b24481798f88a7d04fd7c4c38f1b8d60608c5d"
+        }
+      ]
+    },
+    {
+      "signal_id": "ade10fe789e509620e0050379a425a7fe6ef504e52692ff6c35a0279a57ad2b3",
+      "type": "proposal",
+      "title": "start staging cutover",
+      "author_ref": "aad-ida-pfeiffer-roy",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-ida-pfeiffer-roy",
+          "basis": "self_reference",
+          "confidence": 0.75
+        }
+      ],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sya00b3ec4-016",
+          "span": null,
+          "content_hash": "00d05ffcf644155375e92e5a8bcd61f76464f7456d62759f55388bcf79e748db"
+        }
+      ]
+    }
+  ]
+}

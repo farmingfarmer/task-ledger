@@ -1,0 +1,125 @@
+{
+ "source_ref": "synth-s11-2026-07-16-standup-1",
+ "claims": [
+  {
+   "resource_id": "sy2a3d0718-001",
+   "kind": "completion_claim",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": "aad-jean-luc-barre",
+   "owner_rule": "speaker",
+   "text": "the schema linter is done as far as I'm concerned"
+  },
+  {
+   "resource_id": "sy2a3d0718-002",
+   "kind": "assignment",
+   "speaker_ref": "aad-sam-okonjo",
+   "expected_owner_ref": "aad-sam-okonjo",
+   "owner_rule": "speaker",
+   "text": "let me own the permissions audit for now"
+  },
+  {
+   "resource_id": "sy2a3d0718-003",
+   "kind": "assignment",
+   "speaker_ref": "aad-ida-pfeiffer-roy",
+   "expected_owner_ref": "aad-marta-de-vries",
+   "owner_rule": "target",
+   "text": "I think Marta should own the ingest replay harness"
+  },
+  {
+   "resource_id": "sy2a3d0718-004",
+   "kind": "completion_claim",
+   "speaker_ref": "aad-tobias-grant",
+   "expected_owner_ref": "aad-tobias-grant",
+   "owner_rule": "speaker",
+   "text": "the sandbox reset script is done as far as I'm concerned"
+  },
+  {
+   "resource_id": "sy2a3d0718-005",
+   "kind": "assignment",
+   "speaker_ref": "aad-sam-okonjo",
+   "expected_owner_ref": "aad-sam-okonjo",
+   "owner_rule": "speaker",
+   "text": "let me own the permissions audit for now"
+  },
+  {
+   "resource_id": "sy2a3d0718-007",
+   "kind": "proposal",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "let's get the ingest replay harness scoped before the end of the month"
+  },
+  {
+   "resource_id": "sy2a3d0718-008",
+   "kind": "assignment",
+   "speaker_ref": "aad-sam-okonjo",
+   "expected_owner_ref": "aad-sam-okonjo",
+   "owner_rule": "speaker",
+   "text": "would also like to start on the retention sweep"
+  },
+  {
+   "resource_id": "sy2a3d0718-009",
+   "kind": "assignment",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": "aad-jean-luc-barre",
+   "owner_rule": "speaker",
+   "text": "I'll take the cost report generator this week"
+  },
+  {
+   "resource_id": "sy2a3d0718-010",
+   "kind": "assignment",
+   "speaker_ref": "aad-tobias-grant",
+   "expected_owner_ref": "aad-robin-vale",
+   "owner_rule": "target",
+   "text": "Robin, can you take the archive migration?"
+  },
+  {
+   "resource_id": "sy2a3d0718-011",
+   "kind": "blocker",
+   "speaker_ref": "aad-nell-achebe",
+   "expected_owner_ref": "aad-nell-achebe",
+   "owner_rule": "speaker",
+   "text": "I'm blocked on the retention sweep until the access request clears"
+  },
+  {
+   "resource_id": "sy2a3d0718-012",
+   "kind": "completion_claim",
+   "speaker_ref": "aad-marta-de-vries",
+   "expected_owner_ref": "aad-sam-okonjo",
+   "owner_rule": "target",
+   "text": "I think Sam finished the sandbox reset script last week"
+  },
+  {
+   "resource_id": "sy2a3d0718-013",
+   "kind": "completion_claim",
+   "speaker_ref": "aad-jean-luc-barre",
+   "expected_owner_ref": "aad-jean-luc-barre",
+   "owner_rule": "speaker",
+   "text": "the retention sweep is done as far as I'm concerned"
+  },
+  {
+   "resource_id": "sy2a3d0718-014",
+   "kind": "proposal",
+   "speaker_ref": "aad-ida-pfeiffer-roy",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "can we prioritise the load-test profile over the rest?"
+  },
+  {
+   "resource_id": "sy2a3d0718-015",
+   "kind": "assignment",
+   "speaker_ref": "aad-otto-lindqvist",
+   "expected_owner_ref": "aad-otto-lindqvist",
+   "owner_rule": "speaker",
+   "text": "I'll take the metrics rollup this week"
+  },
+  {
+   "resource_id": "sy2a3d0718-016",
+   "kind": "blocker_resolved",
+   "speaker_ref": "aad-sam-okonjo",
+   "expected_owner_ref": null,
+   "owner_rule": "none",
+   "text": "the load-test profile is no longer blocked, that cleared on Friday"
+  }
+ ]
+}

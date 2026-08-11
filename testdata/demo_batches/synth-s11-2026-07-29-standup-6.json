@@ -1,0 +1,328 @@
+{
+  "batch_id": "ffa156cfeaf8ad4f94ae18b97ac954ba38c2e7a3a79b1bcb8426b2ad029af3f4",
+  "extracted_at": "2026-08-11T06:13:05.876413+00:00",
+  "extractor": {
+    "model": "ollama:mistral-small3.1",
+    "prompt_version": "extract-v1.3"
+  },
+  "window": {
+    "source_type": "meeting_transcript",
+    "source_ref": "synth-s11-2026-07-29-standup-6",
+    "time_start": "2026-07-29T10:00:00Z",
+    "time_end": "2026-07-29T10:32:00Z"
+  },
+  "signals": [
+    {
+      "signal_id": "16e4081811c7b6db53cbf8c7e4bf594087c404212741840ecaa2dc7a790a06ae",
+      "type": "blocker",
+      "title": "Unblock the changelog builder",
+      "author_ref": "aad-ida-pfeiffer-roy",
+      "description": "The changelog builder is waiting on the platform team.",
+      "owner_candidates": [],
+      "status_signal": "blocked",
+      "deadline": null,
+      "blocker": {
+        "description": "waiting on the platform team",
+        "blocking_party_ref": null
+      },
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy616d5233-001",
+          "span": null,
+          "content_hash": "e1faa608a6dac56a94a074840fd678c52beecb1497d80306e5ca3b91be6c2297"
+        }
+      ]
+    },
+    {
+      "signal_id": "2222ef2a6fd063fc422de6c045c5845acaf10d196c018956823b457d30b664bd",
+      "type": "assignment",
+      "title": "Assign Marta to the schema linter",
+      "author_ref": "aad-ida-pfeiffer-roy",
+      "description": "Marta was asked to take the schema linter.",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-marta-de-vries",
+          "confidence": 1.0,
+          "basis": "explicit_assignment"
+        }
+      ],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy616d5233-002",
+          "span": null,
+          "content_hash": "d44e01fccf950c20290b10fee92a9ee2aa1400b19a20b769e86598821b41cb9f"
+        }
+      ]
+    },
+    {
+      "signal_id": "5456e39a198b9816125378a33ded850ec3aa9e52ead109591fa05a3cca63c054",
+      "type": "task_mention",
+      "title": "Mention the archive migration",
+      "author_ref": "aad-robin-vale",
+      "description": "The archive migration was mentioned in relation to the audit.",
+      "owner_candidates": [],
+      "status_signal": null,
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy616d5233-003",
+          "span": null,
+          "content_hash": "55c5a9f758bd790c1afa959eb254ffb307b55e54e69a5c5cad18334e5a9c7a07"
+        }
+      ]
+    },
+    {
+      "signal_id": "26dc95491918665085ecb6f96b9f1a29d3c8f4ac1427984bd4969d19156322ff",
+      "type": "completion_claim",
+      "title": "Complete the changelog builder",
+      "author_ref": "aad-marta-de-vries",
+      "description": "Marta claimed the changelog builder is done.",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-marta-de-vries",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "completed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy616d5233-004",
+          "span": null,
+          "content_hash": "1bcf86b5e13fb166535899b3dee3a7225c006eab151e7d4be4c4263617242b47"
+        }
+      ]
+    },
+    {
+      "signal_id": "ca842ad9427c58a22b736487dec142891465210ad621708456fb372ef26562bc",
+      "type": "assignment",
+      "title": "Assign Nell to the changelog builder",
+      "author_ref": "aad-nell-achebe",
+      "description": "Nell took ownership of the changelog builder.",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-nell-achebe",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy616d5233-005",
+          "span": null,
+          "content_hash": "beffbff4a6a590df012f224237ee4a0c8c478c7b5fa8ef566dae3aa52b91b998"
+        }
+      ]
+    },
+    {
+      "signal_id": "05f6f13e940e634cdc28115f5b42b8d25563232f0837f8837e685519890e4ca1",
+      "type": "assignment",
+      "title": "Start the cost report generator",
+      "author_ref": "aad-sam-okonjo",
+      "description": "Sam will start on the cost report generator tomorrow.",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-sam-okonjo",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "proposed",
+      "deadline": {
+        "raw_text": "tomorrow",
+        "precision": "exact",
+        "date": "2026-07-30"
+      },
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy616d5233-006",
+          "span": null,
+          "content_hash": "1426f1614e5d493902eeb7fa8fb007716f512620cd78babc785d1bf54e8aea7f"
+        }
+      ]
+    },
+    {
+      "signal_id": "78deef8f8fef683de8a4badf8713a580572a41975e76d025e54e5a751db52223",
+      "type": "blocker",
+      "title": "Unblock the permissions audit",
+      "author_ref": "aad-robin-vale",
+      "description": "Robin is blocked on the permissions audit until the access request clears.",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-robin-vale",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "blocked",
+      "deadline": null,
+      "blocker": {
+        "description": "waiting on the access request to clear",
+        "blocking_party_ref": null
+      },
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy616d5233-008",
+          "span": null,
+          "content_hash": "0dd09cca379cf671ee61d194b6d9a6963d66f06aa658f38d99d846a9143b9860"
+        }
+      ]
+    },
+    {
+      "signal_id": "b630f3c531f651c7ee383ec6cafc7bc821afa293249e508caf55352c4c35f77f",
+      "type": "assignment",
+      "title": "Start the permissions audit",
+      "author_ref": "aad-nell-achebe",
+      "description": "Nell wants to start on the permissions audit.",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-nell-achebe",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy616d5233-009",
+          "span": null,
+          "content_hash": "8bd6f2e3b65b4c9358a0dccb34ab55695b41215a203eaad362a9d0211350d31b"
+        }
+      ]
+    },
+    {
+      "signal_id": "1a87c26522b3a4a12d5af353e7523ece2d276a7f637e7c630dfc400a30c48e29",
+      "type": "assignment",
+      "title": "Assign Marta to the sandbox reset script",
+      "author_ref": "aad-jean-luc-barre",
+      "description": "Jean-Luc suggested Marta should own the sandbox reset script.",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-marta-de-vries",
+          "confidence": 0.7,
+          "basis": "inferred"
+        }
+      ],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.7,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy616d5233-010",
+          "span": null,
+          "content_hash": "6c992f644a2fb13f404ebcd740da1c86f3c2f94ea29a403580e7dfbd1eea93ef"
+        }
+      ]
+    },
+    {
+      "signal_id": "7d7f5d8bc5a986c774c82536a5891ca6ef40e88586eb2eccb903db70849b4105",
+      "type": "proposal",
+      "title": "Scope the alert routing rules",
+      "author_ref": "aad-jean-luc-barre",
+      "description": "Jean-Luc proposed scoping the alert routing rules before the end of the month.",
+      "owner_candidates": [],
+      "status_signal": "proposed",
+      "deadline": {
+        "raw_text": "end of the month",
+        "precision": "month",
+        "date": "2026-07-31"
+      },
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy616d5233-011",
+          "span": null,
+          "content_hash": "a64a895c888e7beeda83cdaf6a6fd0678a40ea86734253a2bc542541eb5333b6"
+        }
+      ]
+    },
+    {
+      "signal_id": "a022f94d55046b3d86e98ce89c8ac355a78db595d3a2984e77df0886c82947a8",
+      "type": "assignment",
+      "title": "Complete the ingest replay harness",
+      "author_ref": "aad-robin-vale",
+      "description": "Robin will have the ingest replay harness ready by the end of next sprint.",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-robin-vale",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": {
+        "raw_text": "end of next sprint",
+        "precision": "week",
+        "date": "2026-08-11"
+      },
+      "blocker": null,
+      "confidence": 0.9,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy616d5233-013",
+          "span": null,
+          "content_hash": "0211cf18ffc1d8ab8230a858bdf178b8ece4f266b33bb88646d8c50d635628f5"
+        }
+      ]
+    },
+    {
+      "signal_id": "c03b8a9ab149c1b705d2a9e034a2bad8a4beb21f427404c80fb0b8df26267379",
+      "type": "completion_claim",
+      "title": "Complete the ingest replay harness",
+      "author_ref": "aad-jean-luc-barre",
+      "description": "Otto thinks Tobias finished the ingest replay harness last week.",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-tobias-grant",
+          "confidence": 0.7,
+          "basis": "inferred"
+        }
+      ],
+      "status_signal": "completed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.7,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "sy616d5233-016",
+          "span": null,
+          "content_hash": "0ab77f5af191519d0992743e7f1db7a93e51795372036458a1786249cb7cce66"
+        }
+      ]
+    }
+  ]
+}

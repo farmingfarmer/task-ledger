@@ -1,0 +1,290 @@
+{
+  "batch_id": "6b8813404d65047c4c4f32ca8a3a4bcc3c638f98e987df3b9148fd00b75b603f",
+  "extracted_at": "2026-08-11T06:02:53.177360+00:00",
+  "extractor": {
+    "model": "ollama:mistral-small3.1",
+    "prompt_version": "extract-v1.3"
+  },
+  "window": {
+    "source_type": "meeting_transcript",
+    "source_ref": "synth-s11-2026-07-19-standup-2",
+    "time_start": "2026-07-19T10:00:00Z",
+    "time_end": "2026-07-19T10:32:00Z"
+  },
+  "signals": [
+    {
+      "signal_id": "13e65b5e2646246bbb3b819d7e7a823564516c798ed3a2024f6697d7e5028cb8",
+      "type": "assignment",
+      "title": "take on load-test profile",
+      "author_ref": "aad-jean-luc-barre",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-tobias-grant",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syf7bf8511-004",
+          "span": null,
+          "content_hash": "10add8283a8557e7e218540939f7af08ea7c740141f168b906e6acb32fddd361"
+        }
+      ]
+    },
+    {
+      "signal_id": "80e27da844c2cd657eb07dd3c7dde75dcf45a00d5ae3768639950ef7edcc1bfc",
+      "type": "assignment",
+      "title": "take on alert routing rules",
+      "author_ref": "aad-nell-achebe",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-nell-achebe",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syf7bf8511-005",
+          "span": null,
+          "content_hash": "07b200926f0e9a7fd5e274fdfee32244e3367901cdb7e3ea7d55419ad8c86b9a"
+        }
+      ]
+    },
+    {
+      "signal_id": "58cfecaaa4b6abb6e9090558e9baa5c4a74d6b201d583f36068ee7bb595b6831",
+      "type": "blocker_resolved",
+      "title": "unblock metrics rollup",
+      "author_ref": "aad-robin-vale",
+      "owner_candidates": [],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syf7bf8511-006",
+          "span": null,
+          "content_hash": "159c627c90a5aa6795a3ffe8255f8fffce47fc57dd4c1c5449e124702f191069"
+        }
+      ]
+    },
+    {
+      "signal_id": "cdd7fde95b82bfef57f3e29182e497cd42514faab92e3c979456db8d828940a7",
+      "type": "cancellation",
+      "title": "cancel sandbox reset script",
+      "author_ref": "aad-tobias-grant",
+      "owner_candidates": [],
+      "status_signal": "cancelled",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syf7bf8511-007",
+          "span": null,
+          "content_hash": "f594e5d9ddca07067cdc0fba713df4cd35bb5dc2a4ae0be4357d1d51794ef86c"
+        }
+      ]
+    },
+    {
+      "signal_id": "c0080b5009c089bc93b5d4bdfc3ea671736ed02353b14e709a13896024506cb4",
+      "type": "blocker_resolved",
+      "title": "unblock changelog builder",
+      "author_ref": "aad-nell-achebe",
+      "owner_candidates": [],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syf7bf8511-009",
+          "span": null,
+          "content_hash": "6ff383ffc4a0ce9d753f5ebeb9a5b2ad0730e893ae7fc3fa8106a8879cb89917"
+        }
+      ]
+    },
+    {
+      "signal_id": "748f7d22017a28680d6af06591bf68275f127e0a930c30c216b2b157024f8ad9",
+      "type": "assignment",
+      "title": "take on permissions audit",
+      "author_ref": "aad-nell-achebe",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-sam-okonjo",
+          "confidence": 1.0,
+          "basis": "explicit_assignment"
+        }
+      ],
+      "status_signal": "proposed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syf7bf8511-010",
+          "span": null,
+          "content_hash": "5aeee4007d8eb126f19d0a49d35e961679c2ae048af665dcec2a4a4fdaa9d05f"
+        }
+      ]
+    },
+    {
+      "signal_id": "25a4a70675cb9998bf639390a186908e629b3e352232fe07a9e8484a01ca60d7",
+      "type": "completion_claim",
+      "title": "finish staging cutover",
+      "author_ref": "aad-jean-luc-barre",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-ida-pfeiffer-roy",
+          "confidence": 0.8,
+          "basis": "inferred"
+        }
+      ],
+      "status_signal": "completed",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 0.8,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syf7bf8511-012",
+          "span": null,
+          "content_hash": "1ea06bb4d3f1154031d8fdcd7c1e69b198898ddabcd6860ae7fe557942364d22"
+        }
+      ]
+    },
+    {
+      "signal_id": "fcca3e7bf86ed57da9b47a2e7b4016024c803ebcff517557365ebc7aa020f6a4",
+      "type": "assignment",
+      "title": "take on retention sweep",
+      "author_ref": "aad-marta-de-vries",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-marta-de-vries",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syf7bf8511-016",
+          "span": null,
+          "content_hash": "fd0282d2c822fcd44c92e69b99c2f5dbe454aed51303555a875eada22220da0f"
+        }
+      ]
+    },
+    {
+      "signal_id": "fd4cd6943e5ecf3c06a1da88e81f98b209af07216b1d3282dada668307566dbd",
+      "type": "blocker_resolved",
+      "title": "unblock schema linter",
+      "author_ref": "aad-sam-okonjo",
+      "owner_candidates": [],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syf7bf8511-015",
+          "span": null,
+          "content_hash": "142cd08aa592ca3d78b818e7d0bbaab53f06d9d359641f0ac304c2ef97323f3f"
+        }
+      ]
+    },
+    {
+      "signal_id": "0b7c1bf09a52655cab85ec0e79fa8eccfccede91d8b808edd73c020b29a6b978",
+      "type": "assignment",
+      "title": "take on retention sweep",
+      "author_ref": "aad-jean-luc-barre",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-jean-luc-barre",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syf7bf8511-001",
+          "span": null,
+          "content_hash": "a2ab33cb9fa5182227f3f4b1d4555fd9d79649dad0a08d7b723328ae1ccff7f5"
+        }
+      ]
+    },
+    {
+      "signal_id": "068adfa2766fd52da10dda366aa3885231b4d8366fd00b36ad564ac53e2f7391",
+      "type": "assignment",
+      "title": "take on schema linter",
+      "author_ref": "aad-jean-luc-barre",
+      "owner_candidates": [
+        {
+          "person_ref": "aad-jean-luc-barre",
+          "confidence": 1.0,
+          "basis": "self_reference"
+        }
+      ],
+      "status_signal": "in_progress",
+      "deadline": null,
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syf7bf8511-013",
+          "span": null,
+          "content_hash": "6e43b8e859419608e93ee46b3a9c29bca05c17c381be818934ea41c446369a84"
+        }
+      ]
+    },
+    {
+      "signal_id": "2526f1d4b1cfc8f708f3a2a5766ac0a8cf689350c1dcb90a1ad1184b11336cd5",
+      "type": "proposal",
+      "title": "scope staging cutover",
+      "author_ref": "aad-robin-vale",
+      "owner_candidates": [],
+      "status_signal": "proposed",
+      "deadline": {
+        "raw_text": "before the end of the month",
+        "precision": "month",
+        "date": "2026-07-31"
+      },
+      "blocker": null,
+      "confidence": 1.0,
+      "evidence": [
+        {
+          "source_type": "transcript_utterance",
+          "resource_id": "syf7bf8511-003",
+          "span": null,
+          "content_hash": "ddc7ef909efd4fad415b426d4663cb831fd0a18c65ab80b301ea1b2765f87b64"
+        }
+      ]
+    }
+  ]
+}
