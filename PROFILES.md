@@ -86,7 +86,11 @@ Committing extraction output rather than re-running it is what lets a
 machine with no model rebuild the board:
 
 ```zsh
-createdb taskintel_synth      # + schema.sql, access_control.sql, migrations
+createdb taskintel_synth      # then ONLY schema.sql + access_control.sql:
+                              # a fresh database already has every column
+                              # and constraint the migrations add, and the
+                              # migration files are for databases that
+                              # predate them
 python3 scripts/demo_build.py --dsn "$TL_SYNTH_DSN"
 ```
 

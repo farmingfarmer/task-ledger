@@ -30,6 +30,13 @@
 -- nor wanted.
 -- =========================================================================
 
+-- RE-RUNNABLE ON A NEWER DATABASE. The list below deliberately includes
+-- copilot_claims, which arrived in a later migration. Without it, applying
+-- this file to a database that already holds copilot_claims batches fails
+-- with "constraint is violated by some row" -- a migration that corrupts a
+-- database which has moved past it is a trap, and ordering discipline is a
+-- weaker guarantee than simply being a superset.
+
 BEGIN;
 
 ALTER TABLE extraction_batches
@@ -39,7 +46,7 @@ ALTER TABLE extraction_batches
   ADD CONSTRAINT extraction_batches_source_type_check
   CHECK (source_type IN
     ('teams_channel','teams_chat','email_thread',
-     'meeting_transcript','meeting_recap','document'));
+     'meeting_transcript','meeting_recap','copilot_claims','document'));
 
 COMMENT ON COLUMN extraction_batches.source_type IS
   'Channel the window came from. meeting_recap is a summary ABOUT a '
