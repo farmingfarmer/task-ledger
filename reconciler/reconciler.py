@@ -207,7 +207,14 @@ class Reconciler(object):
             sims = [embedders.cosine(svec, v)
                     for v in task_vecs.get(t["task_id"], [])]
             sim = max(sims) if sims else 0.0
-            if len(sig["title"].split()) <= th["short_title_penalty"]["max_tokens"]:
+            # Measured on `text`, not on the title, because `text` is what
+            # was embedded. The penalty is there because a two-word generic
+            # title over-matches everything; a signal carrying a description
+            # is not that signal, and charging it the penalty anyway pushed
+            # real matches under judge_floor -- which is not a weaker link,
+            # it is no judge call at all, and for a blocker that means the
+            # signal is discarded rather than held.
+            if len(text.split()) <= th["short_title_penalty"]["max_tokens"]:
                 sim -= th["short_title_penalty"]["penalty"]
             scored.append((sim, t))
         scored.sort(key=lambda p: -p[0])

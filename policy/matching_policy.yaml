@@ -27,8 +27,15 @@ thresholds:
                          # <  judge_floor for ALL candidates : new-task path, record match_note
   judge_accept_min: 0.75 # judge confidence required to act on a same_task verdict
   short_title_penalty:
-    max_tokens: 4        # signals whose title is this short...
-    penalty: 0.07        # ...have this subtracted from raw similarity (generic titles over-match)
+    max_tokens: 4        # signals whose EMBEDDED TEXT (title + description)
+                         # is this short...
+    penalty: 0.07        # ...have this subtracted from raw similarity (generic
+                         # titles over-match). Measured on the embedded text,
+                         # not the title alone: a signal carrying a description
+                         # is not a generic short title, and charging it the
+                         # penalty anyway pushed real matches under judge_floor
+                         # -- which is no judge call at all, and for a blocker
+                         # that means discarded rather than held.
   auto_link_guards:
     never_auto_link_types: ["completion_claim", "cancellation"]  # always judged
     never_auto_link_cross_owner: true    # owner mismatch forces judge regardless of similarity
