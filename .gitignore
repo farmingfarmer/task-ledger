@@ -6,3 +6,9 @@ pgdata/
 # repo (the builder enforces it) -- this is the second line of defence.
 *attribution*.json
 task-ledger-eval/
+# Raw meeting transcripts are real colleague speech, named and timestamped.
+# transcript_ingest.py reads them from wherever they are; nothing about the
+# workflow needs them inside the repo, so make committing one take effort.
+transcript*.txt
+*transcript*raw*.txt
+*_raw.txt

@@ -118,6 +118,24 @@ ATLAS = {
                                "and dropped rather than attached to "
                                "whoever came last."},
                  ]},
+                {"name": "Transcript export",
+                 "file": "scripts/transcript_ingest.py",
+                 "components": [
+                     {"symbol": "parse_meeting",
+                      "blurb": "A Teams transcript saved out of Word states "
+                               "the speaker and the offset three times in "
+                               "three notations, and none of that is speech. "
+                               "The line carrying a name AND a long-form "
+                               "offset is the one dependable delimiter, so "
+                               "that is what utterances split on; the rest is "
+                               "furniture, counted and dropped."},
+                     {"symbol": "split_meetings",
+                      "blurb": "A meeting's title sits above its date line, "
+                               "so a body that runs to the next date header "
+                               "swallows the next meeting's title and puts it "
+                               "in the last speaker's mouth. Each body stops "
+                               "at the following title instead."},
+                 ]},
             ],
         },
         {
@@ -847,6 +865,27 @@ NARRATIVE = {
              "bullets and indentation vary wildly and none of that "
              "matters, but a subject with nobody above it is counted "
              "and dropped rather than pinned on whoever came last"],
+        ],
+        "scripts/transcript_ingest.py::parse_meeting": [
+            ["The real thing is a transcript, not a summary of one",
+             "named, timestamped, every utterance as it was said -- which "
+             "is the input the attribution ladder was designed for and "
+             "has mostly had to do without"],
+            ["Saved through Word, it says everything three times",
+             "the speaker alone on a line, the offset in two notations, "
+             "then the speaker and offset together, and only the last of "
+             "those reliably opens an utterance"],
+            ["So split on that, and count what will not place",
+             "a format that drifts then shows up as a number rather than "
+             "as speech that quietly went missing"],
+        ],
+        "scripts/transcript_ingest.py::split_meetings": [
+            ["Several meetings arrive in one file",
+             "each with a title line sitting above its date line, which "
+             "is the wrong way round for anything reading top to bottom"],
+            ["So a body ends at the next title, not the next date",
+             "otherwise the last speaker of every meeting is recorded "
+             "saying the name of the meeting that follows"],
         ],
         "extraction/extraction_prompts.py::RECAP_GUIDANCE": [
             ["A summary of a meeting did not attend the meeting",
