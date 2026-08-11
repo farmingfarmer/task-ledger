@@ -52,6 +52,37 @@ active. Colour alone would fail a projector or a colourblind viewer, so it
 says the word *synthetic* too: the one failure this feature must never
 allow is an audience that cannot tell which ledger it is looking at.
 
+## Moving a demo to another machine
+
+The code travels through git. **The ledgers do not and must not** -- two of
+the three hold real colleague content, and the repository rule against
+committing DB contents exists for exactly this moment. Carry them out of
+band (USB, or a location your tenant already trusts with this data):
+
+```zsh
+mkdir -p ~/task-ledger-demo-dumps
+for db in taskintel taskintel_synth taskintel_copilot; do
+  pg_dump --no-owner --no-privileges -d $db -f ~/task-ledger-demo-dumps/$db.sql
+done
+```
+
+On the target machine, with the portable Postgres running (Windows port:
+port 5433, user `%USERNAME%`):
+
+```
+createdb -p 5433 taskintel_synth
+psql -p 5433 -d taskintel_synth -f taskintel_synth.sql
+```
+
+...and the same for the others. Restore rewrites nothing: the dumps carry
+the append-only history intact, so provenance survives the move.
+
+**What can be rebuilt instead of carried:** the Copilot-claims ledger, in
+under a minute and with no model -- carry `claims.json` and re-run the
+ingest plus an offline reconcile. The synthetic ledger cannot: it took a
+full extraction pass over twelve windows, which needs Ollama and about
+half an hour. Dump that one.
+
 ## A third ledger: what Copilot itself claims
 
 Copilot will export per-person task claims already structured -- person,
