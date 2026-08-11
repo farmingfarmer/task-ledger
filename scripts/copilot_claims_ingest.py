@@ -259,8 +259,30 @@ def build_batch(records, exported_at, label, bootstrap=False):
 
 
 def load_records(path):
+    """Tolerant of how this arrives: pasted out of a chat window.
+
+    Copilot wraps JSON in markdown fences, sometimes prefixes a sentence,
+    and sometimes trails one. Failing on that would be technically correct
+    and practically useless, so the array is sliced out of whatever came
+    with it -- the same tolerance the extraction worker applies to model
+    responses.
+    """
     with open(path, encoding="utf-8-sig") as f:
-        data = json.load(f)
+        text = f.read()
+    try:
+        data = json.loads(text)
+    except ValueError:
+        start, end = text.find("["), text.rfind("]")
+        if start == -1 or end <= start:
+            raise SystemExit(
+                "no JSON array found in {0}. Paste the export as-is -- "
+                "fences and surrounding prose are fine, but the claims "
+                "themselves must be a JSON array.".format(path))
+        try:
+            data = json.loads(text[start:end + 1])
+        except ValueError as e:
+            raise SystemExit("could not parse the JSON array in {0}: {1}"
+                             .format(path, e))
     if isinstance(data, dict):
         for key in ("claims", "items", "records", "data"):
             if isinstance(data.get(key), list):
