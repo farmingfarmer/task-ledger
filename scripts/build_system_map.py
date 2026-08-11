@@ -33,11 +33,16 @@ ATLAS = {
         {
             "id": "capture", "kind": "stage", "stage": "01",
             "name": "Capture", "color": "#3E5C76",
-            "note": "Graph subscriptions and a drop-folder inbox\nbecome bounded extraction windows",
+            "note": "subscriptions, a drop folder, and what an\nassistant will hand over become windows",
             "blurb": "Nothing downstream sees raw streams. Teams, chat, and "
                      "mail arrive as change notifications (or inbox files, "
                      "pre-Graph) and are cut into quiet-edge windows -- the "
-                     "unit every later stage reasons about.",
+                     "unit every later stage reasons about. Where a tenant "
+                     "will not release transcripts at all, two weaker doors "
+                     "exist and are labelled as weaker for the whole "
+                     "journey: a meeting recap, and Copilot's own already-"
+                     "structured claims, which cite meetings rather than "
+                     "sentences and therefore cannot be checked.",
             "modules": [
                 {"name": "Graph subscriptions",
                  "file": "integration/ingestion/graph_ingestion.py",
@@ -72,6 +77,46 @@ ATLAS = {
                                "dropped in a folder. Ollama down means "
                                "files WAIT rather than vanish -- extraction "
                                "loses nothing by being patient."},
+                     {"symbol": "quarantine",
+                      "blurb": "Waiting is right until it isn't. One window "
+                               "drove the model to 15k characters of broken "
+                               "JSON and 480-680s against a 300s timeout, so "
+                               "it failed every tick forever while looking "
+                               "exactly like the ordinary wait for Ollama. "
+                               "Three failures and it is set aside with the "
+                               "reason beside it -- never deleted, and a "
+                               "model outage still counts for nothing."},
+                 ]},
+                {"name": "Assistant exports",
+                 "file": "scripts/copilot_claims_ingest.py",
+                 "components": [
+                     {"symbol": "claim_signal",
+                      "blurb": "Copilot exports task claims already "
+                               "structured, which means extraction is no "
+                               "longer where this system earns its place -- "
+                               "so it becomes the extractor and the ledger "
+                               "stays the record. What it asserts is kept "
+                               "at arm's length: evidence type "
+                               "assistant_claim, owner basis always "
+                               "inferred, confidence capped below the floor "
+                               "that complete and cancel require."},
+                     {"symbol": "load_records",
+                      "blurb": "Pasted out of a chat window, fences and "
+                               "stray prose and all. Failing on that would "
+                               "be technically correct and practically "
+                               "useless."},
+                 ]},
+                {"name": "Recap fallback",
+                 "file": "scripts/copilot_recap_ingest.py",
+                 "components": [
+                     {"symbol": "parse_recap",
+                      "blurb": "When a tenant will not release transcripts, "
+                               "what you get is subjects grouped under "
+                               "people. Forgiving about bullet glyphs and "
+                               "indentation, strict about structure: a "
+                               "subject with no person above it is counted "
+                               "and dropped rather than attached to "
+                               "whoever came last."},
                  ]},
             ],
         },
@@ -106,6 +151,15 @@ ATLAS = {
                                "code -- and what it still cannot fix "
                                "(deadline-removal, 3 of 3 at temperature "
                                "0) graduates to a guard in the worker."},
+                     {"symbol": "RECAP_GUIDANCE",
+                      "blurb": "A summary about a conversation is not the "
+                               "conversation, and cannot witness a state "
+                               "change however much a bullet sounds like "
+                               "one. Recaps emit sightings only; the worker "
+                               "deletes any completion, blocker or deadline "
+                               "the model invents anyway, and demotes any "
+                               "owner basis stronger than inferred -- "
+                               "nobody said anything for it to have heard."},
                      {"symbol": "ATTRIBUTION_SPEC",
                       "blurb": "Who owns the work, and the fourth answer "
                                "most prompts forget: nobody. Given three "
@@ -124,6 +178,16 @@ ATLAS = {
                       "blurb": "One window in, one schema-valid batch out, "
                                "with deterministic content-hash ids -- the "
                                "same transcript can never double-ingest."},
+                     {"symbol": "_salvage_objects",
+                      "blurb": "Per-signal salvage does nothing when the "
+                               "ARRAY breaks: one stray character lost a "
+                               "whole window, 14,899 characters that broke "
+                               "at 6,847. This re-reads such a response for "
+                               "whole objects and recovered 41 from a total "
+                               "loss. A reader, not a repairer -- a "
+                               "truncated tail is counted as broken, "
+                               "because a half-read signal is a fabricated "
+                               "one."},
                      {"symbol": "ExtractionWorker._build_signal",
                       "blurb": "The guard gauntlet. Missing confidence "
                                "defaults to 0.6 (small models omit it; "
@@ -338,6 +402,22 @@ ATLAS = {
                       "blurb": "The dependency view is owner-only: who is "
                                "waiting on you is your business, not your "
                                "stakeholders'."},
+                     {"symbol": "profiles",
+                      "blurb": "Three ledgers behind one switch: the real "
+                               "one, a synthetic set wide enough to show "
+                               "interactions a real week lacked, and what "
+                               "Copilot itself claims. The client picks a "
+                               "NAME, never a connection string -- an "
+                               "endpoint that took a DSN could point this "
+                               "at any database the host can reach."},
+                     {"symbol": "nudge",
+                      "blurb": "Where did this get to? Not a proposal and "
+                               "not model output -- a person typing what is "
+                               "true -- so it writes actor_type "
+                               "'manual_edit' with a NULL decision_id, the "
+                               "place the schema has held since the first "
+                               "commit so that 'human typed it' stays as "
+                               "auditable as 'model proposed it'."},
                  ]},
                 {"name": "Provenance & redaction",
                  "file": "integration/dashboard/dashboard_api.py",
@@ -719,6 +799,107 @@ NARRATIVE = {
              "the ignore-list is battle scars: announcement dates, "
              "negation reversals, and hedge-handling each earned their "
              "line from a measured failure"],
+        ],
+        "cadence/cadence_tick.py::quarantine": [
+            ["A file still waiting is normally a healthy sign",
+             "the model being down means work waits rather than "
+             "vanishing, so an inbox with something in it is what a "
+             "patient system looks like"],
+            ["Which is exactly why a stuck one hid so well",
+             "one window could never be read at all, and failing every "
+             "single day looked identical to waiting politely for the "
+             "model to come back"],
+            ["Three strikes, then set aside where a person can see it",
+             "the file is moved, not deleted, with a note saying what "
+             "went wrong and that nothing from it was processed -- "
+             "putting it back is the whole repair"],
+        ],
+        "scripts/copilot_claims_ingest.py::claim_signal": [
+            ["The assistant already did the reading",
+             "Copilot hands over task claims per person, already "
+             "structured, which is better than anything we could "
+             "extract from a summary"],
+            ["So it becomes the reader, and this stays the record",
+             "the claims come in through the same door as everything "
+             "else and get the same human gate; nothing changes "
+             "downstream"],
+            ["But a claim that says 'a transcript backs this' is not a "
+             "receipt",
+             "no message, no sentence, no way to go and look -- so "
+             "these are marked as an assistant's word for it, and can "
+             "never propose that work is finished or thrown away"],
+        ],
+        "scripts/copilot_claims_ingest.py::load_records": [
+            ["It arrives copied out of a chat window",
+             "with code fences and a sentence either side, because that "
+             "is how a person actually moves text between two "
+             "programs"],
+            ["So the list is lifted out of whatever came with it",
+             "refusing the paste would be correct and useless; the "
+             "claims themselves still have to parse exactly"],
+        ],
+        "scripts/copilot_recap_ingest.py::parse_recap": [
+            ["Sometimes all you can get is a summary",
+             "not the meeting, just subjects listed under the people "
+             "who raised them, which is what a locked-down tenant will "
+             "release"],
+            ["Read it loosely, attach it strictly",
+             "bullets and indentation vary wildly and none of that "
+             "matters, but a subject with nobody above it is counted "
+             "and dropped rather than pinned on whoever came last"],
+        ],
+        "extraction/extraction_prompts.py::RECAP_GUIDANCE": [
+            ["A summary of a meeting did not attend the meeting",
+             "it can tell you a subject came up; it cannot tell you the "
+             "work finished, slipped, or got stuck, however much a "
+             "bullet may sound like it did"],
+            ["So a recap is allowed to report sightings and nothing "
+             "else",
+             "and the code deletes any completion or blocker the model "
+             "invents anyway, because a rule the model merely agreed to "
+             "is not a rule"],
+            ["'Discussed by' is not 'owns'",
+             "any confidence stronger than an inference is demoted -- "
+             "nobody actually said anything for it to have heard"],
+        ],
+        "extraction/extraction_worker.py::_salvage_objects": [
+            ["One bad character used to cost a whole meeting",
+             "the reply is a list, and a list that breaks anywhere "
+             "fails to parse everywhere -- fourteen thousand characters "
+             "thrown away over a fault near the end"],
+            ["Now the good entries are read out one at a time",
+             "forty-one usable signals recovered from a response that "
+             "had produced nothing at all"],
+            ["Nothing is patched to make it fit",
+             "a half-written entry is counted as lost rather than "
+             "guessed at, because a half-read claim is an invented "
+             "one"],
+        ],
+        "integration/dashboard/dashboard_api.py::profiles": [
+            ["Three ledgers, one button",
+             "the real week, a synthetic set broad enough to show "
+             "situations the real week happened not to contain, and "
+             "what the assistant claims by itself"],
+            ["The page asks for a name, never for a database",
+             "if it could name a connection it could name any database "
+             "this machine can reach, so the server chooses from its "
+             "own short list and ignores anything else"],
+            ["And the screen always says which one you are looking at",
+             "a banner in words rather than colour alone, because the "
+             "one unforgivable outcome is an audience that cannot tell "
+             "real from demonstration"],
+        ],
+        "integration/dashboard/dashboard_api.py::nudge": [
+            ["The other half of keeping a board true",
+             "not only what was heard, but what you took on and then "
+             "went quiet about"],
+            ["Answering is one tap, and it is your answer",
+             "no model proposed it and nothing inferred it -- a person "
+             "typed what is true"],
+            ["Recorded as exactly that, forever",
+             "the ledger marks it hand-typed rather than model-"
+             "proposed, so months later the trail still knows the "
+             "difference"],
         ],
         "extraction/extraction_prompts.py::ATTRIBUTION_SPEC": [
             ["Name who would do the work -- or name nobody",
