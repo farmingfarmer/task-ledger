@@ -1149,6 +1149,13 @@
       : "Nothing moves without a decision recorded against it.";
   }
 
+  // "ADA OKONKWO", not "aad-ada-okonkwo" -- the same shortening the
+  // timeline bands do, so the two never disagree about what a person is
+  // called.
+  function personName(ref){
+    return String(ref || "").replace(/^aad-/, "").replace(/-/g, " ");
+  }
+
   function proposalRow(p, writable){
     var row = el2("div","revitem");
     row.appendChild(el("span","op", opLabel(p.op)));
@@ -1200,9 +1207,41 @@
         .then(function(){ done("Deferred \u2014 it returns to the pool"); })
         ["catch"](function(e){ done(e.message); });
     };
+    // The commonest thing wrong with a new-task card is not the task, it
+    // is who it was pinned on -- and that correction was previously only
+    // reachable as a bare "No", which threw the work away along with the
+    // attribution. One dropdown: the claim goes back to the pool addressed
+    // to the right person, and the miss is recorded as wrong_owner, which
+    // is the same row the attribution eval is built from.
+    var own = null;
+    var others = (p.owner_options || []).filter(function(r){
+      return r !== state.viewer;
+    });
+    if(others.length && (p.op === "create_task" || p.op === "add_subtask")){
+      own = document.createElement("select");
+      var head = el("option", null, "actually it\u2019s\u2026");
+      head.value = ""; own.appendChild(head);
+      others.forEach(function(ref){
+        var o = el("option", null, personName(ref));
+        o.value = ref; own.appendChild(o);
+      });
+      own.onchange = function(){
+        if(!own.value) return;
+        var to = own.value;
+        post("/api/decide", {proposal_id: p.proposal_id, decision: "reject",
+                             reject_reason: "wrong_owner", reassign_to: to})
+          .then(function(){
+            done("Sent to " + personName(to)
+                 + " \u2014 recorded as a wrong-owner miss");
+          })
+          ["catch"](function(e){ done(e.message); });
+      };
+      own.disabled = !writable;
+    }
     [yes, no, later].forEach(function(b){ b.disabled = !writable; });
     sel.disabled = !writable;
     acts.appendChild(yes); acts.appendChild(no); acts.appendChild(sel);
+    if(own) acts.appendChild(own);
     acts.appendChild(later);
     row.appendChild(acts);
     return row;

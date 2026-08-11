@@ -461,6 +461,16 @@ ATLAS = {
                                "happened, not why or by whose word -- the "
                                "redaction is field-by-field, not "
                                "row-by-row."},
+                     {"symbol": "_attach_owner_options",
+                      "blurb": "The commonest thing wrong with a proposed "
+                               "task is not the task, it is who it was "
+                               "pinned on. Correcting that needs the right "
+                               "person already in the list, so the list is "
+                               "the conversation the claim came from -- the "
+                               "extractor's own candidates first, then "
+                               "whoever spoke in that window. Nobody else, "
+                               "because a review control must not double as "
+                               "a directory of colleagues."},
                  ]},
             ],
         },
@@ -1212,6 +1222,19 @@ NARRATIVE = {
              "the full receipt"],
             ["Refuse below full-trace clearance",
              "provenance is a grant, not a default"],
+        ],
+        "integration/dashboard/dashboard_api.py::_attach_owner_options": [
+            ["Wrong owner is the most common miss, and the least fixable",
+             "the work was real and the description was right; only the "
+             "person was wrong, and rejecting it threw all three away"],
+            ["So the correction is a dropdown, not a re-type",
+             "the people the extractor itself weighed come first, then "
+             "whoever else spoke in that window -- and nobody who was not "
+             "there, because naming colleagues is not a review control"],
+            ["It rejects as wrong_owner and re-pools to them",
+             "which is the same row the attribution eval is built from, so "
+             "a correction still counts as a miss -- and their board waits "
+             "for their own decision rather than taking yours"],
         ],
         "integration/dashboard/dashboard_api.py::_redact_event": [
             ["Blank the sensitive fields for progress viewers",

@@ -803,6 +803,64 @@ def _writable():
     return bool(PROFILES.get(profile_name(), {}).get("writable"))
 
 
+def _attach_owner_options(proposals, viewer_ref):
+    """Who a mis-attributed proposal could belong to instead.
+
+    An owner correction is only easy if the right person is already in the
+    list, and only defensible if the list is not a directory of everyone.
+    So it is drawn from the conversation the claim came from: the people
+    the extractor itself considered, whoever spoke in that window, and the
+    viewer. Nobody outside that room is offered, which keeps a review
+    control from doubling as a way to enumerate colleagues.
+
+    Order carries meaning: the extractor's own candidates come first, so
+    'it was actually the other person it considered' is the shortest move.
+    """
+    pids = [p["proposal_id"] for p in proposals]
+    if not pids:
+        return
+    considered, authors, batches = {}, {}, {}
+    for r in q("""
+            SELECT ps.proposal_id, s.owner_candidates, s.author_ref,
+                   s.batch_id
+            FROM proposal_signals ps
+            JOIN signals s ON s.signal_id = ps.signal_id
+            WHERE ps.proposal_id = ANY(%s)""", (pids,)):
+        seen = considered.setdefault(r["proposal_id"], [])
+        for cand in (r["owner_candidates"] or []):
+            ref = (cand or {}).get("person_ref")
+            if ref and ref not in seen:
+                seen.append(ref)
+        if r["author_ref"]:
+            authors.setdefault(r["proposal_id"], []).append(r["author_ref"])
+        if r["batch_id"]:
+            batches.setdefault(r["proposal_id"], set()).add(r["batch_id"])
+
+    all_batches = sorted(set().union(*batches.values()) if batches else [])
+    in_window = {}
+    if all_batches:
+        for r in q("""
+                SELECT DISTINCT batch_id, author_ref FROM signals
+                WHERE batch_id = ANY(%s) AND author_ref IS NOT NULL""",
+                (all_batches,)):
+            in_window.setdefault(r["batch_id"], []).append(r["author_ref"])
+
+    for p in proposals:
+        pid = p["proposal_id"]
+        opts = list(considered.get(pid, []))
+        for ref in authors.get(pid, []):
+            if ref not in opts:
+                opts.append(ref)
+        for b in sorted(batches.get(pid, [])):
+            for ref in sorted(in_window.get(b, [])):
+                if ref not in opts:
+                    opts.append(ref)
+        if viewer_ref not in opts:
+            opts.append(viewer_ref)
+        p["owner_options"] = opts
+        p["proposed_owner"] = (p["payload"] or {}).get("owner_ref")
+
+
 @app.route("/api/review")
 def review_queue():
     """SELF ONLY. Unreviewed claims about a person, plus their quiet work."""
@@ -835,6 +893,7 @@ def review_queue():
                      t.title, t.status
             ORDER BY (p.conflict_type IS NULL), p.confidence DESC""",
             (packets[0]["packet_id"],))
+        _attach_owner_options(proposals, v)
     # Quiet: open, mine, and nothing has happened to it in a week. Same
     # definition the board's "Gone quiet" filter uses, so the popup and the
     # page cannot disagree about what stale means.
@@ -949,15 +1008,54 @@ def decide():
                 return jsonify({"ok": True, "decision": "defer"})
 
             if choice == "reject":
+                # "Not mine -- it is theirs" is still a rejection, and the
+                # reason is still wrong_owner, which is what the attribution
+                # eval counts. What reassign_to adds is where the claim goes
+                # next: back into the pool addressed to that person, so it
+                # reaches them as a proposal in their own packet. Their board
+                # still only moves when they decide. Nothing here writes to
+                # anyone else's board, which is the whole reason it re-pools
+                # instead of creating the task outright.
+                to = (body.get("reassign_to") or "").strip()
+                if to:
+                    if reason != "wrong_owner":
+                        return jsonify({"error": "a reassignment is a "
+                                                 "wrong_owner rejection"}), 400
+                    if to == v:
+                        return jsonify({"error": "that is you -- accept it "
+                                                 "instead"}), 400
+                    # Only someone who was in the conversation this claim
+                    # came from. Correcting attribution must not double as a
+                    # way to put work on any colleague you can name.
+                    probe = [{"proposal_id": proposal_id,
+                              "payload": prop["payload"]}]
+                    _attach_owner_options(probe, v)
+                    if to not in probe[0]["owner_options"]:
+                        return jsonify({"error": "that person was not in the "
+                                                 "conversation this claim "
+                                                 "came from"}), 400
                 cur.execute("""
                     INSERT INTO decisions (proposal_id, packet_id, decision,
                       reject_reason, decided_by, decided_at)
                     VALUES (%s,%s,'reject',%s,%s,now())
                     ON CONFLICT (proposal_id, decided_by) DO NOTHING""",
                     (proposal_id, prop["packet_id"], reason, v))
+                repooled = 0
+                if to:
+                    # Pooled FOR them, not returned to me: I have ruled on
+                    # this claim, and my ruling was that it is theirs.
+                    cur.execute("""
+                        INSERT INTO signal_pool_events
+                          (signal_id, user_ref, event, run_id)
+                        SELECT ps.signal_id, %s, 'pooled', 'review-reassign'
+                        FROM proposal_signals ps
+                        WHERE ps.proposal_id = %s""", (to, proposal_id))
+                    repooled = cur.rowcount
                 conn.commit()
                 return jsonify({"ok": True, "decision": "reject",
-                                "reject_reason": reason})
+                                "reject_reason": reason,
+                                "reassigned_to": to or None,
+                                "signals_repooled": repooled})
 
             ok, why = review_cli.still_valid(prop)
             if not ok:

@@ -20,6 +20,7 @@ Run: python3 test_dashboard.py   (skips politely without a database)
 import json
 import os
 import sys
+import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "dashboard"))
@@ -42,6 +43,12 @@ BATCH = "batch-dash-fixture"
 SIGNAL = "signal-dash-fixture"
 SIGNAL_ACCEPTED = "signal-dash-accepted"
 SIGNAL_CREATE = "signal-dash-create"
+# The owner-correction case is DECIDED by this run, and decisions are
+# append-only -- a fixed id would be undecided on the first run and decided
+# on every one after, so the undecided count would not survive a re-run.
+# A fresh id per run keeps exactly one of these open at the point it counts.
+ATTRIB_PROP = "prop-dash-attrib-{0}".format(int(time.time() * 1000))
+ATTRIB_SIGNAL = "sig-dash-attrib-{0}".format(int(time.time() * 1000))
 CREATED_TASK = "task-dash-created"
 
 
@@ -131,6 +138,40 @@ def seed(conn):
                 INSERT INTO proposal_signals (proposal_id, signal_id)
                 VALUES ('prop-dash-accepted', %s)
                 ON CONFLICT DO NOTHING""", (SIGNAL_ACCEPTED,))
+            # New work whose attribution is contestable: the extractor put
+            # it on the owner but named a second person in the same window,
+            # which is the case the owner-correction control exists for.
+            # add_subtask rather than create_task deliberately -- the control
+            # covers both, decisions are append-only, and every run of this
+            # suite leaves one more behind, so borrowing create_task here
+            # would inflate the acceptance-rate counts asserted above.
+            cur.execute("""
+                INSERT INTO proposals (proposal_id, packet_id, op,
+                  target_task_id, rationale, confidence, conflict_type,
+                  conflict_detail, payload)
+                VALUES (%s,%s,'add_subtask',%s,
+                        'fixture rationale',0.66,NULL,NULL,%s)
+                ON CONFLICT (proposal_id) DO NOTHING""",
+                (ATTRIB_PROP, PACKET, TASK,
+                 json.dumps({"kind": "add_subtask",
+                             "title": "Fixture attributed task",
+                             "owner_ref": OWNER})))
+            cur.execute("""
+                INSERT INTO signals (signal_id, batch_id, signal_type, title,
+                  confidence, author_ref, owner_candidates, raw)
+                VALUES (%s, %s, 'assignment',
+                        'Fixture attributed claim', 0.66, 'dash-speaker',
+                        %s, '{}')
+                ON CONFLICT (signal_id) DO NOTHING""",
+                (ATTRIB_SIGNAL, BATCH, json.dumps([
+                    {"person_ref": OWNER, "basis": "inferred",
+                     "confidence": 0.6},
+                    {"person_ref": MATE, "basis": "inferred",
+                     "confidence": 0.4}])))
+            cur.execute("""
+                INSERT INTO proposal_signals (proposal_id, signal_id)
+                VALUES (%s,%s)
+                ON CONFLICT DO NOTHING""", (ATTRIB_PROP, ATTRIB_SIGNAL))
             cur.execute("""
                 INSERT INTO decisions (proposal_id, packet_id, decision,
                   reject_reason, decided_by, decided_at)
@@ -287,7 +328,7 @@ def main():
 
     print("self-only endpoints")
     code, pend = as_viewer(client, "/api/pending", OWNER)
-    ok(code == 200 and pend["undecided"] == 1
+    ok(code == 200 and pend["undecided"] == 2
        and pend["packets"][0]["packet_id"] == PACKET,
        "owner sees their own pending packet and undecided count")
     code, mate_pend = as_viewer(client, "/api/pending", MATE)
@@ -483,7 +524,11 @@ def main():
     ok(any(i["id"] == TASK and i["mine"] is False for i in mate["items"]),
        "a grantee sees the shared work on the same axis, flagged as not "
        "theirs")
-    ok(not [i for i in mate["items"] if i["kind"] == "claim"],
+    # Named against the owner's signals rather than asserting the grantee
+    # has no claims at all: an owner correction re-pools a claim FOR this
+    # person, so claims of their own are expected here and are not a leak.
+    ok(not [i for i in mate["items"] if i["kind"] == "claim"
+            and i["id"] in (SIGNAL, SIGNAL_ACCEPTED)],
        "but not the owner's unconfirmed claims: those stay self-only")
 
     print("measures")
@@ -574,6 +619,68 @@ def main():
            "and cannot type a status onto someone else's task")
         code, _ = post("/api/nudge", {"task_id": TASK, "status": "vibes"})
         ok(code == 400, "a nudge status is a closed set")
+
+        print("owner correction")
+        code, rev = as_viewer(client, "/api/review?profile=synthetic", OWNER)
+        attrib = [p for p in rev["proposals"]
+                  if p["proposal_id"] == ATTRIB_PROP]
+        ok(len(attrib) == 1 and MATE in attrib[0]["owner_options"],
+           "the other person the extractor considered is offered as a "
+           "correction, so the commonest fix is one click")
+        ok(STRANGER not in attrib[0]["owner_options"],
+           "and nobody outside the conversation is -- a review control is "
+           "not a directory of colleagues")
+        code, _ = post("/api/decide", {"proposal_id": ATTRIB_PROP,
+                                       "decision": "reject",
+                                       "reject_reason": "not_a_task",
+                                       "reassign_to": MATE})
+        ok(code == 400,
+           "a reassignment is a wrong_owner rejection, not any rejection")
+        code, _ = post("/api/decide", {"proposal_id": ATTRIB_PROP,
+                                       "decision": "reject",
+                                       "reject_reason": "wrong_owner",
+                                       "reassign_to": STRANGER})
+        ok(code == 400,
+           "and it cannot put work on someone who was never in the room")
+        code, _ = post("/api/decide", {"proposal_id": ATTRIB_PROP,
+                                       "decision": "reject",
+                                       "reject_reason": "wrong_owner",
+                                       "reassign_to": OWNER})
+        ok(code == 400, "reassigning to yourself is an accept, not a miss")
+        code, b = post("/api/decide", {"proposal_id": ATTRIB_PROP,
+                                       "decision": "reject",
+                                       "reject_reason": "wrong_owner",
+                                       "reassign_to": MATE})
+        ok(code == 200 and b.get("reassigned_to") == MATE
+           and b.get("signals_repooled") == 1,
+           "the correction lands: rejected as wrong_owner, and the claim "
+           "re-pooled for the person it belonged to")
+        check = psycopg2.connect(dsn)
+        with check, check.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT decision, reject_reason FROM decisions
+                WHERE proposal_id = %s""", (ATTRIB_PROP,))
+            d = cur.fetchone()
+            ok(d and d["decision"] == "reject"
+               and d["reject_reason"] == "wrong_owner",
+               "recorded as the same reject/wrong_owner row the attribution "
+               "eval selects on, so a correction counts as a miss")
+            cur.execute("""
+                SELECT event FROM signal_pool_events
+                WHERE signal_id = %s AND user_ref = %s
+                ORDER BY event_id DESC LIMIT 1""", (ATTRIB_SIGNAL, MATE))
+            pooled = cur.fetchone()
+            ok(pooled and pooled["event"] == "pooled",
+               "and the signal is pooled FOR them, so it reaches them as a "
+               "proposal in their own packet")
+            cur.execute("""
+                SELECT count(*) AS n FROM task_events
+                WHERE user_ref = %s""", (MATE,))
+            ok(cur.fetchone()["n"] == 0,
+               "while their board stays untouched -- one person's review "
+               "never writes to another person's board")
+        check.close()
     finally:
         dashboard_api.PROFILES.pop("synthetic", None)
 
