@@ -1,0 +1,199 @@
+@echo off
+rem tl.bat -- the Windows half of ./tl. Same subcommands, same guards:
+rem doctor runs before any DB-touching command so a broken environment
+rem costs a third of a second instead of a full run, and the suites are
+rem forced onto a scratch database. See the header of ./tl for why.
+rem
+rem   tl                  state and what is next
+rem   tl reconcile        signals -> proposals
+rem   tl review           the human decision loop
+rem   tl --synth review   the same, against the synthetic ledger
+setlocal
+cd /d "%~dp0"
+
+set "PROFILE=real"
+if /i "%~1"=="--synth" ( set "PROFILE=synth" & shift )
+if /i "%~1"=="--synthetic" ( set "PROFILE=synth" & shift )
+if /i "%~1"=="--real" ( set "PROFILE=real" & shift )
+
+rem Portable Postgres in the Windows port listens on 5433, not 5432.
+if not defined TL_PORT set "TL_PORT=5433"
+if "%PROFILE%"=="synth" (
+  if defined TL_SYNTH_DSN ( set "DB_DSN=%TL_SYNTH_DSN%" ) else (
+    set "DB_DSN=host=localhost port=%TL_PORT% dbname=taskintel_synth user=%USERNAME%" )
+  set "TL_INBOX=%USERPROFILE%\task-ledger-synthetic-inbox"
+) else (
+  if not defined DB_DSN set "DB_DSN=host=localhost port=%TL_PORT% dbname=taskintel user=%USERNAME%"
+  if not defined TL_INBOX set "TL_INBOX=%USERPROFILE%\task-ledger-inbox"
+)
+if not defined TL_SYNTH_DSN set "TL_SYNTH_DSN=host=localhost port=%TL_PORT% dbname=taskintel_synth user=%USERNAME%"
+
+if not defined TL_USER set "TL_USER=aad-dev"
+if not defined TL_EMBED_MODEL set "TL_EMBED_MODEL=nomic-embed-text"
+if not defined TL_JUDGE_MODEL set "TL_JUDGE_MODEL=mistral-small3.1"
+
+set "CMD=%~1"
+if "%CMD%"=="" set "CMD=up"
+if not "%~1"=="" shift
+
+if /i "%CMD%"=="help" goto :usage
+if /i "%CMD%"=="up" goto :up
+if /i "%CMD%"=="doctor" goto :up
+if /i "%CMD%"=="env" goto :env
+if /i "%CMD%"=="reconcile" goto :reconcile
+if /i "%CMD%"=="review" goto :review
+if /i "%CMD%"=="digest" goto :digest
+if /i "%CMD%"=="ask" goto :ask
+if /i "%CMD%"=="share" goto :share
+if /i "%CMD%"=="dashboard" goto :dashboard
+if /i "%CMD%"=="extract" goto :extract
+if /i "%CMD%"=="ingest" goto :ingest
+if /i "%CMD%"=="demo" goto :demo
+if /i "%CMD%"=="demo-check" goto :democheck
+if /i "%CMD%"=="test" goto :test
+if /i "%CMD%"=="map" goto :map
+echo tl: unknown subcommand "%CMD%" 1>&2
+goto :usage
+
+:usage
+echo tl -- one entrypoint for the daily loop.
+echo.
+echo   up ^| doctor     preflight and current pipeline state (default)
+echo   env             print the SET lines, for a bare shell
+echo   reconcile       signals + board -^> ReviewPacket (writes)
+echo   review          accept / edit / reject / defer the packet
+echo   digest          the week, addressed to a person
+echo   ask "question"  answers over confirmed state, with receipts
+echo   share ^<args^>    grant / revoke / list access
+echo   dashboard       serve http://127.0.0.1:8090
+echo   extract ^<file^>  one transcript -^> typed signals (writes)
+echo   ingest ^<file^>   a Copilot paste -^> the inbox
+echo   demo            seed a reviewable state, no Ollama needed
+echo   demo-check      drive the real app and assert the demo holds up
+echo   test            every suite, forced onto a scratch database
+echo   map             rebuild docs\system_map.html
+exit /b 2
+
+:banner
+echo tl: profile=%PROFILE% as=%TL_USER%
+exit /b 0
+
+rem Fail before the work, not during it.
+:preflight
+python scripts\doctor.py >nul 2>&1
+if errorlevel 1 (
+  python scripts\doctor.py
+  echo.
+  echo tl: doctor failed -- nothing was run. Fix the above and retry. 1>&2
+  exit /b 1
+)
+exit /b 0
+
+:env
+echo set "DB_DSN=%DB_DSN%"
+echo set "TL_INBOX=%TL_INBOX%"
+echo set "TL_SYNTH_DSN=%TL_SYNTH_DSN%"
+exit /b 0
+
+:up
+call :banner
+python scripts\doctor.py
+exit /b %errorlevel%
+
+:reconcile
+call :banner
+call :preflight || exit /b 1
+python reconciler\run_reconcile.py --user "%TL_USER%" --dsn "%DB_DSN%" --embed-model "%TL_EMBED_MODEL%" --judge-model "%TL_JUDGE_MODEL%" --write %*
+exit /b %errorlevel%
+
+:review
+call :banner
+call :preflight || exit /b 1
+python cli\review.py --as "%TL_USER%" --dsn "%DB_DSN%" %*
+exit /b %errorlevel%
+
+:digest
+call :banner
+call :preflight || exit /b 1
+python digest\run_digest.py --as "%TL_USER%" --dsn "%DB_DSN%" %*
+exit /b %errorlevel%
+
+:ask
+if "%~1"=="" (
+  echo tl: ask needs a question, e.g. tl ask "what is blocked" 1>&2
+  exit /b 2
+)
+call :banner
+call :preflight || exit /b 1
+python ask\run_ask.py --as "%TL_USER%" --dsn "%DB_DSN%" %*
+exit /b %errorlevel%
+
+:share
+call :banner
+call :preflight || exit /b 1
+if "%~1"=="" (
+  python cli\share.py --as "%TL_USER%" --dsn "%DB_DSN%" list
+) else (
+  python cli\share.py --as "%TL_USER%" --dsn "%DB_DSN%" %*
+)
+exit /b %errorlevel%
+
+:dashboard
+call :banner
+call :preflight || exit /b 1
+rem Browse the literal IP; bare hostnames get https-upgraded on Windows.
+echo tl: http://127.0.0.1:8090  (ctrl-c to stop)
+python integration\dashboard\dashboard_api.py %*
+exit /b %errorlevel%
+
+:extract
+if "%~1"=="" (
+  echo tl: extract needs a transcript 1>&2
+  exit /b 2
+)
+call :banner
+call :preflight || exit /b 1
+set "TRANSCRIPT=%~1"
+shift
+python extraction\run_local.py --transcript "%TRANSCRIPT%" --model "%TL_JUDGE_MODEL%" --write-db %*
+exit /b %errorlevel%
+
+:ingest
+if "%~1"=="" (
+  echo tl: ingest needs a file, e.g. tl ingest paste.txt 1>&2
+  exit /b 2
+)
+call :banner
+python scripts\copilot_ingest.py "%~1" --out "%TL_INBOX%"
+exit /b %errorlevel%
+
+:demo
+call :banner
+call :preflight || exit /b 1
+python scripts\demo_offline.py %*
+exit /b %errorlevel%
+
+:democheck
+call :banner
+python scripts\demo_preflight.py %*
+exit /b %errorlevel%
+
+:test
+rem run_tests.bat mutates whatever board it is pointed at. Forced onto
+rem scratch so an inherited real DB_DSN cannot become a write to it.
+if defined TL_SCRATCH_DSN (
+  set "DB_DSN=%TL_SCRATCH_DSN%"
+) else (
+  set "DB_DSN=host=localhost port=%TL_PORT% dbname=taskintel_scratch user=%USERNAME%"
+)
+echo %DB_DSN% | findstr /r "dbname=taskintel " >nul && (
+  echo tl: refusing to run the suites against taskintel. 1>&2
+  exit /b 1
+)
+echo tl: suites against a scratch database
+call run_tests.bat %*
+exit /b %errorlevel%
+
+:map
+python scripts\build_system_map.py %*
+exit /b %errorlevel%
