@@ -36,6 +36,23 @@ set "CMD=%~1"
 if "%CMD%"=="" set "CMD=up"
 if not "%~1"=="" shift
 
+rem SHIFT does not affect %*, which always expands to the ORIGINAL argument
+rem list -- so passing %* through after shifting re-sends the subcommand name
+rem and every positional a second time. Gather what is left by hand instead:
+rem ARG1 is the first positional (a file, usually) and REST is everything
+rem after it, with ARGS being both together for subcommands taking neither.
+set "ARG1=%~1"
+set "REST="
+if not "%~1"=="" shift
+:gather
+if "%~1"=="" goto :gathered
+set "REST=%REST% "%~1""
+shift
+goto :gather
+:gathered
+set "ARGS="
+if defined ARG1 set "ARGS="%ARG1%"%REST%"
+
 if /i "%CMD%"=="help" goto :usage
 if /i "%CMD%"=="up" goto :up
 if /i "%CMD%"=="doctor" goto :up
@@ -111,38 +128,38 @@ exit /b %errorlevel%
 :reconcile
 call :banner
 call :preflight || exit /b 1
-python reconciler\run_reconcile.py --user "%TL_USER%" --dsn "%DB_DSN%" --embed-model "%TL_EMBED_MODEL%" --judge-model "%TL_JUDGE_MODEL%" --write %*
+python reconciler\run_reconcile.py --user "%TL_USER%" --dsn "%DB_DSN%" --embed-model "%TL_EMBED_MODEL%" --judge-model "%TL_JUDGE_MODEL%" --write %ARGS%
 exit /b %errorlevel%
 
 :review
 call :banner
 call :preflight || exit /b 1
-python cli\review.py --as "%TL_USER%" --dsn "%DB_DSN%" %*
+python cli\review.py --as "%TL_USER%" --dsn "%DB_DSN%" %ARGS%
 exit /b %errorlevel%
 
 :digest
 call :banner
 call :preflight || exit /b 1
-python digest\run_digest.py --as "%TL_USER%" --dsn "%DB_DSN%" %*
+python digest\run_digest.py --as "%TL_USER%" --dsn "%DB_DSN%" %ARGS%
 exit /b %errorlevel%
 
 :ask
-if "%~1"=="" (
+if not defined ARG1 (
   echo tl: ask needs a question, e.g. tl ask "what is blocked" 1>&2
   exit /b 2
 )
 call :banner
 call :preflight || exit /b 1
-python ask\run_ask.py --as "%TL_USER%" --dsn "%DB_DSN%" %*
+python ask\run_ask.py --as "%TL_USER%" --dsn "%DB_DSN%" %ARGS%
 exit /b %errorlevel%
 
 :share
 call :banner
 call :preflight || exit /b 1
-if "%~1"=="" (
+if not defined ARG1 (
   python cli\share.py --as "%TL_USER%" --dsn "%DB_DSN%" list
 ) else (
-  python cli\share.py --as "%TL_USER%" --dsn "%DB_DSN%" %*
+  python cli\share.py --as "%TL_USER%" --dsn "%DB_DSN%" %ARGS%
 )
 exit /b %errorlevel%
 
@@ -151,78 +168,71 @@ call :banner
 call :preflight || exit /b 1
 rem Browse the literal IP; bare hostnames get https-upgraded on Windows.
 echo tl: http://127.0.0.1:8090  (ctrl-c to stop)
-python integration\dashboard\dashboard_api.py %*
+python integration\dashboard\dashboard_api.py %ARGS%
 exit /b %errorlevel%
 
 :extract
-if "%~1"=="" (
+if not defined ARG1 (
   echo tl: extract needs a transcript 1>&2
   exit /b 2
 )
 call :banner
 call :preflight || exit /b 1
-set "TRANSCRIPT=%~1"
-shift
-python extraction\run_local.py --transcript "%TRANSCRIPT%" --model "%TL_JUDGE_MODEL%" --write-db %*
+python extraction\run_local.py --transcript "%ARG1%" --model "%TL_JUDGE_MODEL%" --write-db %REST%
 exit /b %errorlevel%
 
 :ingest
-if "%~1"=="" (
+if not defined ARG1 (
   echo tl: ingest needs a file, e.g. tl ingest paste.txt 1>&2
   exit /b 2
 )
 call :banner
-python scripts\copilot_ingest.py "%~1" --out "%TL_INBOX%"
+python scripts\copilot_ingest.py "%ARG1%" --out "%TL_INBOX%" %REST%
 exit /b %errorlevel%
 
 :transcripts
-if "%~1"=="" (
+if not defined ARG1 (
   echo tl: transcripts needs a .txt, e.g. tl transcripts transcripts_raw.txt 1>&2
   exit /b 2
 )
 call :banner
-set "TX=%~1"
-shift
-python scripts\transcript_ingest.py "%TX%" --out "%TL_INBOX%" %*
+python scripts\transcript_ingest.py "%ARG1%" --out "%TL_INBOX%" %REST%
 exit /b %errorlevel%
 
 :demoset
-python testdata\synth_transcripts.py --ingest %*
+python testdata\synth_transcripts.py --ingest %ARGS%
 exit /b %errorlevel%
 
 :demotx
 rem Its own database on purpose: this seeds decisions in other people's
 rem names, which is defensible on invented work and on nothing else.
-if "%~1"=="" (
+if not defined ARG1 (
   echo tl: demo-tx needs a transcripts .txt or a window directory 1>&2
   exit /b 2
 )
 if not defined TL_DEMO_DSN set "TL_DEMO_DSN=host=localhost port=%TL_PORT% dbname=taskintel_txdemo user=%USERNAME%"
-set "SRC=%~1"
-shift
-python scripts\demo_transcript_build.py "%SRC%" --dsn "%TL_DEMO_DSN%" %*
+python scripts\demo_transcript_build.py "%ARG1%" --dsn "%TL_DEMO_DSN%" %REST%
 exit /b %errorlevel%
 
 :score
-if "%~1"=="" (
+if not defined ARG1 (
   echo tl: score needs a corpus directory (with golden.json) 1>&2
   exit /b 2
 )
-set "CORPUS=%~f1"
-shift
+for %%I in ("%ARG1%") do set "CORPUS=%%~fI"
 cd /d "%~dp0testdata"
-python score_extraction.py --corpus "%CORPUS%" --model "%TL_JUDGE_MODEL%" %*
+python score_extraction.py --corpus "%CORPUS%" --model "%TL_JUDGE_MODEL%" %REST%
 exit /b %errorlevel%
 
 :demo
 call :banner
 call :preflight || exit /b 1
-python scripts\demo_offline.py %*
+python scripts\demo_offline.py %ARGS%
 exit /b %errorlevel%
 
 :democheck
 call :banner
-python scripts\demo_preflight.py %*
+python scripts\demo_preflight.py %ARGS%
 exit /b %errorlevel%
 
 :test
@@ -238,9 +248,9 @@ echo %DB_DSN% | findstr /r "dbname=taskintel " >nul && (
   exit /b 1
 )
 echo tl: suites against a scratch database
-call run_tests.bat %*
+call run_tests.bat %ARGS%
 exit /b %errorlevel%
 
 :map
-python scripts\build_system_map.py %*
+python scripts\build_system_map.py %ARGS%
 exit /b %errorlevel%
