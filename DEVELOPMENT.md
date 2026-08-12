@@ -1,6 +1,6 @@
-# CLAUDE.md
+# Development guide
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+The rules and commands for working in this repository. The project rules below are non-negotiable: each one exists because breaking it has already caused a specific failure.
 
 ## Project rules (non-negotiable)
 

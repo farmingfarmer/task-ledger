@@ -4,7 +4,7 @@
 # Two problems this solves, both of them workflow rather than code:
 #
 #   1. Every command was a paragraph. The reconciler line alone is four
-#      flags and two model names, retyped from CLAUDE.md each session.
+#      flags and two model names, retyped from DEVELOPMENT.md each session.
 #      Here it is `./tl reconcile`.
 #   2. Failure landed last. An unset DB_DSN or a stopped Postgres was
 #      discovered by the command that needed it, which was usually the

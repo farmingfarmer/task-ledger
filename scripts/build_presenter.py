@@ -41,8 +41,8 @@ P = {
     "faqs": [
         ["What did this cost to run?",
          "Marginal cost: zero dollars. Extraction and judging run on "
-         "mistral-small, a 24-billion-parameter model, on my own "
-         "MacBook via Ollama; embeddings likewise. The entire "
+         "mistral-small, a 24-billion-parameter model, on a single "
+         "developer laptop via Ollama; embeddings likewise. The entire "
          "evaluation program -- hundreds of model calls -- cost "
          "electricity. An enterprise deployment would choose between "
          "self-hosted models (fixed hardware cost, zero per-call) or "

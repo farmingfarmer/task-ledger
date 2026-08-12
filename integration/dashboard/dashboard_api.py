@@ -72,7 +72,7 @@ from flask import Flask, jsonify, request, send_from_directory
 app = Flask(__name__)
 
 DSN = os.environ.get(
-    "DB_DSN", "host=/home/claude/pgsock port=5433 dbname=taskintel user=postgres")
+    "DB_DSN", "host=/tmp/pgsock port=5433 dbname=taskintel user=postgres")
 
 # Two ledgers, one dashboard. Demoing this system means showing real
 # extraction on real conversations AND a synthetic set wide enough to cover

@@ -495,7 +495,7 @@ def test_pg_store():
     print("postgres store (live)")
     dsn = os.environ.get(
         "DB_DSN",
-        "host=/home/claude/pgsock port=5433 dbname=taskintel user=postgres")
+        "host=/tmp/pgsock port=5433 dbname=taskintel user=postgres")
     try:
         import psycopg2
         conn = psycopg2.connect(dsn)

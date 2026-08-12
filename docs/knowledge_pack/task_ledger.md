@@ -27,7 +27,7 @@ output to a board change. Second, evidence is stored as pointers plus
 SHA-256 content hashes, never copied message content; the ledger can
 prove what was said without keeping the text.
 
-The entire loop runs locally on Alex's M3 Max MacBook: mistral-small 3.1
+The entire loop runs locally on a single developer laptop: mistral-small 3.1
 (24B) via Ollama for extraction and judging, nomic-embed-text for
 similarity, PostgreSQL for the append-only ledger, Flask for a read-only
 dashboard, and launchd for a weekday 4:45 PM cadence tick. The system
