@@ -173,11 +173,48 @@ def load_candidates(dsn, user_ref):
     conn = psycopg2.connect(dsn)
     try:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # Carry the most recent sighting's signal with each candidate.
+            # Promotion needs evidence to cite, and without this a candidate
+            # could only ever be assessed on a run where it happened to be
+            # mentioned again -- so a relaxed promotion rule did nothing at
+            # all until somebody said the words one more time.
             cur.execute("""
-                SELECT candidate_id, title, state, sightings, speakers
-                FROM v_task_candidates
-                WHERE user_ref = %s AND state = 'sighted'""", (user_ref,))
-            return [dict(r) for r in cur.fetchall()]
+                SELECT c.candidate_id, c.title, c.state, c.sightings,
+                       c.speakers,
+                       (SELECT e.signal_id FROM task_candidate_events e
+                         WHERE e.candidate_id = c.candidate_id
+                           AND e.user_ref = c.user_ref
+                           AND e.event = 'sighted'
+                           AND e.signal_id IS NOT NULL
+                         ORDER BY e.event_id DESC LIMIT 1) AS lead_signal_id
+                FROM v_task_candidates c
+                WHERE c.user_ref = %s AND c.state = 'sighted'""", (user_ref,))
+            rows = [dict(r) for r in cur.fetchall()]
+            for r in rows:
+                sid = r.pop("lead_signal_id", None)
+                r["lead"] = None
+                if not sid:
+                    continue
+                cur.execute("""
+                    SELECT s.signal_id, s.description,
+                           s.confidence::float AS confidence,
+                           s.owner_candidates, s.raw
+                    FROM signals s WHERE s.signal_id = %s""", (sid,))
+                srow = cur.fetchone()
+                if not srow:
+                    continue
+                srow = dict(srow)
+                raw = srow.pop("raw") or {}
+                oc = srow.get("owner_candidates")
+                r["lead"] = {
+                    "signal_id": srow["signal_id"],
+                    "description": srow["description"],
+                    "confidence": srow["confidence"],
+                    "owner_candidates": (json.loads(oc)
+                                         if isinstance(oc, str) else oc) or [],
+                    "evidence": raw.get("evidence") or [],
+                }
+            return rows
     except psycopg2.errors.UndefinedTable:
         # A database that predates migrate_task_candidates.sql still runs;
         # it simply has no register yet.

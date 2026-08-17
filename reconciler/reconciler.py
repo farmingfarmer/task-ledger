@@ -671,8 +671,11 @@ class Reconciler(object):
         out = []
         for c in self._candidates:
             fresh = c["_new_sightings"]
-            if not fresh:
-                continue
+            # Assessed every run, not only when mentioned again. Skipping
+            # untouched candidates meant a relaxed promotion rule changed
+            # nothing until somebody happened to say the words once more --
+            # 92 candidates sat unre-examined through a policy change that
+            # was written specifically to promote them.
             sightings = (c.get("sightings") or 0) + len(fresh)
             speakers = set(s.get("author_ref") for s in fresh
                            if s.get("author_ref"))
@@ -686,9 +689,12 @@ class Reconciler(object):
             # to trace back to -- so an unciteable candidate keeps waiting
             # rather than becoming a proposal nobody can check.
             citeable = [s for s in fresh if s.get("evidence")]
-            if not citeable:
+            if citeable:
+                lead = citeable[-1]
+            elif (c.get("lead") or {}).get("evidence"):
+                lead = c["lead"]     # carried from an earlier sighting
+            else:
                 continue
-            lead = citeable[-1]
             p = self._mk(lead, "create_task", None, {
                 "kind": "create_task",
                 "title": c["title"],
