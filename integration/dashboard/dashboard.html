@@ -1135,6 +1135,20 @@
     quiet.forEach(function(t){ sec2.appendChild(quietRow(t, d.writable)); });
     body.appendChild(sec2);
 
+    // Changes that applied themselves. Shown first and shown plainly:
+    // the gate is only defensible because you are told, and can put it
+    // back with one tap.
+    var autos = d.auto_applied || [];
+    if(autos.length){
+      var sec0 = el2("div","revsec");
+      sec0.appendChild(el("h3", null, "Recorded without asking"));
+      sec0.appendChild(el("p","lede",
+        "Your own words about your own work, applied automatically. "
+        + "Every one is marked as unconfirmed in the record."));
+      autos.forEach(function(a){ sec0.appendChild(autoRow(a, d.writable)); });
+      body.appendChild(sec0);
+    }
+
     // Work the ledger keeps hearing about and nobody has written down.
     // These have not corroborated their way into a proposal yet -- showing
     // all of them would be the noise the promotion rule exists to prevent,
@@ -1260,6 +1274,34 @@
     acts.appendChild(yes); acts.appendChild(no); acts.appendChild(sel);
     if(own) acts.appendChild(own);
     acts.appendChild(later);
+    row.appendChild(acts);
+    return row;
+  }
+
+  function autoRow(a, writable){
+    var row = el2("div","revitem");
+    row.appendChild(el("span","op", "AUTO-APPLIED"));
+    row.appendChild(el("div","ttl", a.title || a.task_id));
+    row.appendChild(el("div","meta",
+      (a.from_status || "?").replace(/_/g, " ") + " \u2192 "
+      + (a.to_status || "?").replace(/_/g, " ")
+      + " \u00b7 nobody approved this"));
+    var acts = el2("div","revacts");
+    var undo = el2("button", null); undo.type = "button";
+    undo.textContent = "Undo";
+    undo.disabled = !writable;
+    undo.onclick = function(){
+      post("/api/undo-auto", {event_id: a.event_id})
+        .then(function(){
+          acts.innerHTML = "";
+          acts.appendChild(el("span","revdone", "Put back"));
+          loadReview(false); boot();
+        })["catch"](function(e){
+          acts.innerHTML = "";
+          acts.appendChild(el("span","revdone", e.message));
+        });
+    };
+    acts.appendChild(undo);
     row.appendChild(acts);
     return row;
   }

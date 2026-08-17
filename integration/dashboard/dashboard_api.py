@@ -942,12 +942,32 @@ def review_queue():
         ORDER BY sightings DESC, last_seen DESC
         LIMIT 6""", (v,)) if _candidates_available() else []
 
+    # Changes that skipped the queue. If these were invisible the gate
+    # would be indefensible: the whole basis for letting anything apply
+    # itself is that you are told, and can put it back.
+    auto = q("""
+        SELECT e.event_id, e.task_id, t.title, e.occurred_at,
+               e.payload->>'from_status' AS from_status,
+               e.payload->>'to_status'   AS to_status,
+               EXISTS (SELECT 1 FROM task_events u
+                        WHERE u.task_id = e.task_id
+                          AND u.actor_type = 'manual_edit'
+                          AND u.board_version > e.board_version
+                          AND u.payload->>'undoes_event_id'
+                              = e.event_id::text) AS undone
+        FROM task_events e
+        JOIN tasks_current t USING (task_id)
+        WHERE e.user_ref = %s AND e.actor_type = 'auto_applied'
+          AND e.occurred_at > now() - interval '7 days'
+        ORDER BY e.occurred_at DESC LIMIT 8""", (v,))
+
     return jsonify({
         "packet": packets[0] if packets else None,
         "proposals": proposals,
         "quiet": quiet,
         "quiet_days": QUIET_DAYS,
         "candidates": candidates,
+        "auto_applied": [a for a in auto if not a["undone"]],
         "writable": _writable(),
         "profile": profile_name(),
     })
@@ -1121,6 +1141,58 @@ def decide():
             conn.commit()
             return jsonify({"ok": True, "decision": "accept",
                             "task_id": task_id})
+    finally:
+        conn.close()
+
+
+@app.route("/api/undo-auto", methods=["POST"])
+def undo_auto():
+    """Put back a change nobody approved.
+
+    A compensating event, not a deletion -- task_events is append-only and
+    the fact that this was applied automatically stays true. The revert is
+    actor_type='manual_edit' because reverting IS a person typing
+    something, and it carries undoes_event_id so the pair is legible from
+    either end.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    if not _writable():
+        return _refuse_write()
+    body = request.get_json(silent=True) or {}
+    try:
+        event_id = int(body.get("event_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "event_id required"}), 400
+
+    conn = _write_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT event_id, task_id, user_ref, actor_type,
+                       payload->>'from_status' AS from_status,
+                       payload->>'to_status'   AS to_status
+                FROM task_events
+                WHERE event_id = %s""", (event_id,))
+            ev = cur.fetchone()
+            if not ev or ev["actor_type"] != "auto_applied":
+                return jsonify({"error": "no such auto-applied event"}), 404
+            if ev["user_ref"] != v:
+                return jsonify({"error": "that is not your board"}), 403
+            if not ev["from_status"]:
+                return jsonify({"error": "nothing to revert to"}), 400
+            cur.execute(
+                "SELECT apply_task_event(%s,%s,'status_changed','manual_edit',"
+                "NULL,%s::jsonb)",
+                (ev["task_id"], v, json.dumps({
+                    "from_status": ev["to_status"],
+                    "to_status": ev["from_status"],
+                    "undoes_event_id": str(event_id),
+                })))
+            conn.commit()
+            return jsonify({"ok": True, "task_id": ev["task_id"],
+                            "status": ev["from_status"]})
     finally:
         conn.close()
 

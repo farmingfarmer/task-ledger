@@ -447,6 +447,77 @@ def test_floors_and_mentions():
        "mention proposes nothing; feeds the alias set")
 
 
+def test_auto_apply_gate():
+    print("auto-apply gate")
+    board = [task(task_id="task-drift", title="Deploy drift monitor staging",
+                  owner_ref="aad-alex", status="proposed",
+                  aliases=["drift monitor staging deploy"])]
+    mine = sig(title="Deploy drift monitor staging",
+               status_signal="in_progress", confidence=0.9,
+               owner_candidates=[{"person_ref": "aad-alex",
+                                  "confidence": 0.95,
+                                  "basis": "self_reference"}])
+
+    # Off by default: the same signal goes to a person, as it always has.
+    r = make()
+    packet, rep = r.reconcile("aad-alex", [mine], board, 1, "run-a")
+    ok(len(packet["proposals"]) == 1 and not rep["auto_applied"],
+       "with the gate off nothing applies itself -- the default is unchanged")
+
+    def enabled(**over):
+        rr = make()
+        rr.policy["auto_apply"] = dict(rr.policy["auto_apply"])
+        rr.policy["auto_apply"]["enabled"] = True
+        rr.policy["auto_apply"].update(over)
+        return rr
+
+    r2 = enabled()
+    packet2, rep2 = r2.reconcile("aad-alex", [copy.deepcopy(mine)], board, 1,
+                                 "run-a")
+    ok(packet2["proposals"] == [] and len(rep2["auto_applied"]) == 1
+       and rep2["auto_applied"][0]["op"] == "update_status",
+       "own words, own task, own board, forward, auto-linked: applies and "
+       "leaves the queue entirely")
+
+    # Someone else reporting your progress is the corroboration case.
+    third = sig(signal_id="sig-third", title="Deploy drift monitor staging",
+                status_signal="in_progress", confidence=0.9,
+                owner_candidates=[{"person_ref": "aad-priya",
+                                   "confidence": 0.9,
+                                   "basis": "inferred"}])
+    packet3, rep3 = enabled().reconcile("aad-alex", [third], board, 1, "run-a")
+    # Cross-owner forces the judge; with none configured it holds. Either
+    # way the point is the same: it did not move the board by itself.
+    ok(not rep3["auto_applied"]
+       and (packet3["proposals"] or rep3["held"]),
+       "a third party reporting your progress still needs you")
+
+    # Not your board.
+    theirs = [task(task_id="task-drift", title="Deploy drift monitor staging",
+                   owner_ref="aad-priya", status="proposed",
+                   aliases=["drift monitor staging deploy"])]
+    packet4, rep4 = enabled().reconcile("aad-alex", [copy.deepcopy(mine)],
+                                        theirs, 1, "run-a")
+    ok(not rep4["auto_applied"]
+       and (packet4["proposals"] or rep4["held"]),
+       "and it never moves a task owned by somebody else")
+
+    # A regression carries a conflict flag, and conflicts want eyes.
+    done = [task(task_id="task-drift", title="Deploy drift monitor staging",
+                 owner_ref="aad-alex", status="completed",
+                 aliases=["drift monitor staging deploy"])]
+    packet5, rep5 = enabled().reconcile("aad-alex", [copy.deepcopy(mine)],
+                                        done, 1, "run-a")
+    ok(len(packet5["proposals"]) == 1 and not rep5["auto_applied"],
+       "a backwards move is a conflict, and conflicts are never automatic")
+
+    # Only the ops the policy names.
+    packet6, rep6 = enabled(ops=["complete_task"]).reconcile(
+        "aad-alex", [copy.deepcopy(mine)], board, 1, "run-a")
+    ok(len(packet6["proposals"]) == 1 and not rep6["auto_applied"],
+       "an op the policy does not list is never applied, whatever else fits")
+
+
 def test_candidate_register():
     print("candidate register")
     r = make()
@@ -674,6 +745,7 @@ if __name__ == "__main__":
     test_cross_board_duplicate_annotation()
     test_deadline_and_blockers()
     test_floors_and_mentions()
+    test_auto_apply_gate()
     test_candidate_register()
     test_no_target_waits()
     test_cross_owner_guard()

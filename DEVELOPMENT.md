@@ -57,6 +57,7 @@ psql -d taskintel -f storage/migrate_meeting_recap.sql # meeting_recap source ty
 psql -d taskintel -f storage/migrate_copilot_claims.sql # copilot_claims + assistant_claim evidence
 psql -d taskintel -f storage/migrate_task_candidates.sql # work mentioned but tracked nowhere
 psql -d taskintel -f storage/migrate_task_progress.sql   # derived subtask rollup
+psql -d taskintel -f storage/migrate_auto_applied.sql    # actor_type for the auto_apply gate
 export DB_DSN="host=localhost port=5432 dbname=taskintel user=$(whoami)"
 
 python3 scripts/demo_offline.py                  # seed a reviewable state, no Ollama needed

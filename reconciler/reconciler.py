@@ -158,10 +158,12 @@ class Reconciler(object):
         all_tasks = all_tasks if all_tasks is not None else tasks
         report = {"consumed": [], "held": [], "dropped": [],
                   "annotations": [], "merged": [], "judge_calls": 0,
-                  "candidate_sightings": [], "candidate_promotions": []}
+                  "candidate_sightings": [], "candidate_promotions": [],
+                  "auto_applied": []}
         draft = []   # gate outputs before aggregation
 
         self._candidates = self._candidate_index(candidates)
+        self._auto_ok = set()
         task_vecs = self._embed_alias_sets(tasks)
 
         for sig in signals:
@@ -178,6 +180,8 @@ class Reconciler(object):
         draft.extend(self._promote_candidates(report))
         draft = self._dedupe_creates(draft, report)
         proposals = self._aggregate(draft, report, cadence_run_id)
+        proposals = self._split_auto_apply(proposals, user_ref, tasks,
+                                           report)
         self._annotate_cross_board(proposals, tasks, all_tasks, report)
         packet = {
             "packet_id": _sha(user_ref, cadence_run_id, board_version,
@@ -435,6 +439,18 @@ class Reconciler(object):
             return self._hold_or_expire(sig, report, "no_open_target")
         if to is None or task["status"] == to:
             return None
+        # Eligibility for auto-apply is decided HERE, where the speaker and
+        # the match band are still in scope, and recorded per signal --
+        # aggregation merges proposals, and a merged one may only skip a
+        # human if every signal behind it could.
+        owner_self_claim = any(
+            c.get("basis") == "self_reference"
+            and c.get("person_ref") == task.get("owner_ref")
+            for c in sig.get("owner_candidates") or [])
+        if (owner_self_claim and match["kind"] == "linked"
+                and match.get("judge_conf") is None):
+            self._auto_ok.add(sig["signal_id"])
+
         p = self._mk(sig, "update_status", task["task_id"], {
             "kind": "update_status",
             "from_status": task["status"],
@@ -545,6 +561,63 @@ class Reconciler(object):
             if ov > score:
                 score, best = ov, t
         return best["task_id"] if best is not None and score >= 0.5 else None
+
+    # ------------------------------------------------------- auto-apply
+
+    def _split_auto_apply(self, proposals, user_ref, tasks, report):
+        """Peel off the proposals that will apply themselves.
+
+        They leave the packet entirely rather than appearing with an
+        "already done" marker: a review queue is a list of things needing a
+        person, and padding it with things that do not is how it stops
+        being read. What replaces the card is a line in the poke saying
+        what happened, with an undo.
+
+        Every condition is checked here rather than trusted from the gate,
+        because the gate's job is "is this a defensible proposal" and this
+        one is "may it skip a human entirely", which is a higher bar.
+        """
+        cfg = self.policy.get("auto_apply") or {}
+        if not cfg.get("enabled"):
+            return proposals
+        req = set(cfg.get("require") or [])
+        keep, auto = [], []
+        for p in proposals:
+            sources = p.get("source_signals") or []
+            unanimous = bool(sources) and all(
+                sid in self._auto_ok for sid in sources)
+            if not (unanimous
+                    and self._auto_eligible(p, user_ref, tasks, cfg, req)):
+                keep.append(p)
+                continue
+            auto.append(p)
+            report["auto_applied"].append({
+                "proposal_id": p["proposal_id"],
+                "op": p["op"],
+                "target_task_id": p.get("target_task_id"),
+                "payload": p["payload"],
+                "source_signals": p.get("source_signals") or [],
+                "rationale": p.get("rationale"),
+            })
+        return keep
+
+    def _auto_eligible(self, p, user_ref, tasks, cfg, req):
+        if p["op"] not in (cfg.get("ops") or []):
+            return False
+        if (p.get("confidence") or 0) < cfg.get("min_confidence", 1.0):
+            return False
+        if p.get("conflict"):
+            return False        # a flagged conflict always wants eyes
+        task = _task_by_id(tasks, p.get("target_task_id"))
+        if task is None:
+            return False
+        if "own_board" in req and task.get("owner_ref") != user_ref:
+            return False
+        if "forward_only" in req:
+            move = (task.get("status"), (p["payload"] or {}).get("to_status"))
+            if move not in FORWARD:
+                return False
+        return True
 
     # ------------------------------------------------------- candidates
 

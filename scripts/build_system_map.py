@@ -330,6 +330,17 @@ ATLAS = {
                                "person repeating themselves is one "
                                "person's opinion. Promotion yields a "
                                "PROPOSAL, never a board fact."},
+                     {"symbol": "Reconciler._split_auto_apply",
+                      "blurb": "The one place the human gate opens, and "
+                               "off by default. A status update in your "
+                               "own words about your own task on your own "
+                               "board, forward, auto-linked, applies "
+                               "itself and leaves the queue -- padding a "
+                               "review list with things needing no person "
+                               "is how it stops being read. Every such "
+                               "event is actor_type='auto_applied' "
+                               "forever, so how much of a board nobody "
+                               "confirmed stays a countable question."},
                      {"symbol": "Reconciler._hold_or_expire",
                       "blurb": "Progress reported on work nobody has "
                                "accepted yet has no target, and every gate "
@@ -1148,6 +1159,19 @@ NARRATIVE = {
              "the same standard the closure gates hold -- distinct "
              "speakers, not distinct sightings -- and what it earns is a "
              "place in a packet, not a place on the board"],
+        ],
+        "reconciler/reconciler.py::Reconciler._split_auto_apply": [
+            ["Confirming your own words is friction with no judgement in it",
+             "and friction is what makes a queue go unread, which costs "
+             "more than the thing the confirmation was protecting"],
+            ["So one narrow class applies itself",
+             "your status, your task, your board, forward only, and only "
+             "where the matcher did not need an LLM to decide which task "
+             "it was -- never a create, a completion, or anyone else's work"],
+            ["And it is labelled forever, not hidden",
+             "actor_type='auto_applied' rather than 'system', so the "
+             "board can always be asked how much of it nobody approved, "
+             "and the poke offers to put every one of them back"],
         ],
         "reconciler/reconciler.py::Reconciler._hold_or_expire": [
             ["A blocker needs a task to block",

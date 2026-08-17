@@ -213,6 +213,32 @@ def write_candidate_events(cur, user_ref, report, run_id):
     return n
 
 
+def apply_auto(cur, user_ref, report):
+    """Apply the proposals that skipped the queue, labelled as such.
+
+    actor_type='auto_applied' and decision_id NULL: the schema's CHECK
+    still forbids an AI-originated change claiming to be human-typed, and
+    this adds no exemption to it. What it adds is a value that can be
+    counted, so "how much of this board did nobody confirm?" has an answer
+    and a revocation is a WHERE clause rather than an archaeology project.
+    """
+    n = 0
+    for a in report.get("auto_applied") or []:
+        payload = dict(a["payload"] or {})
+        cur.execute(
+            "SELECT apply_task_event(%s,%s,'status_changed','auto_applied',"
+            "NULL,%s::jsonb)",
+            (a["target_task_id"], user_ref, json.dumps({
+                "from_status": payload.get("from_status"),
+                "to_status": payload.get("to_status"),
+                "auto_applied": True,
+                "source_signals": a.get("source_signals") or [],
+                "rationale": a.get("rationale"),
+            })))
+        n += 1
+    return n
+
+
 def apply_aliases(cur, user_ref, annotations):
     """Names people used for work already on the board.
 
@@ -242,7 +268,8 @@ def write_packet(dsn, packet, consumed_signal_ids, annotations,
     tick order. Returns counts."""
     conn = psycopg2.connect(dsn)
     out = {"proposals": 0, "taken": 0, "aliases": 0,
-           "superseded": [], "returned_signals": 0, "candidate_events": 0}
+           "superseded": [], "returned_signals": 0, "candidate_events": 0,
+           "auto_applied": 0}
     try:
         with conn:
             with conn.cursor() as cur:
@@ -264,6 +291,19 @@ def write_packet(dsn, packet, consumed_signal_ids, annotations,
                 # the NEXT meeting match better.
                 out["aliases"] += apply_aliases(
                     cur, packet["user_ref"], annotations)
+                # Auto-applied changes land here too, ahead of the empty
+                # packet return: a run whose only output applied itself
+                # still has to actually apply it.
+                if report is not None:
+                    out["auto_applied"] = apply_auto(
+                        cur, packet["user_ref"], report)
+                    for a in report.get("auto_applied") or []:
+                        for sid in a.get("source_signals") or []:
+                            cur.execute("""
+                                INSERT INTO signal_pool_events
+                                  (signal_id, user_ref, event, run_id)
+                                VALUES (%s,%s,'taken',%s)""",
+                                (sid, packet["user_ref"], run_id))
                 if not packet["proposals"]:
                     for sid in consumed_signal_ids:
                         cur.execute("""

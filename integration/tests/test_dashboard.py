@@ -52,6 +52,10 @@ ATTRIB_SIGNAL = "sig-dash-attrib-{0}".format(int(time.time() * 1000))
 # Ruled on by this run, and candidate events are append-only, so a
 # fixed id would be "sighted" once and "dismissed" ever after.
 CAND_ID = "cand-dash-{0}".format(int(time.time() * 1000))
+# Its own task: the auto-apply case appends status events, and
+# hanging them off the shared fixture changed what "the last thing
+# noted about it" meant for an assertion three sections earlier.
+AUTO_TASK = "task-dash-auto"
 CREATED_TASK = "task-dash-created"
 
 
@@ -622,6 +626,58 @@ def main():
            "and cannot type a status onto someone else's task")
         code, _ = post("/api/nudge", {"task_id": TASK, "status": "vibes"})
         ok(code == 400, "a nudge status is a closed set")
+
+        print("auto-applied and undo")
+        auto = psycopg2.connect(dsn)
+        with auto, auto.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor) as a1:
+            a1.execute("SELECT 1 FROM tasks_current WHERE task_id = %s",
+                       (AUTO_TASK,))
+            if a1.fetchone() is None:
+                a1.execute(
+                    "SELECT apply_task_event(%s,%s,'created','manual_edit',"
+                    "NULL,%s::jsonb)",
+                    (AUTO_TASK, OWNER, json.dumps({
+                        "title": "Auto-apply fixture task",
+                        "status": "in_progress", "owner_ref": OWNER})))
+            a1.execute(
+                "SELECT apply_task_event(%s,%s,'status_changed',"
+                "'auto_applied',NULL,%s::jsonb)",
+                (AUTO_TASK, OWNER, json.dumps({"from_status": "in_progress",
+                                               "to_status": "blocked",
+                                               "auto_applied": True})))
+            a1.execute("""
+                SELECT event_id FROM task_events
+                WHERE task_id = %s AND actor_type = 'auto_applied'
+                ORDER BY event_id DESC LIMIT 1""", (AUTO_TASK,))
+            auto_event = a1.fetchone()["event_id"]
+        auto.close()
+        code, rev3 = as_viewer(client, "/api/review?profile=synthetic", OWNER)
+        listed = [a for a in rev3.get("auto_applied", [])
+                  if a["event_id"] == auto_event]
+        ok(len(listed) == 1 and listed[0]["to_status"] == "blocked",
+           "a change nobody approved is shown back to the person it "
+           "happened to -- invisible would make the gate indefensible")
+        code, _ = post("/api/undo-auto", {"event_id": auto_event}, who=MATE)
+        ok(code == 403, "and only they can put it back")
+        code, b = post("/api/undo-auto", {"event_id": auto_event})
+        ok(code == 200 and b.get("status") == "in_progress",
+           "undo restores the status it moved from")
+        code, rev4 = as_viewer(client, "/api/review?profile=synthetic", OWNER)
+        ok(not [a for a in rev4.get("auto_applied", [])
+                if a["event_id"] == auto_event],
+           "and it stops being offered once reverted")
+        undone = psycopg2.connect(dsn)
+        with undone, undone.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor) as a2:
+            a2.execute("""
+                SELECT actor_type FROM task_events
+                WHERE task_id = %s ORDER BY event_id DESC LIMIT 1""",
+                (AUTO_TASK,))
+            ok(a2.fetchone()["actor_type"] == "manual_edit",
+               "the revert is recorded as a person typing, not as a "
+               "deletion -- the automatic change stays in the log")
+        undone.close()
 
         print("candidate register")
         cand = psycopg2.connect(dsn)

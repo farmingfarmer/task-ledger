@@ -230,6 +230,42 @@ calibration:
 #
 # Promotion produces a PROPOSAL. It never writes a board fact -- the human
 # decision stays exactly where it was.
+# The one place the human gate opens, and it is deliberately hard to widen.
+#
+# Confirming "yes, I did say I started that" about your own task, in your
+# own words, is friction with no judgement in it -- and friction is what
+# makes a review queue go unread, which costs more than the thing it
+# protects against. So a narrow class applies itself and says so.
+#
+# OFF by default. Turning it on is a decision somebody makes on purpose,
+# and every event it produces is actor_type='auto_applied' forever, so the
+# board can always be asked how much of it nobody approved.
+#
+# Every condition below is load-bearing:
+#   update_status only  — never create (invents work), never complete or
+#                         cancel (closes it), never reassign (moves someone
+#                         else's). Those all need a person.
+#   owner_is_speaker    — your own words about your own task. A colleague
+#                         reporting your progress is exactly the case the
+#                         corroboration gates exist for.
+#   own_board           — the task sits on the speaker's board, so nobody
+#                         else's ledger moves without them.
+#   forward_only        — proposed -> in_progress -> blocked. A regression
+#                         is a conflict and conflicts want eyes.
+#   auto_link_only      — the match was above auto_link, not a judge
+#                         verdict. If the matcher needed an LLM to decide
+#                         WHICH task this was, it does not get to move it.
+auto_apply:
+  enabled: false
+  ops: ["update_status"]
+  min_confidence: 0.85
+  require:
+    - owner_is_speaker
+    - own_board
+    - forward_only
+    - auto_link_only
+  undo_window_days: 7     # how long the poke keeps offering to revert it
+
 candidate_promotion:
   min_sightings: 2
   min_distinct_speakers: 2

@@ -192,8 +192,12 @@ CREATE TABLE task_events (
                    'blocker_added','blocker_resolved','completed','cancelled',
                    'reopened','merged_into','alias_added','subtask_linked',
                    'annotated')),
+  -- auto_applied: board state changed with no human approval, under the
+  -- narrow auto_apply gate in matching_policy.yaml (off by default). Its
+  -- own value rather than 'system' so "how much of this board did nobody
+  -- confirm?" stays a question with an answer.
   actor_type    text NOT NULL CHECK (actor_type IN
-                  ('user_decision','manual_edit','system')),
+                  ('user_decision','manual_edit','system','auto_applied')),
   decision_id   bigint REFERENCES decisions(decision_id),
   payload       jsonb NOT NULL DEFAULT '{}'::jsonb,
   occurred_at   timestamptz NOT NULL DEFAULT now(),

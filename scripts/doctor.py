@@ -128,6 +128,15 @@ def check_schema(conn):
                    "mentions of untracked work will be discarded rather "
                    "than accumulated; apply "
                    "storage/migrate_task_candidates.sql")
+        cur.execute("""
+            SELECT count(*) FROM task_events
+            WHERE actor_type = 'auto_applied'""")
+        auto_n = cur.fetchone()[0]
+        if auto_n:
+            report("WARN", "{0} board change(s) applied without "
+                   "approval".format(auto_n),
+                   "the auto_apply gate is on; every one is revertible from "
+                   "the review popup and countable by actor_type")
         cur.execute("SELECT to_regclass('public.v_task_progress')")
         if not cur.fetchone()[0]:
             report("WARN", "migration pending: derived progress",
