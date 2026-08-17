@@ -447,6 +447,98 @@ def test_floors_and_mentions():
        "mention proposes nothing; feeds the alias set")
 
 
+def test_candidate_register():
+    print("candidate register")
+    r = make()
+    # One person mentioning something once is noise, and stays noise.
+    m1 = sig(signal_id="sig-c1", signal_type="task_mention",
+             title="the retention sweep", confidence=0.7,
+             author_ref="aad-alex")
+    packet, rep = r.reconcile("aad-alex", [m1], [], 0, "run-c")
+    ok(packet["proposals"] == []
+       and len(rep["candidate_sightings"]) == 1
+       and not rep["candidate_promotions"],
+       "an unmatched mention is registered as a sighting, not discarded")
+
+    # Same work, different words, a second speaker: now it is a thing the
+    # team keeps returning to and nobody has written down.
+    r2 = make()
+    m2 = sig(signal_id="sig-c2", signal_type="task_mention",
+             title="retention sweep work", confidence=0.7,
+             author_ref="aad-priya")
+    prior = [{"candidate_id": "cand-1", "title": "the retention sweep",
+              "sightings": 1, "speakers": 1, "state": "sighted"}]
+    packet2, rep2 = r2.reconcile("aad-alex", [m2], [], 0, "run-c",
+                                 candidates=prior)
+    ok(len(rep2["candidate_sightings"]) == 1
+       and rep2["candidate_sightings"][0]["candidate_id"] == "cand-1",
+       "a reworded mention lands on the candidate already registered")
+    ok(len(packet2["proposals"]) == 1
+       and packet2["proposals"][0]["op"] == "create_task"
+       and rep2["candidate_promotions"],
+       "two sightings by two speakers promote to a create_task PROPOSAL")
+
+    # Same speaker twice is one person's opinion, not corroboration.
+    r3 = make()
+    m3 = sig(signal_id="sig-c3", signal_type="task_mention",
+             title="the retention sweep again", confidence=0.7,
+             author_ref="aad-alex")
+    prior_same = [{"candidate_id": "cand-1", "title": "the retention sweep",
+                   "sightings": 1, "speakers": 0, "state": "sighted"}]
+    packet3, rep3 = r3.reconcile("aad-alex", [m3], [], 0, "run-c",
+                                 candidates=prior_same)
+    ok(packet3["proposals"] == [] and not rep3["candidate_promotions"],
+       "repetition by one speaker does not promote")
+
+    # A mention that DOES match the board is still an alias, not a candidate.
+    r4 = make()
+    known = sig(signal_id="sig-c4", signal_type="task_mention",
+                title="Deploy drift monitor staging", confidence=0.7,
+                author_ref="aad-alex")
+    _, rep4 = r4.reconcile("aad-alex", [known], BOARD, 1, "run-c")
+    ok(not rep4["candidate_sightings"]
+       and any(a["kind"] == "alias" for a in rep4["annotations"]),
+       "a mention of tracked work feeds the alias set, not the register")
+
+
+def test_no_target_waits():
+    print("no target waits, then expires")
+    r = make()
+    # Progress reported on work nobody has accepted as a task yet. The board
+    # is empty, so there is nothing to match -- and this used to be consumed
+    # and silently lost, which is how a whole meeting's progress vanished.
+    early = sig(signal_type="status_update", title="Migrate the archive",
+                status_signal="in_progress", confidence=0.9, pooled_days=1.0)
+    packet, rep = r.reconcile("aad-alex", [early], [], 0, "run-w")
+    ok(packet["proposals"] == [] and rep["held"] == [early["signal_id"]]
+       and not rep["consumed"],
+       "progress on a task that does not exist yet is held, not consumed")
+
+    blocked = sig(signal_type="blocker", title="Migrate the archive",
+                  blocker_desc="waiting on the storage team",
+                  confidence=0.9, pooled_days=1.0)
+    _, rep2 = r.reconcile("aad-alex", [blocked], [], 0, "run-w")
+    ok(rep2["held"] == [blocked["signal_id"]] and not rep2["dropped"],
+       "so is a blocker -- it used to be dropped outright")
+
+    # Waiting ends: past the corroboration window it is dropped, and the
+    # reason names what it waited for rather than disappearing quietly.
+    stale = sig(signal_type="status_update", title="Migrate the archive",
+                status_signal="in_progress", confidence=0.9,
+                pooled_days=99.0)
+    _, rep3 = r.reconcile("aad-alex", [stale], [], 0, "run-w")
+    ok(not rep3["held"]
+       and rep3["dropped"][0]["reason"] == "expired_no_open_target",
+       "a signal that waited past the window expires with a named reason")
+
+    # A finished task genuinely cannot be blocked: still a drop.
+    done = task(task_id="task-done", title="Migrate the archive",
+                status="completed")
+    _, rep4 = r.reconcile("aad-alex", [blocked], [done], 1, "run-w")
+    ok(rep4["dropped"] and rep4["dropped"][0]["reason"] == "target_terminal",
+       "blocking a completed task is a real drop, not a wait")
+
+
 def test_cross_owner_guard():
     print("cross-owner guard")
     seen = {"called": False}
@@ -582,6 +674,8 @@ if __name__ == "__main__":
     test_cross_board_duplicate_annotation()
     test_deadline_and_blockers()
     test_floors_and_mentions()
+    test_candidate_register()
+    test_no_target_waits()
     test_cross_owner_guard()
     test_pg_live()
     print("\nall {0} reconciler checks passed".format(CHECKS[0]))

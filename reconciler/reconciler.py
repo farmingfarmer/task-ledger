@@ -98,6 +98,14 @@ def _sha(*parts):
     return h.hexdigest()
 
 
+def _norm(text):
+    """Lowercased words only -- the identity of a candidate should not
+    change because someone said "the" this time."""
+    return " ".join(
+        "".join(ch for ch in w if ch.isalnum())
+        for w in (text or "").lower().split()).strip()
+
+
 def _clip(text, n=200):
     text = text or ""
     return text if len(text) <= n else text[:n - 1] + "\u2026"
@@ -129,7 +137,7 @@ class Reconciler(object):
     # ------------------------------------------------------------ reconcile
 
     def reconcile(self, user_ref, signals, tasks, board_version,
-                  cadence_run_id, all_tasks=None):
+                  cadence_run_id, all_tasks=None, candidates=None):
         """signals: rows shaped like v_unconsumed_signals + raw signal dict:
              {signal_id, signal_type, title, description, status_signal,
               confidence, deadline_{date,precision,raw}, blocker_desc,
@@ -140,13 +148,20 @@ class Reconciler(object):
            all_tasks: every board's tasks -- blocking-edge resolution and
              cross-board duplicate annotation (defaults to tasks, which
              makes both checks a no-op rather than wrong).
+           candidates: work heard about that is on no board yet, from
+             v_task_candidates: {candidate_id, title, sightings, speakers,
+             state}. Mentions matching none of the board register a sighting
+             here instead of being discarded, and a corroborated candidate
+             becomes a create_task PROPOSAL -- never a board fact.
            Returns (packet, report). report: consumed/held signal ids,
-           annotations, merges, drop log."""
+           annotations, merges, drop log, candidate sightings/promotions."""
         all_tasks = all_tasks if all_tasks is not None else tasks
         report = {"consumed": [], "held": [], "dropped": [],
-                  "annotations": [], "merged": [], "judge_calls": 0}
+                  "annotations": [], "merged": [], "judge_calls": 0,
+                  "candidate_sightings": [], "candidate_promotions": []}
         draft = []   # gate outputs before aggregation
 
+        self._candidates = self._candidate_index(candidates)
         task_vecs = self._embed_alias_sets(tasks)
 
         for sig in signals:
@@ -160,6 +175,7 @@ class Reconciler(object):
             if isinstance(outcome, dict):
                 draft.append(outcome)
 
+        draft.extend(self._promote_candidates(report))
         draft = self._dedupe_creates(draft, report)
         proposals = self._aggregate(draft, report, cadence_run_id)
         self._annotate_cross_board(proposals, tasks, all_tasks, report)
@@ -298,6 +314,11 @@ class Reconciler(object):
                     {"kind": "alias", "task_id": task["task_id"],
                      "alias": sig["title"],
                      "source_signal_id": sig["signal_id"]})
+            else:
+                # Heard about, on nobody's board. This used to return None,
+                # which consumed the signal and deleted the only record that
+                # the work had ever been mentioned.
+                self._sight_candidate(sig, report)
             return None
 
         if stype == "proposal":
@@ -310,18 +331,21 @@ class Reconciler(object):
             return self._mk_create(sig, match)
 
         if stype == "assignment":
-            return self._gate_assignment(sig, match, task)
+            return self._gate_assignment(sig, match, task, report)
 
         if stype == "status_update":
-            return self._gate_status(sig, match, task)
+            return self._gate_status(sig, match, task, report)
 
         if stype == "deadline_signal":
             return self._gate_deadline(sig, match, task, report)
 
         if stype == "blocker":
-            if task is None or task["status"] in ("completed", "cancelled"):
+            if task is None:
+                return self._hold_or_expire(sig, report, "no_open_target")
+            if task["status"] in ("completed", "cancelled"):
+                # A finished task cannot be blocked; this is a real drop.
                 report["dropped"].append({"signal_id": sig["signal_id"],
-                                          "reason": "no_open_target"})
+                                          "reason": "target_terminal"})
                 return None
             return self._mk(sig, "add_blocker", task["task_id"], {
                 "kind": "add_blocker",
@@ -342,7 +366,28 @@ class Reconciler(object):
                                   "reason": "unhandled_type"})
         return None
 
-    def _gate_assignment(self, sig, match, task):
+    def _hold_or_expire(self, sig, report, why):
+        """A signal whose target does not exist yet waits for it.
+
+        The closure gate already reasoned this way -- a claim that failed to
+        match is far more likely a matching failure than nothing at all --
+        and every other type used to do the opposite, consuming the signal
+        into oblivion. "The migration is blocked" arriving before anyone has
+        accepted the migration as a task was simply deleted.
+
+        Waiting is not free, so it ends: past corroboration.window_days the
+        signal is dropped with the reason naming what it waited for, which
+        is a countable fact rather than a silent one.
+        """
+        window = self.policy["corroboration"]["window_days"]
+        age = sig.get("pooled_days")
+        if age is not None and age > window:
+            report["dropped"].append({"signal_id": sig["signal_id"],
+                                      "reason": "expired_" + why})
+            return None
+        return "held"
+
+    def _gate_assignment(self, sig, match, task, report):
         cands = sig.get("owner_candidates") or []
         best = max(cands, key=lambda c: c["confidence"]) if cands else None
         if best is None:
@@ -350,7 +395,7 @@ class Reconciler(object):
         if match["kind"] == "new":
             return self._mk_create(sig, match, owner_ref=best["person_ref"])
         if task is None:
-            return None
+            return self._hold_or_expire(sig, report, "no_open_target")
         if best["basis"] == "explicit_assignment":
             if task.get("owner_ref") == best["person_ref"]:
                 return None   # already theirs; nothing to propose
@@ -384,9 +429,11 @@ class Reconciler(object):
                 return p
         return None   # inferred: annotation territory, never a proposal
 
-    def _gate_status(self, sig, match, task):
+    def _gate_status(self, sig, match, task, report):
         to = sig.get("status_signal")
-        if task is None or to is None or task["status"] == to:
+        if task is None:
+            return self._hold_or_expire(sig, report, "no_open_target")
+        if to is None or task["status"] == to:
             return None
         p = self._mk(sig, "update_status", task["task_id"], {
             "kind": "update_status",
@@ -405,7 +452,9 @@ class Reconciler(object):
         prec = sig.get("deadline_precision")
         date = sig.get("deadline_date")
         raw = sig.get("deadline_raw")
-        if task is None or prec is None:
+        if task is None:
+            return self._hold_or_expire(sig, report, "no_open_target")
+        if prec is None:
             return None
         if prec == "vague" or date is None:
             report["annotations"].append(
@@ -433,7 +482,7 @@ class Reconciler(object):
 
     def _gate_blocker_resolved(self, sig, task, report):
         if task is None:
-            return None
+            return self._hold_or_expire(sig, report, "no_open_target")
         open_blockers = task.get("open_blockers") or []
         text = (sig.get("blocker_desc") or sig["title"]).lower()
         best_id, best_overlap = None, 0.0
@@ -496,6 +545,95 @@ class Reconciler(object):
             if ov > score:
                 score, best = ov, t
         return best["task_id"] if best is not None and score >= 0.5 else None
+
+    # ------------------------------------------------------- candidates
+
+    def _candidate_index(self, candidates):
+        """Existing candidates plus their vectors, so a mention arriving
+        today can be recognised as the same work heard about last week."""
+        rows = [dict(c) for c in (candidates or []) if c.get("state") ==
+                "sighted"]
+        vecs = self.embed([c["title"] for c in rows]) if rows else []
+        for c, v in zip(rows, vecs):
+            c["_vec"] = v
+            c["_new_sightings"] = []
+        return rows
+
+    def _sight_candidate(self, sig, report):
+        """Record that work with no task was referenced again.
+
+        Matched against the candidates already registered, not just against
+        the board: "the retention sweep" and "retention sweep work" are the
+        same thing being mentioned twice, and counting them separately would
+        mean neither ever corroborates.
+        """
+        floor = self.policy["candidate_promotion"]["same_candidate_floor"]
+        vec = self.embed([sig["title"]])[0]
+        best, best_sim = None, 0.0
+        for c in self._candidates:
+            s = embedders.cosine(vec, c["_vec"])
+            if s > best_sim:
+                best_sim, best = s, c
+        if best is None or best_sim < floor:
+            best = {"candidate_id": _sha("candidate", _norm(sig["title"])),
+                    "title": sig["title"], "sightings": 0, "speakers": 0,
+                    "state": "sighted", "_vec": vec, "_new_sightings": []}
+            self._candidates.append(best)
+        best["_new_sightings"].append(sig)
+        report["candidate_sightings"].append({
+            "candidate_id": best["candidate_id"],
+            "title": best["title"],
+            "signal_id": sig["signal_id"],
+            "speaker_ref": sig.get("author_ref"),
+        })
+
+    def _promote_candidates(self, report):
+        """Corroborated candidates become proposals -- never board facts.
+
+        Distinct speakers, not distinct sightings: one person repeating
+        themselves across four meetings is one person's opinion, which is
+        the same standard the closure gates hold.
+        """
+        rule = self.policy["candidate_promotion"]
+        out = []
+        for c in self._candidates:
+            fresh = c["_new_sightings"]
+            if not fresh:
+                continue
+            sightings = (c.get("sightings") or 0) + len(fresh)
+            speakers = set(s.get("author_ref") for s in fresh
+                           if s.get("author_ref"))
+            n_speakers = max(c.get("speakers") or 0, 0) + len(
+                speakers - {None})
+            if (sightings < rule["min_sightings"]
+                    or n_speakers < rule["min_distinct_speakers"]):
+                continue
+            # Cite the sighting we have in hand; the count is what earned it.
+            # A card with no evidence cannot be reviewed -- there is nothing
+            # to trace back to -- so an unciteable candidate keeps waiting
+            # rather than becoming a proposal nobody can check.
+            citeable = [s for s in fresh if s.get("evidence")]
+            if not citeable:
+                continue
+            lead = citeable[-1]
+            p = self._mk(lead, "create_task", None, {
+                "kind": "create_task",
+                "title": c["title"],
+                "description": lead.get("description"),
+                "status": "proposed",
+                "owner_ref": _best_owner(lead),
+                "deadline": None,
+                "parent_task_id": None,
+                "match_note": "promoted from {0} mention(s) by {1} "
+                              "speaker(s); on no board".format(
+                                  sightings, n_speakers),
+            }, "Mentioned {0} times by {1} people and tracked nowhere: "
+               "“{2}”.".format(sightings, n_speakers, c["title"]))
+            out.append(p)
+            report["candidate_promotions"].append(
+                {"candidate_id": c["candidate_id"], "title": c["title"],
+                 "sightings": sightings, "speakers": n_speakers})
+        return out
 
     def _mk_create(self, sig, match, owner_ref=None):
         status = sig.get("status_signal") or "proposed"

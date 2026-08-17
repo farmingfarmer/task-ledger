@@ -49,6 +49,9 @@ SIGNAL_CREATE = "signal-dash-create"
 # A fresh id per run keeps exactly one of these open at the point it counts.
 ATTRIB_PROP = "prop-dash-attrib-{0}".format(int(time.time() * 1000))
 ATTRIB_SIGNAL = "sig-dash-attrib-{0}".format(int(time.time() * 1000))
+# Ruled on by this run, and candidate events are append-only, so a
+# fixed id would be "sighted" once and "dismissed" ever after.
+CAND_ID = "cand-dash-{0}".format(int(time.time() * 1000))
 CREATED_TASK = "task-dash-created"
 
 
@@ -619,6 +622,50 @@ def main():
            "and cannot type a status onto someone else's task")
         code, _ = post("/api/nudge", {"task_id": TASK, "status": "vibes"})
         ok(code == 400, "a nudge status is a closed set")
+
+        print("candidate register")
+        cand = psycopg2.connect(dsn)
+        with cand, cand.cursor() as c2:
+            for ev, who in (("sighted", "dash-speaker"),
+                            ("sighted", "dash-other")):
+                c2.execute("""
+                    INSERT INTO task_candidate_events
+                      (candidate_id, user_ref, event, title, speaker_ref,
+                       run_id)
+                    VALUES (%s,%s,%s,'Fixture candidate work',%s,
+                            'dash-fixture')""", (CAND_ID, OWNER, ev, who))
+        cand.close()
+        code, rev2 = as_viewer(client, "/api/review?profile=synthetic", OWNER)
+        mine = [c for c in rev2.get("candidates", [])
+                if c["candidate_id"] == CAND_ID]
+        ok(len(mine) == 1 and mine[0]["sightings"] == 2
+           and mine[0]["speakers"] == 2,
+           "work heard about but tracked nowhere is offered in the poke, "
+           "with what earned it a place there")
+        code, cand_other = as_viewer(client, "/api/review?profile=synthetic",
+                                     MATE)
+        ok(not [c for c in cand_other.get("candidates", [])
+                if c["candidate_id"] == CAND_ID],
+           "and stays self-only -- an unreviewed sighting is not board state")
+        code, _ = post("/api/candidate", {"candidate_id": CAND_ID,
+                                          "action": "sideways"})
+        ok(code == 400, "a candidate ruling is track or dismiss, nothing else")
+        code, b = post("/api/candidate", {"candidate_id": CAND_ID,
+                                          "action": "dismiss"})
+        ok(code == 200 and b.get("action") == "dismiss",
+           "dismissing records the answer and changes no board")
+        code, _ = post("/api/candidate", {"candidate_id": CAND_ID,
+                                          "action": "dismiss"})
+        ok(code == 409, "and it is not asked again once ruled on")
+        check2 = psycopg2.connect(dsn)
+        with check2, check2.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor) as c3:
+            c3.execute("""
+                SELECT count(*) AS n FROM tasks_current
+                WHERE title = 'Fixture candidate work'""")
+            ok(c3.fetchone()["n"] == 0,
+               "a dismissal writes no task -- the register is not the board")
+        check2.close()
 
         print("owner correction")
         code, rev = as_viewer(client, "/api/review?profile=synthetic", OWNER)

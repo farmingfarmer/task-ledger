@@ -256,6 +256,26 @@ def process_inbox(dsn, inbox, host, extract_model, llm_factory):
     return total
 
 
+def pooled_users(dsn, primary):
+    """Everyone with signals waiting, not just whoever owns this tick.
+
+    One meeting names eight people and pools claims for all of them. A tick
+    that reconciles only TL_USER leaves the other seven with claims that sit
+    unconsumed indefinitely -- on the first real corpus, seven colleagues'
+    worth of work never reached a packet at all. The primary user is always
+    included so a quiet day still supersedes and still notifies.
+    """
+    import psycopg2
+    conn = psycopg2.connect(dsn)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT DISTINCT user_ref FROM v_unconsumed_signals")
+            users = sorted({r[0] for r in cur.fetchall()} | {primary})
+    finally:
+        conn.close()
+    return users
+
+
 def run_reconcile(dsn, user, host, embed_model, judge_model):
     import board_io_pg
     import embedders
@@ -264,9 +284,11 @@ def run_reconcile(dsn, user, host, embed_model, judge_model):
     signals = board_io_pg.load_signals(dsn, user)
     tasks, version = board_io_pg.load_board(dsn, user)
     all_tasks = board_io_pg.load_all_boards(dsn)
-    log("reconcile: {0} pooled signals, {1} matchable tasks, {2} tasks "
-        "across all boards, board v{3}".format(
-            len(signals), len(tasks), len(all_tasks), version))
+    candidates = board_io_pg.load_candidates(dsn, user)
+    log("reconcile[{0}]: {1} pooled signals, {2} matchable tasks, {3} tasks "
+        "across all boards, {4} candidate(s), board v{5}".format(
+            user, len(signals), len(tasks), len(all_tasks),
+            len(candidates), version))
 
     if ollama_up(host):
         embed = embedders.OllamaEmbedder(embed_model, host)
@@ -282,14 +304,16 @@ def run_reconcile(dsn, user, host, embed_model, judge_model):
         datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     rec = rec_mod.Reconciler(embed=embed, judge_llm=judge)
     packet, report = rec.reconcile(user, signals, tasks, version, run_id,
-                                   all_tasks=all_tasks)
+                                   all_tasks=all_tasks,
+                                   candidates=candidates)
     result = board_io_pg.write_packet(dsn, packet, report["consumed"],
-                                     report["annotations"], run_id)
-    log("reconcile: {0} proposals, {1} consumed, {2} held, "
-        "superseded {3}, {4} signals returned".format(
-            result["proposals"], len(report["consumed"]),
-            len(report["held"]), len(result["superseded"]),
-            result["returned_signals"]))
+                                     report["annotations"], run_id,
+                                     report=report)
+    log("reconcile[{0}]: {1} proposals, {2} consumed, {3} held, "
+        "{4} candidate sighting(s), {5} promoted, superseded {6}".format(
+            user, result["proposals"], len(report["consumed"]),
+            len(report["held"]), len(report["candidate_sightings"]),
+            len(report["candidate_promotions"]), len(result["superseded"])))
     return result
 
 
@@ -359,9 +383,25 @@ def main():
         process_inbox(dsn, inbox, host,
                       os.environ.get("TL_EXTRACT_MODEL", "mistral-small3.1"),
                       ollama_chat)
-        run_reconcile(dsn, user, host,
-                      os.environ.get("TL_EMBED_MODEL", "nomic-embed-text"),
-                      os.environ.get("TL_JUDGE_MODEL", "mistral-small3.1"))
+        # Everyone with claims waiting, not just this tick's owner. The
+        # notification below stays about TL_USER -- one person is being
+        # poked -- but the other boards get their packets built rather than
+        # their claims ageing in the pool until somebody runs the CLI.
+        everyone = pooled_users(dsn, user)
+        if len(everyone) > 1:
+            log("reconcile: {0} user(s) have signals waiting".format(
+                len(everyone)))
+        for who in everyone:
+            try:
+                run_reconcile(dsn, who, host,
+                              os.environ.get("TL_EMBED_MODEL",
+                                             "nomic-embed-text"),
+                              os.environ.get("TL_JUDGE_MODEL",
+                                             "mistral-small3.1"))
+            except Exception as exc:                    # noqa: BLE001
+                # One person's packet failing must not cost everyone else
+                # theirs; the tick reports it and carries on.
+                log("reconcile[{0}] FAILED: {1!r}".format(who, exc))
         n = pending_count(dsn, user)
         if n > 0:
             notify("Task Ledger",

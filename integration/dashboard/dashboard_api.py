@@ -417,6 +417,7 @@ def board(user_ref):
                 AND t.status NOT IN ('completed','cancelled')) AS overdue,
                COALESCE(b.open_blockers, 0)  AS open_blockers,
                COALESCE(c.subtasks, 0)       AS subtasks,
+               COALESCE(c.subtasks_done, 0)  AS subtasks_done,
                t.updated_at,
                floor(EXTRACT(epoch FROM now() - t.updated_at) / 86400)::int
                  AS quiet_days,
@@ -428,8 +429,16 @@ def board(user_ref):
         LEFT JOIN (SELECT task_id, count(*) AS open_blockers FROM task_blockers
                    WHERE resolved_event_id IS NULL GROUP BY task_id) b
                USING (task_id)
-        LEFT JOIN (SELECT parent_task_id AS task_id, count(*) AS subtasks
-                   FROM tasks_current WHERE parent_task_id IS NOT NULL
+        -- Progress, counted rather than stored: every subtask completion
+        -- is already a human-decided event, so the fraction inherits that
+        -- provenance and cannot drift from the log. Computed inline rather
+        -- than read from v_task_progress so the board still renders on a
+        -- ledger that predates that view.
+        LEFT JOIN (SELECT parent_task_id AS task_id, count(*) AS subtasks,
+                          count(*) FILTER (WHERE status = 'completed')
+                            AS subtasks_done
+                   FROM tasks_current
+                   WHERE parent_task_id IS NOT NULL AND merged_into IS NULL
                    GROUP BY parent_task_id) c USING (task_id)
         -- The phrase someone actually said ("end of next sprint"), carried
         -- from the deadline event. Relative-date resolution is the top
@@ -803,6 +812,19 @@ def _writable():
     return bool(PROFILES.get(profile_name(), {}).get("writable"))
 
 
+def _candidates_available():
+    """A ledger that predates migrate_task_candidates.sql still renders.
+
+    The register is additive; a dashboard pointed at an older database
+    should show one fewer section, not a 500.
+    """
+    try:
+        q("SELECT 1 FROM v_task_candidates LIMIT 1")
+        return True
+    except psycopg2.Error:
+        return False
+
+
 def _attach_owner_options(proposals, viewer_ref):
     """Who a mis-attributed proposal could belong to instead.
 
@@ -908,11 +930,24 @@ def review_queue():
         GROUP BY t.task_id, t.title, t.status, t.deadline
         HAVING (now()::date - max(e.occurred_at)::date) >= %s
         ORDER BY max(e.occurred_at) ASC LIMIT 8""", (v, QUIET_DAYS))
+    # Work referenced in conversation that is on nobody's board and has not
+    # yet corroborated its way into a proposal. Showing every one would
+    # recreate the noise the promotion rule exists to prevent, so this is
+    # the shortlist: most-sighted first, capped. SELF ONLY like the rest of
+    # this endpoint -- these are unreviewed claims about a person.
+    candidates = q("""
+        SELECT candidate_id, title, sightings, speakers, last_seen
+        FROM v_task_candidates
+        WHERE user_ref = %s AND state = 'sighted'
+        ORDER BY sightings DESC, last_seen DESC
+        LIMIT 6""", (v,)) if _candidates_available() else []
+
     return jsonify({
         "packet": packets[0] if packets else None,
         "proposals": proposals,
         "quiet": quiet,
         "quiet_days": QUIET_DAYS,
+        "candidates": candidates,
         "writable": _writable(),
         "profile": profile_name(),
     })
@@ -1086,6 +1121,70 @@ def decide():
             conn.commit()
             return jsonify({"ok": True, "decision": "accept",
                             "task_id": task_id})
+    finally:
+        conn.close()
+
+
+@app.route("/api/candidate", methods=["POST"])
+def candidate_rule():
+    """Rule on work the ledger has heard about but nobody has tracked.
+
+    Two answers, and they are not symmetrical. "Not a task" writes only a
+    dismissal event -- no board changes, and the register stops offering it,
+    which is the whole point of asking. "Track it" creates the task with
+    actor_type='manual_edit' and a NULL decision_id, the same path
+    /api/nudge uses: a person typed this, and that stays distinguishable
+    from "a model proposed it and a person agreed" forever.
+
+    SELF ONLY, and synthetic-only for writes, like every other write here.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    if not _writable():
+        return _refuse_write()
+    body = request.get_json(silent=True) or {}
+    cid = (body.get("candidate_id") or "").strip()
+    action = (body.get("action") or "").strip()
+    if action not in ("track", "dismiss"):
+        return jsonify({"error": "action must be track or dismiss"}), 400
+
+    conn = _write_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT candidate_id, title, state FROM v_task_candidates
+                WHERE candidate_id = %s AND user_ref = %s""", (cid, v))
+            cand = cur.fetchone()
+            if not cand:
+                return jsonify({"error": "no such candidate"}), 404
+            if cand["state"] != "sighted":
+                return jsonify({"error": "already ruled on"}), 409
+
+            if action == "dismiss":
+                cur.execute("""
+                    INSERT INTO task_candidate_events
+                      (candidate_id, user_ref, event, title, run_id)
+                    VALUES (%s,%s,'dismissed',%s,'dashboard')""",
+                    (cid, v, cand["title"]))
+                conn.commit()
+                return jsonify({"ok": True, "action": "dismiss"})
+
+            task_id = "task-" + cid[:8]
+            cur.execute(
+                "SELECT apply_task_event(%s,%s,'created','manual_edit',"
+                "NULL,%s::jsonb)",
+                (task_id, v, json.dumps({
+                    "title": cand["title"], "description": None,
+                    "status": "proposed", "owner_ref": v,
+                    "deadline": None, "parent_task_id": None})))
+            cur.execute("""
+                INSERT INTO task_candidate_events
+                  (candidate_id, user_ref, event, title, run_id)
+                VALUES (%s,%s,'accepted',%s,'dashboard')""",
+                (cid, v, cand["title"]))
+            conn.commit()
+            return jsonify({"ok": True, "action": "track", "task_id": task_id})
     finally:
         conn.close()
 

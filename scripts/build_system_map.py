@@ -317,6 +317,28 @@ ATLAS = {
                                "raise competing_owner conflicts, inferred "
                                "never proposes."},
                  ]},
+                {"name": "Candidate register",
+                 "file": "reconciler/reconciler.py",
+                 "components": [
+                     {"symbol": "Reconciler._promote_candidates",
+                      "blurb": "A mention that matched nothing used to be "
+                               "discarded -- 87 of 134 signals on the first "
+                               "real corpus, every reference to work no "
+                               "board had heard of, deleted. They "
+                               "accumulate instead, and corroboration "
+                               "decides: distinct SPEAKERS, because one "
+                               "person repeating themselves is one "
+                               "person's opinion. Promotion yields a "
+                               "PROPOSAL, never a board fact."},
+                     {"symbol": "Reconciler._hold_or_expire",
+                      "blurb": "Progress reported on work nobody has "
+                               "accepted yet has no target, and every gate "
+                               "but closure used to consume it into "
+                               "oblivion. It waits for its task instead, "
+                               "and past the corroboration window expires "
+                               "with a reason -- a countable fact rather "
+                               "than a silent one."},
+                 ]},
                 {"name": "Aggregate & write",
                  "file": "reconciler/reconciler.py",
                  "components": [
@@ -1113,6 +1135,31 @@ NARRATIVE = {
             ["Make confusion mean delay",
              "a held claim waits for a better day; a wrong merge would "
              "corrupt the board"],
+        ],
+        "reconciler/reconciler.py::Reconciler._promote_candidates": [
+            ["Most of what a meeting says about work is a passing mention",
+             "and a mention that matched no task was thrown away, so the "
+             "ledger could only ever learn about work phrased as an "
+             "assignment on a day somebody happened to be reviewing"],
+            ["But one mention is not a task either",
+             "a card per sighting is how a queue becomes unusable, which "
+             "is why it was discarded in the first place"],
+            ["So it waits for a second person to say it",
+             "the same standard the closure gates hold -- distinct "
+             "speakers, not distinct sightings -- and what it earns is a "
+             "place in a packet, not a place on the board"],
+        ],
+        "reconciler/reconciler.py::Reconciler._hold_or_expire": [
+            ["A blocker needs a task to block",
+             "and on a cold ledger there is none, so the first real corpus "
+             "reported progress on work that had not been accepted yet and "
+             "every word of it was consumed and dropped"],
+            ["Holding costs nothing; deleting costs the claim",
+             "the signal stays pooled until its task exists, which is "
+             "exactly what the pool was built to allow"],
+            ["Waiting still ends",
+             "past the corroboration window it expires with a named "
+             "reason, because a pool that only grows is its own failure"],
         ],
         "reconciler/reconciler.py::Reconciler._gate_closure": [
             ["Ask who is claiming the completion",

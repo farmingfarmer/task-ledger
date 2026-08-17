@@ -16,6 +16,7 @@ Held signals are untouched: they simply stay pooled, which is the whole point
 of holding. Python 3.8 compatible. Requires psycopg2.
 """
 
+import datetime
 import json
 
 import psycopg2
@@ -31,13 +32,26 @@ def load_signals(dsn, user_ref):
                        s.status_signal, s.confidence::float AS confidence,
                        s.deadline_date, s.deadline_precision, s.deadline_raw,
                        s.blocker_desc, s.blocker_party,
-                       s.owner_candidates, s.raw
+                       s.owner_candidates, s.raw, s.author_ref,
+                       -- How long this has been waiting for us. A signal
+                       -- held for a task that does not exist yet must wait,
+                       -- but not forever; the reconciler expires it against
+                       -- corroboration.window_days rather than growing the
+                       -- pool without bound.
+                       (SELECT min(pe.occurred_at) FROM signal_pool_events pe
+                         WHERE pe.signal_id = s.signal_id
+                           AND pe.user_ref = s.user_ref) AS pooled_at
                 FROM v_unconsumed_signals s
                 WHERE s.user_ref = %s""", (user_ref,))
             rows = [dict(r) for r in cur.fetchall()]
+            now = datetime.datetime.now(datetime.timezone.utc)
             for r in rows:
                 raw = r.pop("raw") or {}
                 r["evidence"] = raw.get("evidence") or []
+                pooled = r.pop("pooled_at", None)
+                r["pooled_days"] = (
+                    None if pooled is None
+                    else max(0.0, (now - pooled).total_seconds() / 86400.0))
                 if r["deadline_date"] is not None:
                     r["deadline_date"] = r["deadline_date"].isoformat()
                 if isinstance(r["owner_candidates"], str):
@@ -149,8 +163,78 @@ def supersede_open_packets(cur, user_ref, run_id, exclude_packet_id=None):
     return stale, returned
 
 
+def load_candidates(dsn, user_ref):
+    """Work this person has heard about that is on no board yet.
+
+    Only 'sighted' rows: once a candidate has been promoted into a packet,
+    or dismissed by someone saying it is not a task, it must stop coming
+    back every time the word is said again.
+    """
+    conn = psycopg2.connect(dsn)
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT candidate_id, title, state, sightings, speakers
+                FROM v_task_candidates
+                WHERE user_ref = %s AND state = 'sighted'""", (user_ref,))
+            return [dict(r) for r in cur.fetchall()]
+    except psycopg2.errors.UndefinedTable:
+        # A database that predates migrate_task_candidates.sql still runs;
+        # it simply has no register yet.
+        return []
+    finally:
+        conn.close()
+
+
+def write_candidate_events(cur, user_ref, report, run_id):
+    """Sightings and promotions from one reconcile run.
+
+    Append-only, like the signal pool: 'we heard this again' and 'this went
+    to a person to rule on' are both facts worth keeping, and the projection
+    reads the latest to decide whether to offer it again.
+    """
+    n = 0
+    for s in report.get("candidate_sightings") or []:
+        cur.execute("""
+            INSERT INTO task_candidate_events
+              (candidate_id, user_ref, event, title, signal_id,
+               speaker_ref, run_id)
+            VALUES (%s,%s,'sighted',%s,%s,%s,%s)""",
+            (s["candidate_id"], user_ref, s["title"], s["signal_id"],
+             s.get("speaker_ref"), run_id))
+        n += 1
+    for p in report.get("candidate_promotions") or []:
+        cur.execute("""
+            INSERT INTO task_candidate_events
+              (candidate_id, user_ref, event, title, run_id)
+            VALUES (%s,%s,'promoted',%s,%s)""",
+            (p["candidate_id"], user_ref, p["title"], run_id))
+        n += 1
+    return n
+
+
+def apply_aliases(cur, user_ref, annotations):
+    """Names people used for work already on the board.
+
+    Applied on sight rather than on acceptance: matching should improve with
+    every meeting, not only with every review session.
+    """
+    n = 0
+    for ann in annotations or []:
+        if ann.get("kind") != "alias":
+            continue
+        cur.execute(
+            "SELECT apply_task_event(%s, %s, 'alias_added', "
+            "'system', NULL, %s::jsonb)",
+            (ann["task_id"], user_ref,
+             json.dumps({"alias": ann["alias"],
+                         "source_signal_id": ann["source_signal_id"]})))
+        n += 1
+    return n
+
+
 def write_packet(dsn, packet, consumed_signal_ids, annotations,
-                 run_id, expires_hours=48):
+                 run_id, expires_hours=48, report=None):
     """Persists the packet and its side effects atomically. Supersedes any
     open packets for the user first (their undecided signals rejoin the
     pool). Packets with zero proposals are NOT inserted -- silence is the
@@ -158,7 +242,7 @@ def write_packet(dsn, packet, consumed_signal_ids, annotations,
     tick order. Returns counts."""
     conn = psycopg2.connect(dsn)
     out = {"proposals": 0, "taken": 0, "aliases": 0,
-           "superseded": [], "returned_signals": 0}
+           "superseded": [], "returned_signals": 0, "candidate_events": 0}
     try:
         with conn:
             with conn.cursor() as cur:
@@ -167,6 +251,19 @@ def write_packet(dsn, packet, consumed_signal_ids, annotations,
                     exclude_packet_id=packet["packet_id"])
                 out["superseded"] = stale
                 out["returned_signals"] = returned
+                if report is not None:
+                    out["candidate_events"] = write_candidate_events(
+                        cur, packet["user_ref"], report, run_id)
+                # Aliases land here, ahead of every early return below.
+                # They used to be written after the packet insert, so a run
+                # that proposed nothing -- the common case, since most
+                # signals are mentions -- taught the matcher nothing at all,
+                # and an idempotent replay skipped them too. An alias is not
+                # a board fact and needs no decision: it is a name somebody
+                # used for work that already exists, and knowing it makes
+                # the NEXT meeting match better.
+                out["aliases"] += apply_aliases(
+                    cur, packet["user_ref"], annotations)
                 if not packet["proposals"]:
                     for sid in consumed_signal_ids:
                         cur.execute("""
@@ -220,17 +317,6 @@ def write_packet(dsn, packet, consumed_signal_ids, annotations,
                         VALUES (%s,%s,'taken',%s)""",
                         (sid, packet["user_ref"], run_id))
                     out["taken"] += 1
-                for ann in annotations:
-                    if ann.get("kind") != "alias":
-                        continue
-                    cur.execute(
-                        "SELECT apply_task_event(%s, %s, 'alias_added', "
-                        "'system', NULL, %s::jsonb)",
-                        (ann["task_id"], packet["user_ref"],
-                         json.dumps({"alias": ann["alias"],
-                                     "source_signal_id":
-                                         ann["source_signal_id"]})))
-                    out["aliases"] += 1
         return out
     finally:
         conn.close()

@@ -116,6 +116,23 @@ def check_schema(conn):
             report("WARN", "migration pending: meeting_recap source type",
                    "recap ingestion will fail on write; apply "
                    "storage/migrate_meeting_recap.sql")
+        # Without the register, every mention that matches no task is
+        # discarded again -- silently, since a dropped signal is not an
+        # error. That is the failure mode most likely to look like "the
+        # model found nothing" when the model found plenty.
+        cur.execute("SELECT to_regclass('public.v_task_candidates')")
+        if cur.fetchone()[0]:
+            report("PASS", "migrations applied", "candidate register present")
+        else:
+            report("WARN", "migration pending: candidate register",
+                   "mentions of untracked work will be discarded rather "
+                   "than accumulated; apply "
+                   "storage/migrate_task_candidates.sql")
+        cur.execute("SELECT to_regclass('public.v_task_progress')")
+        if not cur.fetchone()[0]:
+            report("WARN", "migration pending: derived progress",
+                   "subtask rollup unavailable; apply "
+                   "storage/migrate_task_progress.sql")
         cur.execute("SELECT count(*) FROM v_unconsumed_signals")
         pool = cur.fetchone()[0]
         cur.execute("""

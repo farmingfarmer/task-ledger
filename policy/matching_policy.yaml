@@ -60,7 +60,8 @@ signal_rules:
   task_mention:
     min_conf: 0.55
     emits: null                 # a bare mention never proposes an op by itself
-    on_match: "append signal title to task alias set (after packet acceptance)"
+    on_match: "append signal title to task alias set (applied on sight)"
+    on_no_match: "record a candidate sighting; see candidate_promotion"
     downgrade: "discard"
 
   proposal:
@@ -212,3 +213,29 @@ calibration:
     merge_tasks: 0.90
     reassign: 0.85
   drift_alarm: "weekly acceptance rate for any op drops > 15 points from trailing 4-week mean"
+
+# Work referenced in conversation that is on nobody's board.
+#
+# A mention used to be discarded when it matched nothing -- 87 of 134 signals
+# on the first real corpus, every one of them a reference to work the ledger
+# had never been told about. But a mention is genuinely not a task: one
+# passing "we should look at the retention sweep" is noise, and a card per
+# mention makes the queue useless, which is why it was dropped in the first
+# place.
+#
+# So corroboration decides, on the same standard the closure gates use:
+# distinct SPEAKERS, not distinct sightings. One person repeating themselves
+# across four meetings is one person's opinion. Two people inside a fortnight
+# is a thing the team keeps returning to and nobody has written down.
+#
+# Promotion produces a PROPOSAL. It never writes a board fact -- the human
+# decision stays exactly where it was.
+candidate_promotion:
+  min_sightings: 2
+  min_distinct_speakers: 2
+  window_days: 14
+  # Similarity at which a new mention is the same candidate as one already
+  # registered rather than a new one. Deliberately the judge_floor: below
+  # this the reconciler would not even ask about two tasks, so it should not
+  # silently merge two candidates either.
+  same_candidate_floor: 0.62

@@ -1135,6 +1135,23 @@
     quiet.forEach(function(t){ sec2.appendChild(quietRow(t, d.writable)); });
     body.appendChild(sec2);
 
+    // Work the ledger keeps hearing about and nobody has written down.
+    // These have not corroborated their way into a proposal yet -- showing
+    // all of them would be the noise the promotion rule exists to prevent,
+    // so this is the shortlist, and answering either way retires it.
+    var cands = d.candidates || [];
+    if(cands.length){
+      var sec3 = el2("div","revsec");
+      sec3.appendChild(el("h3", null, "Mentioned, never tracked"));
+      sec3.appendChild(el("p","lede",
+        "Referred to in conversation and on nobody\u2019s board. Answering "
+        + "either way stops it being raised again."));
+      cands.forEach(function(c){
+        sec3.appendChild(candidateRow(c, d.writable));
+      });
+      body.appendChild(sec3);
+    }
+
     if(!d.writable)
       body.appendChild(el("div","revnote",
         "This is the real ledger, and the dashboard reads it without ever "
@@ -1243,6 +1260,47 @@
     acts.appendChild(yes); acts.appendChild(no); acts.appendChild(sel);
     if(own) acts.appendChild(own);
     acts.appendChild(later);
+    row.appendChild(acts);
+    return row;
+  }
+
+  function candidateRow(c, writable){
+    var row = el2("div","revitem");
+    row.appendChild(el("span","op", "MENTIONED"));
+    row.appendChild(el("div","ttl", c.title || "(untitled)"));
+    var n = c.sightings || 0, sp = c.speakers || 0;
+    row.appendChild(el("div","meta",
+      n + " mention" + (n === 1 ? "" : "s")
+      + " by " + sp + " " + (sp === 1 ? "person" : "people")
+      + " \u00b7 on no board"));
+
+    var acts = el2("div","revacts");
+    var yes = el2("button","yes"); yes.type = "button";
+    yes.textContent = "Yes, track it";
+    var no = el2("button", null); no.type = "button";
+    no.textContent = "Not a task";
+
+    function done(word){
+      acts.innerHTML = "";
+      acts.appendChild(el("span","revdone", word));
+      loadReview(false);
+      boot();
+    }
+    yes.onclick = function(){
+      post("/api/candidate", {candidate_id: c.candidate_id,
+                              action: "track"})
+        .then(function(){
+          done("On your board \u2014 recorded as typed by you");
+        })["catch"](function(e){ done(e.message); });
+    };
+    no.onclick = function(){
+      post("/api/candidate", {candidate_id: c.candidate_id,
+                              action: "dismiss"})
+        .then(function(){ done("Dismissed \u2014 it will not be raised again"); })
+        ["catch"](function(e){ done(e.message); });
+    };
+    [yes, no].forEach(function(b){ b.disabled = !writable; });
+    acts.appendChild(yes); acts.appendChild(no);
     row.appendChild(acts);
     return row;
   }
@@ -1654,8 +1712,13 @@
         if(r.project_name)
           titleLine.appendChild(el("span","proj", r.project_name));
         t1.appendChild(titleLine);
+        // "2/3 subtasks", not "67%": the fraction is what was actually
+        // decided, and a percentage invites reading precision into three
+        // checkboxes. A task with no subtasks says nothing at all rather
+        // than 0%, which would read as "nothing has happened".
         t1.appendChild(el("div","tid", r.task_id +
-          (r.subtasks ? " \u00b7 " + r.subtasks + " subtasks" : "") +
+          (r.subtasks ? " \u00b7 " + (r.subtasks_done || 0) + "/" +
+            r.subtasks + " subtasks" : "") +
           (r.sources ? " \u00b7 " + r.sources + " source" +
             (r.sources === 1 ? "" : "s") : "")));
         // Quiet work is the failure mode deadlines do not catch: a task
