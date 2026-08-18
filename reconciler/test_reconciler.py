@@ -776,6 +776,34 @@ def test_pg_live():
        "pool shrank by exactly the consumed count; held signals remain")
 
 
+def test_uncitable_proposal_dropped():
+    print("proposal with no evidence")
+    # A signal whose evidence did not survive flattening. The packet schema
+    # requires minItems 1 and validates the packet whole, so before this was
+    # handled the ValidationError escaped reconcile() and the caller lost the
+    # entire run for that user -- including the good proposal beside it.
+    r = make()
+    good = sig(title="Deploy drift monitor staging",
+               status_signal="in_progress",
+               owner_candidates=[{"person_ref": "aad-alex",
+                                  "confidence": 0.9,
+                                  "basis": "self_reference"}])
+    bad = sig(signal_id="sig-noev", signal_type="proposal",
+              title="Draft the onboarding runbook", confidence=0.9,
+              evidence=[],
+              owner_candidates=[{"person_ref": "aad-alex",
+                                 "confidence": 0.9,
+                                 "basis": "self_reference"}])
+    packet, rep = r.reconcile("aad-alex", [good, bad], BOARD, 7, "run-t")
+    ok(all(p["evidence"] for p in packet["proposals"]),
+       "no proposal reaches the packet without a sentence behind it")
+    ok(any(d["reason"] == "no_evidence" for d in rep["dropped"]),
+       "and it is dropped with a reason rather than raised as an exception")
+    ok(any(p["target_task_id"] == "task-drift" for p in packet["proposals"]),
+       "the reviewable proposal beside it still lands -- one bad signal no "
+       "longer costs the whole packet")
+
+
 if __name__ == "__main__":
     test_auto_link_and_status()
     test_regression_conflict()
@@ -790,5 +818,6 @@ if __name__ == "__main__":
     test_candidate_register()
     test_no_target_waits()
     test_cross_owner_guard()
+    test_uncitable_proposal_dropped()
     test_pg_live()
     print("\nall {0} reconciler checks passed".format(CHECKS[0]))

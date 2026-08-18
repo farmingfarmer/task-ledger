@@ -183,6 +183,7 @@ class Reconciler(object):
         proposals = self._split_auto_apply(proposals, user_ref, tasks,
                                            report)
         self._annotate_cross_board(proposals, tasks, all_tasks, report)
+        proposals = self._drop_uncitable(proposals, report)
         packet = {
             "packet_id": _sha(user_ref, cadence_run_id, board_version,
                               *sorted(report["consumed"])),
@@ -758,6 +759,37 @@ class Reconciler(object):
             "conflict": None,
             "payload": payload,
         }
+
+    def _drop_uncitable(self, proposals, report):
+        """A proposal with no evidence is unreviewable -- and must not take
+        the rest of the packet down with it.
+
+        ReviewPacket requires minItems 1 on evidence and the packet is
+        validated whole, so a single proposal that flattened to no evidence
+        raised ValidationError out of reconcile() and cost that user
+        EVERYTHING that run: their other proposals, their consumed marks,
+        their candidate sightings. Not once, either. The signal behind it
+        stays in the pool, and signals is append-only, so the offending row
+        can never be deleted -- two users on the first real corpus were
+        permanently in this state, failing on every tick, logged as one line
+        that looked like a transient warning.
+
+        The judgement is already settled one layer down: a candidate with
+        nothing citeable waits rather than promoting, because a card that
+        cannot be traced back to a sentence is not reviewable, which is the
+        whole point of the card. The same rule belongs here, applied the
+        same way -- dropped with a reason that shows up in the drop log,
+        not raised as an exception that discards the work around it.
+        """
+        out = []
+        for p in proposals:
+            if p.get("evidence"):
+                out.append(p)
+                continue
+            report["dropped"].append(
+                {"signal_id": ",".join(p.get("source_signals") or []),
+                 "reason": "no_evidence"})
+        return out
 
     def _annotate_cross_board(self, proposals, tasks, all_tasks, report):
         """Annotate unowned creates that look like work already on someone
