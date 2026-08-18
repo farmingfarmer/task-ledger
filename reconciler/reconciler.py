@@ -672,6 +672,15 @@ class Reconciler(object):
         """
         rule = self.policy["candidate_promotion"]
         out = []
+        # Why nothing promoted is as much a result as what did. "0 promoted"
+        # beside "15 candidate(s)" is indistinguishable between a bar nothing
+        # reached, a bar reached by cards nobody can cite, and a policy file
+        # whose edit never saved -- three very different problems that cost a
+        # day to tell apart by hand. So the assessment is reported: the bar in
+        # force, how many fell short of it, how many cleared it and were held
+        # back as uncitable, and the best corroboration actually seen.
+        assessed = short = uncitable = 0
+        best_sightings = best_speakers = 0
         for c in self._candidates:
             fresh = c["_new_sightings"]
             # Assessed every run, not only when mentioned again. Skipping
@@ -684,12 +693,16 @@ class Reconciler(object):
                            if s.get("author_ref"))
             n_speakers = max(c.get("speakers") or 0, 0) + len(
                 speakers - {None})
+            assessed += 1
+            best_sightings = max(best_sightings, sightings)
+            best_speakers = max(best_speakers, n_speakers)
             persistent = sightings >= rule["min_sightings"]
             broad = n_speakers >= rule["min_distinct_speakers"]
             enough = (persistent or broad
                       if rule.get("mode", "all") == "any"
                       else persistent and broad)
             if not enough:
+                short += 1
                 continue
             # Cite the sighting we have in hand; the count is what earned it.
             # A card with no evidence cannot be reviewed -- there is nothing
@@ -701,6 +714,7 @@ class Reconciler(object):
             elif (c.get("lead") or {}).get("evidence"):
                 lead = c["lead"]     # carried from an earlier sighting
             else:
+                uncitable += 1
                 continue
             p = self._mk(lead, "create_task", None, {
                 "kind": "create_task",
@@ -719,6 +733,18 @@ class Reconciler(object):
             report["candidate_promotions"].append(
                 {"candidate_id": c["candidate_id"], "title": c["title"],
                  "sightings": sightings, "speakers": n_speakers})
+        report["candidate_assessment"] = {
+            "assessed": assessed,
+            "short": short,
+            "uncitable": uncitable,
+            "promoted": len(out),
+            "best_sightings": best_sightings,
+            "best_speakers": best_speakers,
+            "bar": "{0} sighting(s) {1} {2} speaker(s)".format(
+                rule["min_sightings"],
+                "or" if rule.get("mode", "all") == "any" else "and",
+                rule["min_distinct_speakers"]),
+        }
         return out
 
     def _mk_create(self, sig, match, owner_ref=None):

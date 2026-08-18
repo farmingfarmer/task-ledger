@@ -264,16 +264,33 @@ def pooled_users(dsn, primary):
     unconsumed indefinitely -- on the first real corpus, seven colleagues'
     worth of work never reached a packet at all. The primary user is always
     included so a quiet day still supersedes and still notifies.
+
+    Standing candidates count as work waiting too, and for a while they did
+    not. A candidate is re-assessed only on a run that reconciles its owner,
+    and an owner with an empty pool was never reconciled -- so once somebody
+    consumed their last signal, their register froze. Relaxing the promotion
+    bar then appeared to do nothing for them no matter how many times the
+    tick ran, which is the same failure d338a89 fixed inside the reconciler
+    reappearing one level up, in who the reconciler is called for. On the
+    first corpus that hid 9 candidates across 3 people, including the only
+    one standing at the new bar.
     """
     import psycopg2
     conn = psycopg2.connect(dsn)
     try:
         with conn.cursor() as cur:
             cur.execute("SELECT DISTINCT user_ref FROM v_unconsumed_signals")
-            users = sorted({r[0] for r in cur.fetchall()} | {primary})
+            users = {r[0] for r in cur.fetchall()} | {primary}
+            try:
+                cur.execute("""
+                    SELECT DISTINCT user_ref FROM v_task_candidates
+                    WHERE state = 'sighted'""")
+                users |= {r[0] for r in cur.fetchall()}
+            except psycopg2.errors.UndefinedTable:
+                conn.rollback()   # register not migrated yet; signals only
     finally:
         conn.close()
-    return users
+    return sorted(users)
 
 
 def run_reconcile(dsn, user, host, embed_model, judge_model):
@@ -314,6 +331,15 @@ def run_reconcile(dsn, user, host, embed_model, judge_model):
             user, result["proposals"], len(report["consumed"]),
             len(report["held"]), len(report["candidate_sightings"]),
             len(report["candidate_promotions"]), len(result["superseded"])))
+    # A promotion count of zero has three quite different causes and they
+    # are worth telling apart without a psql session.
+    a = report.get("candidate_assessment") or {}
+    if a.get("assessed"):
+        log("  candidates[{0}]: {1} assessed against {2}; {3} short, "
+            "{4} uncitable, {5} promoted (best seen: {6} sighting(s), "
+            "{7} speaker(s))".format(
+                user, a["assessed"], a["bar"], a["short"], a["uncitable"],
+                a["promoted"], a["best_sightings"], a["best_speakers"]))
     return result
 
 
@@ -386,6 +412,21 @@ def main():
         os.environ.get("TL_EXTRACT_MODEL", "mistral-small3.1(default)"),
         os.environ.get("TL_JUDGE_MODEL", "mistral-small3.1(default)"),
         os.environ.get("TL_EMBED_MODEL", "nomic-embed-text(default)")))
+    # And the promotion bar in force, read from the same file the reconciler
+    # will read. An edit that never saved -- a mangled paste, a findstr that
+    # hung before it could confirm, a Notepad dialog nobody clicked -- is
+    # otherwise invisible: the tick runs, reports 0 promoted, and looks
+    # exactly like a policy change that was applied and did not work.
+    try:
+        import reconciler as _rec
+        import yaml as _yaml
+        with open(_rec._find(_rec.DEFAULT_POLICY_PATH_CANDIDATES)) as _f:
+            _cp = (_yaml.safe_load(_f) or {}).get("candidate_promotion") or {}
+        log("promotion: mode={0} min_sightings={1} min_distinct_speakers={2}"
+            .format(_cp.get("mode"), _cp.get("min_sightings"),
+                    _cp.get("min_distinct_speakers")))
+    except Exception as exc:                            # noqa: BLE001
+        log("promotion: policy unreadable ({0!r})".format(exc))
     try:
         process_inbox(dsn, inbox, host,
                       os.environ.get("TL_EXTRACT_MODEL", "mistral-small3.1"),

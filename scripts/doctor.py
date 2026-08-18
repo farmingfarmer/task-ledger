@@ -128,6 +128,58 @@ def check_schema(conn):
                    "mentions of untracked work will be discarded rather "
                    "than accumulated; apply "
                    "storage/migrate_task_candidates.sql")
+        # What the register holds, against the bar it is being held to.
+        # "N candidate(s), 0 promoted" is the least informative true
+        # sentence this system produces: it reads identically whether the
+        # bar is too high for the data, the cards cannot be cited, or the
+        # policy edit never saved. Answering it took a hand-written psql
+        # query three separate times, so it belongs here.
+        cur.execute("SELECT to_regclass('public.v_task_candidates')")
+        if cur.fetchone()[0]:
+            cur.execute("""
+                SELECT count(*) FILTER (WHERE state = 'sighted'),
+                       count(*) FILTER (WHERE state = 'promoted'),
+                       COALESCE(max(sightings) FILTER
+                                (WHERE state = 'sighted'), 0),
+                       COALESCE(max(speakers) FILTER
+                                (WHERE state = 'sighted'), 0)
+                FROM v_task_candidates""")
+            standing, promoted, top_s, top_p = cur.fetchone()
+            import yaml as _yaml
+            _root = os.path.normpath(os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), ".."))
+            with open(os.path.join(_root, "policy",
+                                   "matching_policy.yaml")) as _f:
+                _cp = ((_yaml.safe_load(_f) or {}).get("candidate_promotion")
+                       or {})
+            need_s = _cp.get("min_sightings")
+            need_p = _cp.get("min_distinct_speakers")
+            joiner = "or" if _cp.get("mode") == "any" else "and"
+            reach = (standing and (top_s >= (need_s or 0)
+                                   or top_p >= (need_p or 0))
+                     if joiner == "or" else
+                     standing and (top_s >= (need_s or 0)
+                                   and top_p >= (need_p or 0)))
+            detail = ("{0} standing, {1} promoted; best standing candidate "
+                      "has {2} sighting(s)/{3} speaker(s) against a bar of "
+                      "{4} {5} {6}".format(standing, promoted, top_s, top_p,
+                                           need_s, joiner, need_p))
+            # Every candidate starts at one sighting, so "best is 1" is
+            # simply a quiet register and not a misconfiguration -- warning
+            # about it would fire forever on any healthy ledger that has
+            # already promoted everything eligible. What is worth flagging
+            # is corroboration piling up just under the bar: several things
+            # said more than once that the rule keeps refusing, which is a
+            # bar set above what this corpus can produce rather than a
+            # corpus with nothing to say.
+            accruing = top_s > 1 or top_p > 1
+            if standing and not reach and accruing:
+                report("WARN", "candidate register: the bar is above the "
+                       "evidence", detail + " -- corroboration is "
+                       "accumulating and none of it reaches either bar, so "
+                       "the next tick promotes nothing however often it runs")
+            else:
+                report("PASS", "candidate register", detail)
         cur.execute("""
             SELECT count(*) FROM task_events
             WHERE actor_type = 'auto_applied'""")
