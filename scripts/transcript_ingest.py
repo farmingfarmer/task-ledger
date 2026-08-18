@@ -300,6 +300,10 @@ def main():
     ap.add_argument("--max-items", type=int, default=35,
                     help="split a meeting into sub-windows of at most this "
                          "many utterances (0 = never split)")
+    ap.add_argument("--skip-processed", action="store_true",
+                    help="do not re-write windows already in "
+                         "<out>/processed/ -- append new meetings to a "
+                         "transcript and ingest only what is new")
     ap.add_argument("--show-unparsed", action="store_true",
                     help="print lines this could not place; they are real "
                          "speech, so this prints to the terminal only")
@@ -371,8 +375,21 @@ def main():
         except OSError:
             pass
 
-    total = 0
+    # Re-ingesting a whole transcript to pick up one appended meeting is
+    # not wrong -- content-hash ids make the old windows a no-op at the
+    # store -- but it is not free either: every window still goes through
+    # the model first, and 65 of them against a local 8B is most of an
+    # hour to learn nothing. So a window already sitting in processed/ can
+    # be left alone. Counted and reported, never silently dropped: "I
+    # ingested the file" and "I ingested part of the file" must not look
+    # the same on the way past.
+    processed_dir = os.path.join(args.out, "processed")
+    total = skipped = 0
     for window, fname in expanded:
+        if args.skip_processed and os.path.exists(
+                os.path.join(processed_dir, fname)):
+            skipped += 1
+            continue
         total += len(window["items"])
         refs = sorted(set(i["author_ref"] for i in window["items"]))
         print("{0}{1}  {2} utterance(s), {3} speaker(s): {4}".format(
@@ -384,9 +401,11 @@ def main():
                 json.dump(window, f, indent=2)
                 f.write("\n")
 
-    print("{0} window(s), {1} utterance(s){2}".format(
-        len(expanded), total,
-        "" if args.dry_run else " -> " + args.out))
+    print("{0} window(s), {1} utterance(s){2}{3}".format(
+        len(expanded) - skipped, total,
+        "" if args.dry_run else " -> " + args.out,
+        "" if not skipped else
+        "  ({0} already processed, skipped)".format(skipped)))
     if unparsed:
         print("{0} line(s) could not be placed"
               "{1}".format(len(unparsed),
