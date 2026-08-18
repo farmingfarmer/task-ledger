@@ -379,6 +379,13 @@ def main():
 
     wire_paths()
     log("tick start: user={0} inbox={1}".format(user, inbox))
+    # Echo the models actually received. A pasted `set` line that never
+    # reaches the program falls back to the default and logs nothing, so a
+    # run with the wrong model is indistinguishable from the one intended.
+    log("models: extract={0} judge={1} embed={2}".format(
+        os.environ.get("TL_EXTRACT_MODEL", "mistral-small3.1(default)"),
+        os.environ.get("TL_JUDGE_MODEL", "mistral-small3.1(default)"),
+        os.environ.get("TL_EMBED_MODEL", "nomic-embed-text(default)")))
     try:
         process_inbox(dsn, inbox, host,
                       os.environ.get("TL_EXTRACT_MODEL", "mistral-small3.1"),
