@@ -663,9 +663,11 @@ class Reconciler(object):
     def _promote_candidates(self, report):
         """Corroborated candidates become proposals -- never board facts.
 
-        Distinct speakers, not distinct sightings: one person repeating
-        themselves across four meetings is one person's opinion, which is
-        the same standard the closure gates hold.
+        Corroboration is breadth OR persistence under mode 'any': two
+        people raised it, or it came up three times. Demanding both
+        promoted 4 of 92 on the first real corpus, because a status
+        round-robin rarely produces a second speaker -- the person who
+        mentions something four times is usually the one who owns it.
         """
         rule = self.policy["candidate_promotion"]
         out = []
@@ -681,8 +683,12 @@ class Reconciler(object):
                            if s.get("author_ref"))
             n_speakers = max(c.get("speakers") or 0, 0) + len(
                 speakers - {None})
-            if (sightings < rule["min_sightings"]
-                    or n_speakers < rule["min_distinct_speakers"]):
+            persistent = sightings >= rule["min_sightings"]
+            broad = n_speakers >= rule["min_distinct_speakers"]
+            enough = (persistent or broad
+                      if rule.get("mode", "all") == "any"
+                      else persistent and broad)
+            if not enough:
                 continue
             # Cite the sighting we have in hand; the count is what earned it.
             # A card with no evidence cannot be reviewed -- there is nothing

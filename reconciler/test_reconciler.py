@@ -573,26 +573,34 @@ def test_candidate_register():
                           "evidence": [{"source_type": "transcript_utterance",
                                         "resource_id": "utt-old",
                                         "span": None, "content_hash": "h"}]}}]
-    r5.policy["candidate_promotion"] = dict(r5.policy["candidate_promotion"])
-    r5.policy["candidate_promotion"]["min_sightings"] = 3
-    r5.policy["candidate_promotion"]["min_distinct_speakers"] = 1
     packet5, rep5 = r5.reconcile("aad-alex", [], [], 0, "run-c",
                                  candidates=standing)
     ok(len(packet5["proposals"]) == 1 and rep5["candidate_promotions"],
-       "a candidate already past the bar promotes on the next run, with no "
-       "fresh mention needed")
+       "persistence alone promotes: four mentions by one speaker is work "
+       "the team keeps returning to, and the shipped rule takes it")
 
     # ...but only if it can be cited. No evidence, no reviewable card.
     r6 = make()
-    r6.policy["candidate_promotion"] = dict(r6.policy["candidate_promotion"])
-    r6.policy["candidate_promotion"]["min_sightings"] = 3
-    r6.policy["candidate_promotion"]["min_distinct_speakers"] = 1
     bare = [{"candidate_id": "cand-3", "title": "the retention sweep",
              "sightings": 4, "speakers": 1, "state": "sighted", "lead": None}]
     packet6, _ = r6.reconcile("aad-alex", [], [], 0, "run-c",
                               candidates=bare)
     ok(packet6["proposals"] == [],
        "and one with nothing to trace back to keeps waiting")
+
+    # Under 'any' the bars are still bars: too few of both stays waiting.
+    r7 = make()
+    thin = [{"candidate_id": "cand-4", "title": "the retention sweep",
+             "sightings": 2, "speakers": 1, "state": "sighted",
+             "lead": {"signal_id": "sig-thin", "description": None,
+                      "confidence": 0.7, "owner_candidates": [],
+                      "evidence": [{"source_type": "transcript_utterance",
+                                    "resource_id": "utt-thin",
+                                    "span": None, "content_hash": "h"}]}}]
+    packet7, _ = r7.reconcile("aad-alex", [], [], 0, "run-c",
+                              candidates=thin)
+    ok(packet7["proposals"] == [],
+       "two mentions by one speaker clears neither bar and keeps waiting")
 
     # A mention that DOES match the board is still an alias, not a candidate.
     r4 = make()

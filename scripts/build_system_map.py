@@ -326,10 +326,12 @@ ATLAS = {
                                "real corpus, every reference to work no "
                                "board had heard of, deleted. They "
                                "accumulate instead, and corroboration "
-                               "decides: distinct SPEAKERS, because one "
-                               "person repeating themselves is one "
-                               "person's opinion. Promotion yields a "
-                               "PROPOSAL, never a board fact."},
+                               "decides -- breadth OR persistence: two "
+                               "people raised it, or it came up three "
+                               "times. Demanding both promoted 4 of 92 on "
+                               "real data, because a status round-robin "
+                               "rarely gives a second speaker. Promotion "
+                               "yields a PROPOSAL, never a board fact."},
                      {"symbol": "Reconciler._split_auto_apply",
                       "blurb": "The one place the human gate opens, and "
                                "off by default. A status update in your "
@@ -1155,10 +1157,14 @@ NARRATIVE = {
             ["But one mention is not a task either",
              "a card per sighting is how a queue becomes unusable, which "
              "is why it was discarded in the first place"],
-            ["So it waits for a second person to say it",
-             "the same standard the closure gates hold -- distinct "
-             "speakers, not distinct sightings -- and what it earns is a "
-             "place in a packet, not a place on the board"],
+            ["So it waits to be corroborated, in either of two ways",
+             "two people raised it, or one person kept raising it -- "
+             "requiring both promoted four of ninety-two on real data, "
+             "because in a status round-robin the person who mentions "
+             "work is the person who owns it"],
+            ["And what it earns is a place in a packet",
+             "not a place on the board: the human decision is exactly "
+             "where it was"],
         ],
         "reconciler/reconciler.py::Reconciler._split_auto_apply": [
             ["Confirming your own words is friction with no judgement in it",

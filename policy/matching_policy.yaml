@@ -267,8 +267,23 @@ auto_apply:
   undo_window_days: 7     # how long the poke keeps offering to revert it
 
 candidate_promotion:
-  min_sightings: 2
-  min_distinct_speakers: 2
+  # Corroboration has two shapes, and requiring BOTH was the mistake. On
+  # the first real corpus 92 candidates registered and 4 promoted, because
+  # two-distinct-speakers was the only route -- and a status round-robin
+  # does not produce it. The person who mentions something four times is
+  # almost always the one who owns it.
+  #
+  #   BREADTH      two people raised it     -> not one person's hobbyhorse
+  #   PERSISTENCE  it came up three times   -> not a passing remark
+  #
+  # Either is evidence that work is real and untracked, so 'any' takes
+  # either. The cost is visible and worth naming: meeting furniture recurs
+  # too, so "review tasks" and "ad hoc topics" will promote and want
+  # rejecting. Two seconds each, recorded with a reason, and cheaper than
+  # never being asked about the work underneath them.
+  mode: any                 # 'any' = either bar promotes; 'all' = both must
+  min_sightings: 3          # persistence
+  min_distinct_speakers: 2  # breadth
   window_days: 14
   # Similarity at which a new mention is the same candidate as one already
   # registered rather than a new one. Deliberately the judge_floor: below
