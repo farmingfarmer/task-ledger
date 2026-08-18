@@ -182,6 +182,16 @@ def quarantine(inbox, path, record):
         pass
 
 
+def db_up(dsn, timeout=3):
+    """Is the store there to write to."""
+    import psycopg2
+    try:
+        psycopg2.connect(dsn, connect_timeout=timeout).close()
+        return True
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
 def process_inbox(dsn, inbox, host, extract_model, llm_factory):
     import extraction_worker
     import signal_store_pg
@@ -196,6 +206,19 @@ def process_inbox(dsn, inbox, host, extract_model, llm_factory):
         # quarantine.
         log("inbox: {0} file(s) waiting but Ollama unreachable; "
             "leaving for next tick".format(len(files)))
+        return 0
+    if not db_up(dsn):
+        # The same courtesy the model already got, for the dependency that
+        # did not have it. Extraction runs first and the store is only
+        # touched at the end, so a database that went away mid-run was
+        # discovered AFTER the expensive part: on a laptop that slept
+        # through a tick, fifteen minutes of local inference produced a
+        # window that could not be written, was counted as a failed
+        # attempt, and moved one strike closer to quarantine. Nothing about
+        # that is the window's fault, and none of the work needed doing.
+        log("inbox: {0} file(s) waiting but the database is unreachable; "
+            "leaving for next tick (extraction would be discarded at the "
+            "write and counted against the window)".format(len(files)))
         return 0
     processed_dir = os.path.join(inbox, "processed")
     os.makedirs(processed_dir, exist_ok=True)

@@ -75,17 +75,22 @@ def always_works(model, host):
     return call
 
 
-def run(tmp, llm_factory, ollama=True):
+def run(tmp, llm_factory, ollama=True, db=True):
     """ollama_up is patched deliberately: with it left real, every test
     here takes the unreachable-model path and passes without extracting
-    anything -- which is how the first draft of this file "passed"."""
-    real = ct.ollama_up
+    anything -- which is how the first draft of this file "passed".
+
+    db_up is patched for the same reason and it is the same trap: the DSN
+    here is a dummy, so an unpatched preflight refuses every window and the
+    suite goes green having exercised nothing."""
+    real_ollama, real_db = ct.ollama_up, ct.db_up
     ct.ollama_up = lambda host, timeout=3: ollama
+    ct.db_up = lambda dsn, timeout=3: db
     try:
         return ct.process_inbox("dsn://none", tmp, "http://fake",
                                 "fake-model", llm_factory)
     finally:
-        ct.ollama_up = real
+        ct.ollama_up, ct.db_up = real_ollama, real_db
 
 
 def test_quarantine_after_repeated_failure():
@@ -116,6 +121,34 @@ def test_quarantine_after_repeated_failure():
         ok("window-1.json" not in json.load(
             open(os.path.join(tmp, ct.ATTEMPTS_FILE))),
            "the counter is cleared once the file is quarantined")
+    finally:
+        shutil.rmtree(tmp)
+
+
+def test_unreachable_db_costs_nothing():
+    print("database down")
+    tmp = tempfile.mkdtemp()
+    try:
+        setup(tmp)
+        # never_called: reaching the model at all is the bug. Extraction
+        # runs before the store is touched, so without the preflight a
+        # window is extracted -- minutes of local inference -- and only
+        # then discovered to be unwritable, at which point it is charged a
+        # failed attempt for an outage that was never its fault.
+        def never_called(model, host):
+            def llm(messages):
+                raise AssertionError(
+                    "extracted with the database down: the expensive work "
+                    "was done before checking it could be stored")
+            return llm
+
+        kept = run(tmp, never_called, db=False)
+        ok(kept == 0, "nothing is processed while the store is unreachable")
+        ok(os.path.exists(os.path.join(tmp, "window-1.json")),
+           "the window stays in the inbox for the next tick")
+        ok(not os.path.exists(os.path.join(tmp, ct.ATTEMPTS_FILE)),
+           "and is charged no failed attempt, so an outage cannot push it "
+           "into quarantine")
     finally:
         shutil.rmtree(tmp)
 
@@ -193,6 +226,7 @@ def test_one_bad_window_does_not_block_others():
 
 if __name__ == "__main__":
     test_quarantine_after_repeated_failure()
+    test_unreachable_db_costs_nothing()
     test_success_clears_history()
     test_ollama_down_is_not_a_failure()
     test_corrupt_counter_is_survivable()
