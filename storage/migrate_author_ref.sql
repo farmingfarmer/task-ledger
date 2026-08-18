@@ -17,9 +17,29 @@
 -- BY DESIGN -- an extraction record is what the extractor said at the time,
 -- and quietly enriching it later would make the ledger's own history a
 -- thing that changes. Pre-migration signals therefore keep author_ref NULL
--- forever and the UI reports them as "speaker not recorded". Re-extracting
--- a window is the supported way to get the field populated: content-hash
--- ids make that an upsert-shaped no-op everywhere else.
+-- forever and the UI reports them as "speaker not recorded".
+--
+-- CORRECTION. This comment used to end: "Re-extracting a window is the
+-- supported way to get the field populated: content-hash ids make that an
+-- upsert-shaped no-op everywhere else." That was wrong about this repo's
+-- own code, and it cost a day of chasing. signal_id deliberately excludes
+-- author_ref, so a replay yields identical ids -- and write_batch inserts
+-- ON CONFLICT (signal_id) DO NOTHING, then skips the row on rowcount 0, so
+-- the newly extracted author is thrown away. Switching that to DO UPDATE
+-- does not help either: ON CONFLICT DO UPDATE fires this very trigger.
+-- There was no route from a null author to a filled one, which left the
+-- breadth half of candidate_promotion unreachable for every signal written
+-- before the column existed -- dead data rather than dead code, and 149 of
+-- 174 signals on the first real corpus.
+--
+-- The route now is storage/migrate_author_backfill.sql, which narrows
+-- forbid_mutation to permit exactly one thing (NULL -> value on this
+-- column, every other column byte-identical), plus
+-- scripts/backfill_author.py, which reads the authors back out of the
+-- transcripts in the processed inbox. No re-extraction, and no model:
+-- authorship comes from the window item and never from the LLM, so
+-- replaying a window through Ollama could only reproduce what the
+-- transcript already says.
 -- =========================================================================
 
 BEGIN;
