@@ -549,17 +549,28 @@ def test_candidate_register():
        and rep2["candidate_promotions"],
        "two sightings by two speakers promote to a create_task PROPOSAL")
 
-    # Same speaker twice is one person's opinion, not corroboration.
+    # Same speaker twice used to be refused as one person's opinion. Under
+    # min_sightings 2 it is taken, and that inversion is the whole cost of
+    # the change -- asserted here so it is a decision on the record rather
+    # than a regression somebody discovers later.
     r3 = make()
     m3 = sig(signal_id="sig-c3", signal_type="task_mention",
              title="the retention sweep again", confidence=0.7,
              author_ref="aad-alex")
     prior_same = [{"candidate_id": "cand-1", "title": "the retention sweep",
-                   "sightings": 1, "speakers": 0, "state": "sighted"}]
+                   "sightings": 1, "speakers": 0, "state": "sighted",
+                   "lead": {"signal_id": "sig-prior", "description": None,
+                            "confidence": 0.7, "owner_candidates": [],
+                            "evidence": [{"source_type":
+                                          "transcript_utterance",
+                                          "resource_id": "utt-prior",
+                                          "span": None,
+                                          "content_hash": "h"}]}}]
     packet3, rep3 = r3.reconcile("aad-alex", [m3], [], 0, "run-c",
                                  candidates=prior_same)
-    ok(packet3["proposals"] == [] and not rep3["candidate_promotions"],
-       "repetition by one speaker does not promote")
+    ok(len(packet3["proposals"]) == 1 and rep3["candidate_promotions"],
+       "one person saying it twice now promotes: persistence is 2, because "
+       "no candidate on either real corpus ever reached 3")
 
     # Already over the bar, and nobody said it again this run. It must
     # still promote: otherwise relaxing the rule does nothing until the
@@ -589,18 +600,30 @@ def test_candidate_register():
        "and one with nothing to trace back to keeps waiting")
 
     # Under 'any' the bars are still bars: too few of both stays waiting.
+    # One sighting by one speaker is the case that must never promote --
+    # otherwise every passing remark becomes a card and the queue is unusable.
     r7 = make()
     thin = [{"candidate_id": "cand-4", "title": "the retention sweep",
-             "sightings": 2, "speakers": 1, "state": "sighted",
+             "sightings": 1, "speakers": 1, "state": "sighted",
              "lead": {"signal_id": "sig-thin", "description": None,
                       "confidence": 0.7, "owner_candidates": [],
                       "evidence": [{"source_type": "transcript_utterance",
                                     "resource_id": "utt-thin",
                                     "span": None, "content_hash": "h"}]}}]
-    packet7, _ = r7.reconcile("aad-alex", [], [], 0, "run-c",
-                              candidates=thin)
+    packet7, _rep7 = r7.reconcile("aad-alex", [], [], 0, "run-c",
+                                  candidates=thin)
     ok(packet7["proposals"] == [],
-       "two mentions by one speaker clears neither bar and keeps waiting")
+       "a single mention by one speaker clears neither bar and keeps waiting")
+
+    # The assessment is reported whether or not anything promoted: "0
+    # promoted" alone cannot distinguish a bar nothing reached from a
+    # policy file whose edit never saved.
+    a7 = _rep7["candidate_assessment"]
+    ok(a7["assessed"] == 1 and a7["short"] == 1 and a7["promoted"] == 0
+       and a7["best_sightings"] == 1 and a7["bar"] == "2 sighting(s) or 2 "
+       "speaker(s)",
+       "and the run reports the bar in force and how far the best "
+       "candidate fell short of it")
 
     # A mention that DOES match the board is still an alias, not a candidate.
     r4 = make()

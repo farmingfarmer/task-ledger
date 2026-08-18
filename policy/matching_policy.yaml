@@ -274,15 +274,37 @@ candidate_promotion:
   # almost always the one who owns it.
   #
   #   BREADTH      two people raised it     -> not one person's hobbyhorse
-  #   PERSISTENCE  it came up three times   -> not a passing remark
+  #   PERSISTENCE  it came up twice         -> not a passing remark
   #
   # Either is evidence that work is real and untracked, so 'any' takes
   # either. The cost is visible and worth naming: meeting furniture recurs
   # too, so "review tasks" and "ad hoc topics" will promote and want
   # rejecting. Two seconds each, recorded with a reason, and cheaper than
   # never being asked about the work underneath them.
+  #
+  # WHY PERSISTENCE IS 2 AND NOT 3. Measured, not guessed. Two independent
+  # real corpora were counted, and neither has a single candidate above two
+  # sightings:
+  #
+  #   ledger A   83 standing candidates   73 at 1 sighting, 10 at 2
+  #   ledger B   16 standing candidates   max 4, one candidate
+  #
+  # and breadth is worse than rare, it is close to structural: a mention
+  # routes to its owner, and the extractor's self-commitment rule makes
+  # owner and speaker the same person whenever anybody discusses their own
+  # work -- 27 of 28 sightings on ledger B. So min_distinct_speakers 2 is
+  # very nearly unreachable, which left persistence carrying the register
+  # alone with a bar that nothing on either corpus could clear. A bar no
+  # observed data can reach is not a strict policy, it is an off switch.
+  #
+  # Two is a real loosening and worth saying plainly: "somebody said this
+  # twice" is a weaker claim than "three times", and more furniture will
+  # reach the queue because of it. That is the trade being made on purpose
+  # -- rejections are two seconds and are recorded with a reason, so if the
+  # promoted set turns out to be mostly noise the calibration numbers will
+  # say so and this goes back to 3 with evidence behind it either way.
   mode: any                 # 'any' = either bar promotes; 'all' = both must
-  min_sightings: 3          # persistence
+  min_sightings: 2          # persistence
   min_distinct_speakers: 2  # breadth
   window_days: 14
   # Similarity at which a new mention is the same candidate as one already
