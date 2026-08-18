@@ -150,13 +150,25 @@ def check_schema(conn):
             report("PASS", "migrations applied",
                    "append-only guard permits the author fill")
         else:
+            # A missing guard only matters if something needs filling. A
+            # ledger extracted entirely after author_ref existed has no gap
+            # and no reason to widen its own invariant -- warning it anyway
+            # printed "0 signal(s) have no author ... so promotion cannot
+            # use breadth", which is both untrue and self-contradicting, and
+            # sent an operator hunting for a migration they did not need.
             cur.execute("""
                 SELECT count(*) FROM signals WHERE author_ref IS NULL""")
             n = cur.fetchone()[0]
-            report("WARN", "migration pending: author backfill",
-                   "{0} signal(s) have no author and the guard refuses to "
-                   "fill them, so candidate promotion cannot use breadth; "
-                   "apply storage/migrate_author_backfill.sql".format(n))
+            if n:
+                report("WARN", "migration pending: author backfill",
+                       "{0} signal(s) have no author and the guard refuses "
+                       "to fill them, so those candidates can only promote "
+                       "on persistence; apply "
+                       "storage/migrate_author_backfill.sql".format(n))
+            else:
+                report("PASS", "append-only guard is strict",
+                       "no signal is missing a speaker, so the backfill "
+                       "exemption is not needed here")
         # Breadth needs a speaker. Signals extracted before author_ref
         # existed cannot supply one, and the shortfall is invisible in the
         # candidate counts -- it looks like nothing was said twice.
