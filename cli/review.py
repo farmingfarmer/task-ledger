@@ -249,7 +249,64 @@ def render(prop, evidence, idx, total):
     return "\n".join(lines)
 
 
-def prompt_owner(current, inp, out):
+def known_owners(cur):
+    """Everyone this ledger has already seen, for catching a typo'd owner.
+
+    Not a permission check and not a closed list: a create may legitimately
+    name somebody new, and refusing that would make the CLI unable to record
+    a real decision. It exists because owner_ref took any non-empty string
+    at all, so "huh?" typed at the wrong prompt became a permanent owner and
+    the task landed on nobody's board -- the same invisible-task failure the
+    ownerless-create guard was built to stop, walked in through the front
+    door.
+    """
+    refs = set()
+    try:
+        cur.execute("""
+            SELECT user_ref AS r FROM user_boards
+            UNION SELECT owner_ref FROM tasks_current
+                   WHERE owner_ref IS NOT NULL
+            UNION SELECT user_ref FROM signal_pool_events
+            UNION SELECT author_ref FROM signals WHERE author_ref IS NOT NULL
+            """)
+        for row in cur.fetchall():
+            val = (list(row.values())[0] if isinstance(row, dict)
+                   else row[0])
+            if val:
+                refs.add(val)
+    except Exception:                                   # noqa: BLE001
+        return set()          # validation is a courtesy, never a blocker
+    return refs
+
+
+def prompt_title(current, inp, out, known=None):
+    """Enter keeps the title the proposal came with; typing replaces it.
+
+    The replace is the trap. A reviewer told "use [e]dit-accept to name an
+    owner" arrives at a prompt and types a person into it, and the task is
+    then titled with somebody's name -- observed on the first live review.
+    Naming a person here is therefore refused rather than accepted, because
+    no title is ever a user_ref and the alternative is silent.
+    """
+    while True:
+        out.write("  title [{0}]: ".format(current))
+        out.flush()
+        line = inp.readline()
+        if not line:
+            return None
+        t = line.strip()
+        if not t:
+            return current
+        if known and t in known:
+            out.write("  '{0}' is a person, not a title -- this prompt "
+                      "renames the task.\n"
+                      "  the owner is asked for separately; press enter to "
+                      "keep \"{1}\".\n".format(t, current))
+            continue
+        return t[:120]
+
+
+def prompt_owner(current, inp, out, known=None):
     """Edit-accept of a create ends with an owner. Enter keeps the current
     one when there is one; an empty answer with none re-asks. Returns the
     ref, or None at EOF -- a closed stdin quits rather than loops."""
@@ -260,13 +317,28 @@ def prompt_owner(current, inp, out):
         if not line:
             return None
         val = line.strip() or (current or "")
-        if val:
-            return val
-        out.write("  an owner is required: a task with none is invisible "
-                  "on every board\n")
+        if not val:
+            out.write("  an owner is required: a task with none is invisible "
+                      "on every board\n")
+            continue
+        if known and val not in known:
+            near = sorted(k for k in known
+                          if val.lower() in k.lower())[:3]
+            out.write("  '{0}' is not somebody this ledger has seen.\n"
+                      .format(val))
+            if near:
+                out.write("  did you mean: {0}\n".format(", ".join(near)))
+            out.write("  [y] use it anyway  [enter] type it again > ")
+            out.flush()
+            conf = inp.readline()
+            if not conf:
+                return None
+            if conf.strip().lower() != "y":
+                continue
+        return val
 
 
-def prompt_decision(prop, inp, out):
+def prompt_decision(prop, inp, out, known=None):
     editable = prop["op"] in ("create_task", "add_subtask",
                               "update_deadline", "update_status")
     menu = "  [a]ccept  [r]eject  [d]efer  [s]kip" + \
@@ -303,19 +375,36 @@ def prompt_decision(prop, inp, out):
         if c == "e" and editable:
             payload = json.loads(json.dumps(prop["payload"]))
             if prop["op"] in ("create_task", "add_subtask"):
-                out.write("  title [{0}]: ".format(payload.get("title")))
-                out.flush()
-                t = inp.readline().strip()
-                if t:
-                    payload["title"] = t[:120]
+                # Owner first when a missing owner is what sent the reviewer
+                # here. They were just told "use [e]dit-accept to name one",
+                # and asking for the title before the owner invites them to
+                # type the person into it -- which silently renames the task
+                # and leaves the owner still unanswered. Observed on the
+                # first live review, so the prompt now matches the sentence
+                # that sent them to it. When the proposal already carries an
+                # owner there is no such instruction and the familiar order
+                # stands.
+                owner_first = (prop["op"] == "create_task"
+                               and needs_owner(prop))
+                if owner_first:
+                    owner = prompt_owner(payload.get("owner_ref"), inp, out,
+                                         known)
+                    if owner is None:
+                        return ("q", None, None)
+                    payload["owner_ref"] = owner
+                title = prompt_title(payload.get("title"), inp, out, known)
+                if title is None:
+                    return ("q", None, None)
+                payload["title"] = title
                 out.write("  deadline YYYY-MM-DD [{0}]: ".format(
                     payload.get("deadline") or "-"))
                 out.flush()
                 d = inp.readline().strip()
                 if d:
                     payload["deadline"] = d
-                if prop["op"] == "create_task":
-                    owner = prompt_owner(payload.get("owner_ref"), inp, out)
+                if prop["op"] == "create_task" and not owner_first:
+                    owner = prompt_owner(payload.get("owner_ref"), inp, out,
+                                         known)
                     if owner is None:
                         return ("q", None, None)
                     payload["owner_ref"] = owner
@@ -355,6 +444,7 @@ def run_session(dsn, user, list_only=False, bulk_unconflicted=False,
                 out.write("Nothing waiting for {0}.\n".format(user))
                 conn.rollback()
                 return stats
+            owners = known_owners(cur)
             out.write("Pending for {0}:\n".format(user))
             for pk in packs:
                 out.write("  {0}  {1} undecided of {2}  (board v{3}, {4})\n"
@@ -395,7 +485,8 @@ def run_session(dsn, user, list_only=False, bulk_unconflicted=False,
                     if not valid:
                         out.write("  BOARD MOVED: {0} -- accept is "
                                   "unavailable\n".format(why))
-                    choice, reason, edited = prompt_decision(prop, inp, out)
+                    choice, reason, edited = prompt_decision(
+                        prop, inp, out, owners)
                     if choice == "q":
                         break
                     if choice == "skip":

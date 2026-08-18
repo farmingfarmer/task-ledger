@@ -55,19 +55,22 @@ def test_owner_guard():
         io.StringIO("a\n"), out)
     ok(choice == "accept", "a create that names an owner accepts plainly")
 
+    # Owner FIRST when the missing owner is what sent the reviewer here:
+    # "e", then the owner, then title and deadline.
     out = io.StringIO()
     choice, _, edited = review.prompt_decision(
         prop("create_task", title="Draft the intake runbook", owner_ref=None,
              deadline=None),
-        io.StringIO("e\n\n\naad-alex\n"), out)
-    ok(choice == "accept_edited" and edited["owner_ref"] == "aad-alex",
-       "edit-accept collects the owner and carries it in the payload")
+        io.StringIO("e\naad-alex\n\n\n"), out)
+    ok(choice == "accept_edited" and edited["owner_ref"] == "aad-alex"
+       and edited["title"] == "Draft the intake runbook",
+       "edit-accept asks the owner first and carries it in the payload")
 
     out = io.StringIO()
     choice, _, edited = review.prompt_decision(
         prop("create_task", title="Draft the intake runbook", owner_ref=None,
              deadline=None),
-        io.StringIO("e\n\n\n\naad-alex\n"), out)
+        io.StringIO("e\n\naad-alex\n\n\n"), out)
     ok(choice == "accept_edited" and edited["owner_ref"] == "aad-alex"
        and "an owner is required" in out.getvalue(),
        "an empty owner is re-asked, never accepted")
@@ -76,8 +79,47 @@ def test_owner_guard():
     choice, _, _ = review.prompt_decision(
         prop("create_task", title="Draft the intake runbook", owner_ref=None,
              deadline=None),
-        io.StringIO("e\n\n\n"), out)
+        io.StringIO("e\n"), out)
     ok(choice == "q", "EOF at the owner prompt quits instead of looping")
+
+    # A person typed at the title prompt is the observed mistake: told to
+    # name an owner, the reviewer types one into the first prompt offered
+    # and silently renames the task instead.
+    out = io.StringIO()
+    choice, _, edited = review.prompt_decision(
+        prop("create_task", title="Draft the intake runbook", owner_ref=None,
+             deadline=None),
+        io.StringIO("e\naad-alex\naad-alex\n\n\n"), out,
+        {"aad-alex", "aad-dev"})
+    ok(choice == "accept_edited"
+       and edited["title"] == "Draft the intake runbook"
+       and "is a person, not a title" in out.getvalue(),
+       "naming a person at the title prompt is refused, not silently "
+       "accepted as the task's name")
+
+    # owner_ref used to take any non-empty string, so a stray keystroke
+    # became a permanent owner and the task landed on nobody's board.
+    out = io.StringIO()
+    choice, _, edited = review.prompt_decision(
+        prop("create_task", title="Draft the intake runbook", owner_ref=None,
+             deadline=None),
+        io.StringIO("e\nhuh?\n\naad-alex\n\n\n"), out,
+        {"aad-alex", "aad-dev"})
+    ok(choice == "accept_edited" and edited["owner_ref"] == "aad-alex"
+       and "not somebody this ledger has seen" in out.getvalue(),
+       "an owner nobody has ever seen is queried before it is accepted")
+
+    # ...but it is a courtesy, not a gate: a genuinely new colleague can
+    # own a task, and refusing that would make a real decision unrecordable.
+    out = io.StringIO()
+    choice, _, edited = review.prompt_decision(
+        prop("create_task", title="Draft the intake runbook", owner_ref=None,
+             deadline=None),
+        io.StringIO("e\naad-new-hire\ny\n\n\n"), out,
+        {"aad-alex", "aad-dev"})
+    ok(choice == "accept_edited" and edited["owner_ref"] == "aad-new-hire",
+       "and confirming it uses it anyway -- validation never blocks a real "
+       "decision")
 
     out = io.StringIO()
     choice, _, edited = review.prompt_decision(
