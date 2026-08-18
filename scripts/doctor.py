@@ -137,6 +137,43 @@ def check_schema(conn):
                    "approval".format(auto_n),
                    "the auto_apply gate is on; every one is revertible from "
                    "the review popup and countable by actor_type")
+        # The author backfill needs the narrowed guard, and the strict one
+        # refuses it mid-run with "signals is append-only" -- after the
+        # operator has already decided the database was healthy. Checked by
+        # reading the function body, because the only functional test is a
+        # write to an append-only table.
+        cur.execute("""
+            SELECT count(*) FROM pg_proc
+            WHERE proname = 'forbid_mutation'
+              AND pg_get_functiondef(oid) LIKE '%fillable%'""")
+        if cur.fetchone()[0]:
+            report("PASS", "migrations applied",
+                   "append-only guard permits the author fill")
+        else:
+            cur.execute("""
+                SELECT count(*) FROM signals WHERE author_ref IS NULL""")
+            n = cur.fetchone()[0]
+            report("WARN", "migration pending: author backfill",
+                   "{0} signal(s) have no author and the guard refuses to "
+                   "fill them, so candidate promotion cannot use breadth; "
+                   "apply storage/migrate_author_backfill.sql".format(n))
+        # Breadth needs a speaker. Signals extracted before author_ref
+        # existed cannot supply one, and the shortfall is invisible in the
+        # candidate counts -- it looks like nothing was said twice.
+        cur.execute("""
+            SELECT count(*) FILTER (WHERE author_ref IS NULL), count(*)
+            FROM signals""")
+        noauth, total = cur.fetchone()
+        # Reported, not warned about. Once the guard is in place and the
+        # backfill has run, a remaining null means the window is no longer
+        # on disk -- a permanent fact about history, not an outstanding
+        # task. A warning that can never be cleared is how an operator
+        # learns to skim past warnings.
+        report("PASS", "speaker coverage",
+               "{0} of {1} signal(s) have a recorded speaker"
+               "{2}".format(total - noauth, total,
+                            "; the rest predate author_ref and promote on "
+                            "persistence alone" if noauth else ""))
         cur.execute("SELECT to_regclass('public.v_task_progress')")
         if not cur.fetchone()[0]:
             report("WARN", "migration pending: derived progress",
