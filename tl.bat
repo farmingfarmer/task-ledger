@@ -66,6 +66,7 @@ if /i "%CMD%"=="dashboard" goto :dashboard
 if /i "%CMD%"=="extract" goto :extract
 if /i "%CMD%"=="ingest" goto :ingest
 if /i "%CMD%"=="transcripts" goto :transcripts
+if /i "%CMD%"=="quickscan" goto :quickscan
 if /i "%CMD%"=="demo-set" goto :demoset
 if /i "%CMD%"=="demo-tx" goto :demotx
 if /i "%CMD%"=="score" goto :score
@@ -90,6 +91,7 @@ echo   dashboard       serve http://127.0.0.1:8090
 echo   extract ^<file^>  one transcript -^> typed signals (writes)
 echo   ingest ^<file^>   a Copilot paste -^> the inbox
 echo   transcripts ^<f^> a Teams transcript (Word .txt) -^> the inbox
+echo   quickscan ^<f^>   what a transcript names + what is new (read-only)
 echo   demo-set        generate the synthetic transcript demo set
 echo   demo-tx ^<src^>   build the demo board from transcripts (writes)
 echo   score ^<dir^>     extraction vs golden labels, measured
@@ -188,6 +190,15 @@ if not defined ARG1 (
 )
 call :banner
 python scripts\copilot_ingest.py "%ARG1%" --out "%TL_INBOX%" %REST%
+exit /b %errorlevel%
+
+:quickscan
+if not defined ARG1 (
+  echo tl: quickscan needs a transcript, e.g. tl quickscan transcripts_raw.txt 1>&2
+  exit /b 2
+)
+call :banner
+python scripts\quickscan.py "%ARG1%" %REST%
 exit /b %errorlevel%
 
 :transcripts

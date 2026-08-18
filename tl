@@ -95,6 +95,7 @@ usage() {
   echo "  extract <file>  one transcript -> typed signals (writes)"
   echo "  ingest <file>   a Copilot paste -> the inbox"
   echo "  transcripts <f> a Teams transcript (Word .txt) -> the inbox"
+  echo "  quickscan <f>   what a transcript names + what is new (read-only)"
   echo "  demo-set        generate the synthetic transcript demo set"
   echo "  demo-tx <src>   build the demo board from transcripts (writes)"
   echo "  score <dir>     extraction vs golden labels, measured"
@@ -177,6 +178,20 @@ case "$CMD" in
     fi
     banner
     python3 scripts/copilot_ingest.py "$1" --out "$TL_INBOX" "${@:2}"
+    ;;
+
+  quickscan)
+    # No preflight gate. It degrades to extraction-only without a database
+    # and writes nothing either way, so refusing to start on a doctor
+    # failure would withhold the one command that still works when the
+    # ledger does not.
+    if [ $# -eq 0 ]; then
+      echo "tl: quickscan needs a transcript, e.g." >&2
+      echo "    ./tl quickscan ~/transcripts_raw.txt" >&2
+      exit 2
+    fi
+    banner
+    python3 scripts/quickscan.py "$@"
     ;;
 
   transcripts)
