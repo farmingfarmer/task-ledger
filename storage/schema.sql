@@ -266,8 +266,34 @@ CREATE INDEX blockers_edge_idx ON task_blockers(blocking_task_id)
 
 -- --------------------------------------------------- append-only enforcement
 
+-- Append-only, with exactly one exemption: a NULL author may be filled in.
+-- signals.author_ref and task_candidate_events.speaker_ref were added after
+-- the rows that need them were written, and re-extraction cannot supply the
+-- value (write_batch inserts ON CONFLICT DO NOTHING, so a replay fills
+-- nothing). Without this, the breadth half of candidate_promotion is dead
+-- data for every signal predating the column. The fill is monotonic --
+-- NULL -> value only, never the reverse, never an overwrite -- and every
+-- other column must be byte-identical, so no claim, title, confidence or
+-- piece of evidence can be rewritten after the fact. See
+-- storage/migrate_author_backfill.sql for the full argument.
 CREATE OR REPLACE FUNCTION forbid_mutation() RETURNS trigger AS $$
+DECLARE
+  fillable text;
 BEGIN
+  IF TG_OP = 'UPDATE' THEN
+    fillable := CASE TG_TABLE_NAME
+                  WHEN 'signals'               THEN 'author_ref'
+                  WHEN 'task_candidate_events' THEN 'speaker_ref'
+                  ELSE NULL
+                END;
+    IF fillable IS NOT NULL
+       AND to_jsonb(OLD) ->> fillable IS NULL
+       AND to_jsonb(NEW) ->> fillable IS NOT NULL
+       AND (to_jsonb(NEW) - fillable) = (to_jsonb(OLD) - fillable)
+    THEN
+      RETURN NEW;
+    END IF;
+  END IF;
   RAISE EXCEPTION '% is append-only; % not permitted', TG_TABLE_NAME, TG_OP;
 END $$ LANGUAGE plpgsql;
 
