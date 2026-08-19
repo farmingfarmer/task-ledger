@@ -502,6 +502,18 @@ WITH latest AS (
          candidate_id, user_ref, event, title
   FROM task_candidate_events
   ORDER BY candidate_id, user_ref, event_id DESC
+), decided AS (
+  -- 'sighted' is an observation; promoted/dismissed/accepted are decisions,
+  -- and latest-wins let an observation overwrite one. Mentioning work again
+  -- is not a reason to reopen a question somebody already answered -- on a
+  -- live register a third sighting flipped a promoted candidate back to
+  -- 'sighted', which would have raised a duplicate proposal for work
+  -- already in a review queue. See migrate_candidate_state_sticky.sql.
+  SELECT DISTINCT ON (candidate_id, user_ref)
+         candidate_id, user_ref, event
+  FROM task_candidate_events
+  WHERE event IN ('promoted', 'dismissed', 'accepted')
+  ORDER BY candidate_id, user_ref, event_id DESC
 ), counts AS (
   SELECT candidate_id, user_ref,
          count(*) FILTER (WHERE event = 'sighted')            AS sightings,
@@ -513,10 +525,12 @@ WITH latest AS (
   FROM task_candidate_events
   GROUP BY candidate_id, user_ref
 )
-SELECT l.candidate_id, l.user_ref, l.title, l.event AS state,
+SELECT l.candidate_id, l.user_ref, l.title,
+       COALESCE(d.event, l.event) AS state,
        c.sightings, c.speakers, c.first_seen, c.last_seen
 FROM latest l
-JOIN counts c USING (candidate_id, user_ref);
+JOIN counts c USING (candidate_id, user_ref)
+LEFT JOIN decided d USING (candidate_id, user_ref);
 
 COMMENT ON VIEW v_task_candidates IS
   'Latest-event-wins projection of task_candidate_events, with the sighting '

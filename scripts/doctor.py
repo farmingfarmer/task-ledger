@@ -122,7 +122,23 @@ def check_schema(conn):
         # model found nothing" when the model found plenty.
         cur.execute("SELECT to_regclass('public.v_task_candidates')")
         if cur.fetchone()[0]:
-            report("PASS", "migrations applied", "candidate register present")
+            # Existence is not enough. The first version of this view let a
+            # later sighting overwrite 'promoted', which silently produces a
+            # second proposal for work already sitting in a review queue --
+            # invisible from the outside, since both the view and the tick
+            # look entirely healthy while doing it.
+            cur.execute("""
+                SELECT pg_get_viewdef('public.v_task_candidates'::regclass)
+                       LIKE '%%dismissed%%accepted%%'""")
+            if cur.fetchone()[0]:
+                report("PASS", "migrations applied",
+                       "candidate register present, decisions are sticky")
+            else:
+                report("WARN", "migration pending: sticky candidate state",
+                       "a new sighting reopens a promoted candidate, so "
+                       "mentioning promoted work again raises a duplicate "
+                       "proposal; apply "
+                       "storage/migrate_candidate_state_sticky.sql")
         else:
             report("WARN", "migration pending: candidate register",
                    "mentions of untracked work will be discarded rather "
@@ -136,15 +152,6 @@ def check_schema(conn):
         # query three separate times, so it belongs here.
         cur.execute("SELECT to_regclass('public.v_task_candidates')")
         if cur.fetchone()[0]:
-            cur.execute("""
-                SELECT count(*) FILTER (WHERE state = 'sighted'),
-                       count(*) FILTER (WHERE state = 'promoted'),
-                       COALESCE(max(sightings) FILTER
-                                (WHERE state = 'sighted'), 0),
-                       COALESCE(max(speakers) FILTER
-                                (WHERE state = 'sighted'), 0)
-                FROM v_task_candidates""")
-            standing, promoted, top_s, top_p = cur.fetchone()
             import yaml as _yaml
             _root = os.path.normpath(os.path.join(
                 os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -154,6 +161,37 @@ def check_schema(conn):
                        or {})
             need_s = _cp.get("min_sightings")
             need_p = _cp.get("min_distinct_speakers")
+            win = _cp.get("window_days")
+            # Counted over the window the reconciler actually uses. A
+            # "standing" total that includes candidates nothing will ever
+            # look at again is not a measure of the register, it is a
+            # measure of how long it has been running -- and "best standing
+            # candidate" was free to report an expired one, making the
+            # comparison against the bar meaningless.
+            cur.execute("""
+                WITH live AS (
+                  SELECT DISTINCT candidate_id, user_ref
+                  FROM task_candidate_events
+                  WHERE event = 'sighted'
+                    AND (%s IS NULL
+                         OR occurred_at >= now() - make_interval(days => %s))
+                )
+                SELECT count(*) FILTER (WHERE c.state = 'sighted'
+                                          AND l.candidate_id IS NOT NULL),
+                       count(*) FILTER (WHERE c.state = 'sighted'
+                                          AND l.candidate_id IS NULL),
+                       count(*) FILTER (WHERE c.state = 'promoted'),
+                       COALESCE(max(c.sightings) FILTER
+                                (WHERE c.state = 'sighted'
+                                   AND l.candidate_id IS NOT NULL), 0),
+                       COALESCE(max(c.speakers) FILTER
+                                (WHERE c.state = 'sighted'
+                                   AND l.candidate_id IS NOT NULL), 0)
+                FROM v_task_candidates c
+                LEFT JOIN live l ON l.candidate_id = c.candidate_id
+                                AND l.user_ref = c.user_ref""",
+                (win, win))
+            standing, expired, promoted, top_s, top_p = cur.fetchone()
             joiner = "or" if _cp.get("mode") == "any" else "and"
             reach = (standing and (top_s >= (need_s or 0)
                                    or top_p >= (need_p or 0))
@@ -162,8 +200,11 @@ def check_schema(conn):
                                    and top_p >= (need_p or 0)))
             detail = ("{0} standing, {1} promoted; best standing candidate "
                       "has {2} sighting(s)/{3} speaker(s) against a bar of "
-                      "{4} {5} {6}".format(standing, promoted, top_s, top_p,
-                                           need_s, joiner, need_p))
+                      "{4} {5} {6} within {7} day(s)".format(
+                          standing, promoted, top_s, top_p, need_s, joiner,
+                          need_p, win))
+            if expired:
+                detail += "; {0} aged out of the window".format(expired)
             # Every candidate starts at one sighting, so "best is 1" is
             # simply a quiet register and not a misconfiguration -- warning
             # about it would fire forever on any healthy ledger that has
