@@ -1455,6 +1455,15 @@ def timeline():
 
     # Claims that never became tasks: they have a beginning and no line
     # yet, which is exactly what the reader should see.
+    #
+    # Grouped by what was said, not one row per signal. A claim whose
+    # target does not exist is held and re-judged on every tick, and the
+    # same sentence recurs across meetings, so an ungrouped list showed
+    # "get line codes from Hari" three times and "Extraction of line codes"
+    # twice on one screen -- which reads as a confused ledger rather than
+    # as three people saying the same thing. The count is the interesting
+    # part and it was the part being thrown away.
+    heard = {}
     for c in q("""
             SELECT u.signal_id, u.title, u.signal_type, u.author_ref,
                    (SELECT min(pe.occurred_at) FROM signal_pool_events pe
@@ -1464,13 +1473,31 @@ def timeline():
                      WHERE b.batch_id = u.batch_id)  AS said_at
             FROM v_unconsumed_signals u
             WHERE u.user_ref = %s""", (v,)):
-        items.append({
-            "kind": "claim", "id": c["signal_id"], "title": c["title"],
-            "owner": c["author_ref"] or v, "board": v, "mine": True,
-            "status": c["signal_type"], "overdue": False, "deadline": None,
-            "first_noted": c["said_at"] or c["pooled_at"],
-            "said_traced": c["said_at"] is not None,
-            "ended_at": None, "stage": "heard", "events": []})
+        key = " ".join((c["title"] or "").lower().split())
+        first = c["said_at"] or c["pooled_at"]
+        seen = heard.get(key)
+        if seen is None:
+            heard[key] = {
+                "kind": "claim", "id": c["signal_id"], "title": c["title"],
+                "owner": c["author_ref"] or v, "board": v, "mine": True,
+                "status": c["signal_type"], "overdue": False,
+                "deadline": None, "first_noted": first,
+                "said_traced": c["said_at"] is not None,
+                "ended_at": None, "stage": "heard", "events": [],
+                "repeats": 1}
+            continue
+        seen["repeats"] += 1
+        # Keep the earliest, so the row starts when the work was first
+        # raised rather than when it was last repeated.
+        if first is not None and (seen["first_noted"] is None
+                                  or first < seen["first_noted"]):
+            seen["first_noted"] = first
+            seen["said_traced"] = c["said_at"] is not None
+    for it in heard.values():
+        if it["repeats"] > 1:
+            it["title"] = "{0}  (said {1}x)".format(it["title"],
+                                                    it["repeats"])
+        items.append(it)
 
     pend = q("""
         WITH latest AS (
