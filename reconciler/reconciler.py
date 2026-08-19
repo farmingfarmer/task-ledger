@@ -119,6 +119,19 @@ def _append_note(rationale, note, n=200):
     return (base + " " + note).strip()[:n]
 
 
+def load_policy(path=None):
+    """The matching policy, from the same file the Reconciler reads.
+
+    Callers need a value or two before they have a Reconciler to ask --
+    load_candidates needs the promotion window before the reconciler
+    exists, and a tick wants to print the bar in force before it starts.
+    Both were reaching for their own yaml.safe_load, which is how a config
+    file ends up read three ways and disagreed about.
+    """
+    with open(path or _find(DEFAULT_POLICY_PATH_CANDIDATES)) as f:
+        return yaml.safe_load(f) or {}
+
+
 class Reconciler(object):
     """embed(texts)->vectors, judge_llm(messages)->text are injected.
     judge_llm=None runs match-only mode: judge-band signals are held."""

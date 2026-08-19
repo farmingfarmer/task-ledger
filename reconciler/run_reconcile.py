@@ -64,7 +64,10 @@ def main():
     signals = board_io_pg.load_signals(args.dsn, args.user)
     tasks, version = board_io_pg.load_board(args.dsn, args.user)
     all_tasks = board_io_pg.load_all_boards(args.dsn)
-    candidates = board_io_pg.load_candidates(args.dsn, args.user)
+    candidates = board_io_pg.load_candidates(
+        args.dsn, args.user,
+        window_days=(reconciler.load_policy().get("candidate_promotion")
+                     or {}).get("window_days"))
     sys.stderr.write("loaded {0} pooled signals, {1} matchable tasks, "
                      "{2} tasks across all boards, {3} candidate(s), "
                      "board v{4}\n".format(

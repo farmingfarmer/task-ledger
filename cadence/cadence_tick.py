@@ -324,7 +324,10 @@ def run_reconcile(dsn, user, host, embed_model, judge_model):
     signals = board_io_pg.load_signals(dsn, user)
     tasks, version = board_io_pg.load_board(dsn, user)
     all_tasks = board_io_pg.load_all_boards(dsn)
-    candidates = board_io_pg.load_candidates(dsn, user)
+    candidates = board_io_pg.load_candidates(
+        dsn, user,
+        window_days=(rec_mod.load_policy().get("candidate_promotion")
+                     or {}).get("window_days"))
     log("reconcile[{0}]: {1} pooled signals, {2} matchable tasks, {3} tasks "
         "across all boards, {4} candidate(s), board v{5}".format(
             user, len(signals), len(tasks), len(all_tasks),
@@ -442,12 +445,11 @@ def main():
     # exactly like a policy change that was applied and did not work.
     try:
         import reconciler as _rec
-        import yaml as _yaml
-        with open(_rec._find(_rec.DEFAULT_POLICY_PATH_CANDIDATES)) as _f:
-            _cp = (_yaml.safe_load(_f) or {}).get("candidate_promotion") or {}
-        log("promotion: mode={0} min_sightings={1} min_distinct_speakers={2}"
-            .format(_cp.get("mode"), _cp.get("min_sightings"),
-                    _cp.get("min_distinct_speakers")))
+        _cp = _rec.load_policy().get("candidate_promotion") or {}
+        log("promotion: mode={0} min_sightings={1} min_distinct_speakers={2} "
+            "window_days={3}".format(
+                _cp.get("mode"), _cp.get("min_sightings"),
+                _cp.get("min_distinct_speakers"), _cp.get("window_days")))
     except Exception as exc:                            # noqa: BLE001
         log("promotion: policy unreadable ({0!r})".format(exc))
     try:

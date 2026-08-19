@@ -163,12 +163,34 @@ def supersede_open_packets(cur, user_ref, run_id, exclude_packet_id=None):
     return stale, returned
 
 
-def load_candidates(dsn, user_ref):
+def load_candidates(dsn, user_ref, window_days=None):
     """Work this person has heard about that is on no board yet.
 
     Only 'sighted' rows: once a candidate has been promoted into a packet,
     or dismissed by someone saying it is not a task, it must stop coming
     back every time the word is said again.
+
+    WINDOWED, because corroboration that is not is meaningless. The register
+    was built to promote work "seen more than once, by more than one person,
+    INSIDE A WINDOW", and candidate_promotion.window_days has sat in the
+    policy since -- declared, documented, and read by no code. Only the
+    signal window was ever enforced.
+
+    Two consequences, both real. Three mentions eighteen months apart counted
+    as persistence, which is not what persistence means. And nothing ever
+    left: on the first real corpus a single scan added 51 one-off fragments
+    ("No blockers", "this sprint", "Hari's presentation (continued)") to a
+    register already holding 80, to be carried and re-embedded for every
+    user on every tick, forever.
+
+    So counts are taken over the window, and a candidate with nothing inside
+    it is not returned at all. Expiry is not a decision and writes no event:
+    candidate_id is a hash of the normalised title, so the same work
+    mentioned again lands back on the same candidate with its history
+    intact. It stops being asked about; it is not forgotten.
+
+    window_days=None keeps the old all-time behaviour for callers that have
+    no policy to hand.
     """
     conn = psycopg2.connect(dsn)
     try:
@@ -178,17 +200,40 @@ def load_candidates(dsn, user_ref):
             # could only ever be assessed on a run where it happened to be
             # mentioned again -- so a relaxed promotion rule did nothing at
             # all until somebody said the words one more time.
-            cur.execute("""
-                SELECT c.candidate_id, c.title, c.state, c.sightings,
-                       c.speakers,
-                       (SELECT e.signal_id FROM task_candidate_events e
-                         WHERE e.candidate_id = c.candidate_id
-                           AND e.user_ref = c.user_ref
-                           AND e.event = 'sighted'
-                           AND e.signal_id IS NOT NULL
-                         ORDER BY e.event_id DESC LIMIT 1) AS lead_signal_id
-                FROM v_task_candidates c
-                WHERE c.user_ref = %s AND c.state = 'sighted'""", (user_ref,))
+            lead = """
+                (SELECT e.signal_id FROM task_candidate_events e
+                  WHERE e.candidate_id = c.candidate_id
+                    AND e.user_ref = c.user_ref
+                    AND e.event = 'sighted'
+                    AND e.signal_id IS NOT NULL
+                  ORDER BY e.event_id DESC LIMIT 1) AS lead_signal_id"""
+            if window_days:
+                cur.execute("""
+                    SELECT c.candidate_id, c.title, c.state,
+                           w.sightings, w.speakers, """ + lead + """
+                    FROM v_task_candidates c
+                    JOIN (
+                      SELECT candidate_id, user_ref,
+                             count(*) FILTER (WHERE event = 'sighted')
+                               AS sightings,
+                             count(DISTINCT speaker_ref) FILTER (
+                               WHERE event = 'sighted'
+                                 AND speaker_ref IS NOT NULL) AS speakers
+                      FROM task_candidate_events
+                      WHERE occurred_at >= now()
+                                           - make_interval(days => %s)
+                      GROUP BY candidate_id, user_ref
+                    ) w ON w.candidate_id = c.candidate_id
+                       AND w.user_ref = c.user_ref
+                    WHERE c.user_ref = %s AND c.state = 'sighted'
+                      AND w.sightings > 0""", (window_days, user_ref))
+            else:
+                cur.execute("""
+                    SELECT c.candidate_id, c.title, c.state, c.sightings,
+                           c.speakers, """ + lead + """
+                    FROM v_task_candidates c
+                    WHERE c.user_ref = %s AND c.state = 'sighted'""",
+                    (user_ref,))
             rows = [dict(r) for r in cur.fetchall()]
             for r in rows:
                 sid = r.pop("lead_signal_id", None)
