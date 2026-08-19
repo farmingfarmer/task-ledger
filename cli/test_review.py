@@ -138,6 +138,7 @@ def test_owner_guard():
 
 def main():
     test_owner_guard()
+    test_deadline_is_a_date()
     dsn = os.environ.get(
         "DB_DSN",
         "host=/tmp/pgsock port=5433 dbname=taskintel user=postgres")
@@ -252,6 +253,50 @@ def main():
 
     cur.close()
     conn.close()
+
+
+def test_deadline_is_a_date():
+    print("deadline validation")
+    import review
+    # deadline is a date column and this prompt used to pass the string
+    # straight through. "08-15-2026" only survived because Postgres reads
+    # ambiguous dates as MDY; "05-06-2026" would have become May 6 for
+    # somebody who meant June 5, silently and unrecoverably.
+    out = io.StringIO()
+    got = review.prompt_deadline(None, io.StringIO("08-15-2026\n2026-08-15\n"),
+                                 out)
+    ok(got == "2026-08-15" and "Did you mean 2026-08-15?" in out.getvalue(),
+       "an American-order date is named as such and re-asked, not accepted "
+       "and not blankly rejected")
+
+    out = io.StringIO()
+    got = review.prompt_deadline(None, io.StringIO("2026-02-30\n2026-03-01\n"),
+                                 out)
+    ok(got == "2026-03-01",
+       "a date that does not exist is refused, not just a malformed string")
+
+    ok(review.prompt_deadline(None, io.StringIO("2026/08/15\n"),
+                              io.StringIO()) == "2026-08-15",
+       "slashes are accepted and normalised: the order is what matters")
+    ok(review.prompt_deadline("2026-01-01", io.StringIO("\n"),
+                              io.StringIO()) == "2026-01-01",
+       "enter keeps the deadline already there")
+    ok(review.prompt_deadline("2026-01-01", io.StringIO("-\n"),
+                              io.StringIO()) is None,
+       "and '-' clears it")
+    ok(review.prompt_deadline(None, io.StringIO(""),
+                              io.StringIO()) is review._KEEP_ASKING,
+       "EOF quits rather than looping forever on an unanswerable prompt")
+
+    # and through the real edit path: owner, title, then deadline.
+    out = io.StringIO()
+    choice, _, edited = review.prompt_decision(
+        prop("create_task", title="Resolve the access issue", owner_ref=None,
+             deadline=None),
+        io.StringIO("e\naad-alex\n\n08-15-2026\n2026-08-15\n"), out)
+    ok(choice == "accept_edited" and edited["deadline"] == "2026-08-15",
+       "the edit path re-asks the bad date instead of failing inside the "
+       "transaction and ending the review session")
 
 
 if __name__ == "__main__":

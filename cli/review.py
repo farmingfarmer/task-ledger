@@ -338,6 +338,61 @@ def prompt_owner(current, inp, out, known=None):
         return val
 
 
+_KEEP_ASKING = object()   # EOF at a prompt: quit, do not loop forever
+
+
+def prompt_deadline(current, inp, out):
+    """A date the board can actually store, or none at all.
+
+    deadline is a date column and this prompt used to pass whatever was
+    typed straight into it. "08-15-2026" survived only because Postgres
+    reads ambiguous dates as MDY by default -- "05-06-2026" would have
+    silently become May 6 for somebody who meant June 5, and there is no
+    way to notice afterwards. A genuinely malformed string was worse: it
+    raised inside the transaction, ending the review session rather than
+    re-asking one field.
+
+    Enter keeps what is there, '-' clears it, anything else must parse as
+    YYYY-MM-DD. A date written the American way is named as such rather
+    than rejected blankly, because being told "not a date" about a string
+    that is obviously a date teaches nothing.
+    """
+    while True:
+        out.write("  deadline YYYY-MM-DD [{0}]: ".format(current or "-"))
+        out.flush()
+        line = inp.readline()
+        if not line:
+            return _KEEP_ASKING
+        d = line.strip()
+        if not d:
+            return current
+        if d == "-":
+            return None
+        # Slashes are accepted and normalised: 2026/08/15 states the same
+        # unambiguous order and being strict about the separator serves
+        # nobody. Order is the part that matters, and 08/15/2026 still
+        # fails below.
+        for text in (d, d.replace("/", "-")):
+            try:
+                datetime.datetime.strptime(text, "%Y-%m-%d")
+                return text
+            except ValueError:
+                continue
+        parts = d.replace("/", "-").split("-")
+        if len(parts) == 3 and len(parts[-1]) == 4 and parts[0].isdigit():
+            # >12 in the first field can only be a day, so the order is
+            # unambiguous; otherwise assume the American reading, which is
+            # what the ambiguity costs.
+            day, month = ((parts[0], parts[1]) if int(parts[0]) > 12
+                          else (parts[1], parts[0]))
+            out.write("  '{0}' is not YYYY-MM-DD. Did you mean "
+                      "{1}-{2}-{3}?\n".format(
+                          d, parts[2], month.zfill(2), day.zfill(2)))
+        else:
+            out.write("  '{0}' is not a date. Use YYYY-MM-DD, '-' for none, "
+                      "or enter to keep what is there.\n".format(d))
+
+
 def prompt_decision(prop, inp, out, known=None):
     editable = prop["op"] in ("create_task", "add_subtask",
                               "update_deadline", "update_status")
@@ -396,12 +451,10 @@ def prompt_decision(prop, inp, out, known=None):
                 if title is None:
                     return ("q", None, None)
                 payload["title"] = title
-                out.write("  deadline YYYY-MM-DD [{0}]: ".format(
-                    payload.get("deadline") or "-"))
-                out.flush()
-                d = inp.readline().strip()
-                if d:
-                    payload["deadline"] = d
+                d = prompt_deadline(payload.get("deadline"), inp, out)
+                if d is _KEEP_ASKING:
+                    return ("q", None, None)
+                payload["deadline"] = d
                 if prop["op"] == "create_task" and not owner_first:
                     owner = prompt_owner(payload.get("owner_ref"), inp, out,
                                          known)
@@ -409,12 +462,10 @@ def prompt_decision(prop, inp, out, known=None):
                         return ("q", None, None)
                     payload["owner_ref"] = owner
             elif prop["op"] == "update_deadline":
-                out.write("  deadline YYYY-MM-DD [{0}]: ".format(
-                    payload.get("to_deadline")))
-                out.flush()
-                d = inp.readline().strip()
-                if d:
-                    payload["to_deadline"] = d
+                d = prompt_deadline(payload.get("to_deadline"), inp, out)
+                if d is _KEEP_ASKING:
+                    return ("q", None, None)
+                payload["to_deadline"] = d
             elif prop["op"] == "update_status":
                 out.write("  status [{0}]: ".format(payload.get("to_status")))
                 out.flush()
