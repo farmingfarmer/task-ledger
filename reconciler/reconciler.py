@@ -81,6 +81,12 @@ DEFAULT_SCHEMA_PATH_CANDIDATES = [
 
 CREATE_OPS = ("create_task", "add_subtask")
 
+# Signals that assert work is OVER. They corroborate a candidate but must
+# never be the evidence a create proposal cites: "I finished it" is not a
+# reason to open a task, and the contract forbids creating one already
+# closed (CreateTaskPayload.status is proposed|in_progress|blocked).
+CLOSURE_TYPES = ("completion_claim", "cancellation")
+
 FORWARD = {
     ("proposed", "in_progress"), ("proposed", "blocked"),
     ("proposed", "cancelled"), ("in_progress", "blocked"),
@@ -708,7 +714,7 @@ class Reconciler(object):
         # day to tell apart by hand. So the assessment is reported: the bar in
         # force, how many fell short of it, how many cleared it and were held
         # back as uncitable, and the best corroboration actually seen.
-        assessed = short = uncitable = 0
+        assessed = short = uncitable = closure_only = 0
         best_sightings = best_speakers = 0
         for c in self._candidates:
             fresh = c["_new_sightings"]
@@ -738,18 +744,49 @@ class Reconciler(object):
             # to trace back to -- so an unciteable candidate keeps waiting
             # rather than becoming a proposal nobody can check.
             citeable = [s for s in fresh if s.get("evidence")]
-            if citeable:
-                lead = citeable[-1]
-            elif (c.get("lead") or {}).get("evidence"):
-                lead = c["lead"]     # carried from an earlier sighting
-            else:
+            if not citeable and (c.get("lead") or {}).get("evidence"):
+                citeable = [c["lead"]]   # carried from an earlier sighting
+            if not citeable:
                 uncitable += 1
                 continue
+            # Prefer evidence that names work to DO. A create proposal
+            # asserts "this is work"; a closure claim asserts the opposite,
+            # that some work is over. Once every signal type could register
+            # a candidate, "I resolved Brittney's access issue" promoted as
+            # a new open task -- the ledger recording finished work as
+            # outstanding, which is worse than not recording it. And it
+            # cannot be honestly recorded the other way either:
+            # CreateTaskPayload.status is proposed|in_progress|blocked by
+            # contract, so a create can never say "already done".
+            #
+            # So closure claims corroborate but do not, alone, propose. The
+            # candidate stays registered and its sightings keep counting; if
+            # anything ever names the work as work, that promotes and the
+            # closure claim is then a status change against a real task,
+            # which is what it always was.
+            wanted = [s for s in citeable
+                      if s.get("signal_type") not in CLOSURE_TYPES]
+            if not wanted:
+                closure_only += 1
+                report["dropped"].append(
+                    {"signal_id": citeable[-1].get("signal_id"),
+                     "reason": "closure_claim_is_not_new_work"})
+                continue
+            lead = wanted[-1]
+            # A create carries the state the evidence actually described.
+            # "I am working on the synth kit project" proposed a task in
+            # 'proposed', which reads as untouched work nobody has picked
+            # up -- the one thing the sentence rules out.
+            status = "proposed"
+            said = lead.get("status_signal")
+            if (lead.get("signal_type") == "status_update"
+                    and said in ("in_progress", "blocked")):
+                status = said
             p = self._mk(lead, "create_task", None, {
                 "kind": "create_task",
                 "title": c["title"],
                 "description": lead.get("description"),
-                "status": "proposed",
+                "status": status,
                 "owner_ref": _best_owner(lead),
                 "deadline": None,
                 "parent_task_id": None,
@@ -766,6 +803,7 @@ class Reconciler(object):
             "assessed": assessed,
             "short": short,
             "uncitable": uncitable,
+            "closure_only": closure_only,
             "promoted": len(out),
             "best_sightings": best_sightings,
             "best_speakers": best_speakers,

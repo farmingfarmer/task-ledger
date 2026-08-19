@@ -62,6 +62,10 @@ def judge_script(responses):
     return llm
 
 
+def _sha_title(t):
+    return reconciler._sha("candidate", reconciler._norm(t))
+
+
 def make(judge=None):
     return reconciler.Reconciler(embed=embedders.TokenEmbedder(),
                                  judge_llm=judge)
@@ -859,6 +863,62 @@ def test_untracked_work_is_registered_whatever_the_type():
        "other instead of registering separately")
 
 
+def test_promotion_respects_what_the_evidence_said():
+    print("promotion shape")
+    # Corroborated only by closure claims. "I resolved it" is not a reason
+    # to open a task, and the contract forbids creating one already closed.
+    r = make()
+    done = [{"candidate_id": "cand-done", "title": "Brittney's access issue",
+             "sightings": 3, "speakers": 1, "state": "sighted",
+             "lead": {"signal_id": "sig-done",
+                      "signal_type": "completion_claim",
+                      "status_signal": "completed", "description": None,
+                      "confidence": 0.9, "owner_candidates": [],
+                      "evidence": [{"source_type": "transcript_utterance",
+                                    "resource_id": "utt-d", "span": None,
+                                    "content_hash": "h"}]}}]
+    packet, rep = r.reconcile("aad-alex", [], [], 0, "run-p", candidates=done)
+    ok(packet["proposals"] == [] and not rep["candidate_promotions"],
+       "work said to be finished does not become a new open task")
+    ok(rep["candidate_assessment"]["closure_only"] == 1,
+       "and the run says why, rather than looking like a bar nothing met")
+
+    # Progress on untracked work creates it in the state described, not as
+    # untouched -- 'proposed' reads as nobody has picked it up.
+    r2 = make()
+    prog = [{"candidate_id": "cand-wip", "title": "Synth kit project",
+             "sightings": 2, "speakers": 1, "state": "sighted",
+             "lead": {"signal_id": "sig-wip", "signal_type": "status_update",
+                      "status_signal": "in_progress", "description": None,
+                      "confidence": 0.9,
+                      "owner_candidates": [{"person_ref": "aad-alex",
+                                            "confidence": 0.9,
+                                            "basis": "self_reference"}],
+                      "evidence": [{"source_type": "transcript_utterance",
+                                    "resource_id": "utt-w", "span": None,
+                                    "content_hash": "h"}]}}]
+    packet2, _ = r2.reconcile("aad-alex", [], [], 0, "run-p", candidates=prog)
+    ok(len(packet2["proposals"]) == 1
+       and packet2["proposals"][0]["payload"]["status"] == "in_progress",
+       "a task somebody said they were working on is created in progress")
+
+    # A closure claim alongside a mention: the mention is what gets cited.
+    r3 = make()
+    m = sig(signal_id="sig-m", signal_type="task_mention",
+            title="Brittney's access issue", confidence=0.7,
+            author_ref="aad-priya")
+    both = [{"candidate_id": _sha_title("Brittney's access issue"),
+             "title": "Brittney's access issue", "sightings": 2,
+             "speakers": 1, "state": "sighted",
+             "lead": done[0]["lead"]}]
+    packet3, rep3 = r3.reconcile("aad-alex", [m], [], 0, "run-p",
+                                 candidates=both)
+    ok(len(packet3["proposals"]) == 1
+       and packet3["proposals"][0]["source_signals"] == ["sig-m"],
+       "with a mention present the create cites the mention, not the "
+       "claim that the work is over")
+
+
 if __name__ == "__main__":
     test_auto_link_and_status()
     test_regression_conflict()
@@ -871,6 +931,7 @@ if __name__ == "__main__":
     test_floors_and_mentions()
     test_auto_apply_gate()
     test_candidate_register()
+    test_promotion_respects_what_the_evidence_said()
     test_untracked_work_is_registered_whatever_the_type()
     test_no_target_waits()
     test_cross_owner_guard()

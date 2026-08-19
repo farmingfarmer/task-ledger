@@ -136,6 +136,54 @@ def test_owner_guard():
     ok(choice == "accept", "non-create ops are untouched by the guard")
 
 
+def test_reject_dismisses_candidate(dsn):
+    """Standalone: the interactive section above returns early once a
+    database has answered its fixture packet, and this assertion has
+    nothing to do with that packet."""
+    print("reject retires the candidate")
+    import psycopg2
+    import psycopg2.extras
+    import review
+    conn = psycopg2.connect(dsn)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        # Rejecting a promoted card retires the work. Without this the candidate
+        # stayed 'promoted' forever -- indistinguishable from a card still
+        # waiting for an answer, and the register could not report how much of
+        # what it surfaced was actually wanted.
+        try:
+            cur.execute("""
+                INSERT INTO task_candidate_events
+                  (candidate_id, user_ref, event, title)
+                VALUES ('cand-rej','aad-dev','sighted','Ad hoc topics'),
+                       ('cand-rej','aad-dev','sighted','Ad hoc topics'),
+                       ('cand-rej','aad-dev','promoted','Ad hoc topics')""")
+            n = review.dismiss_promoted_candidate(
+                cur, "aad-dev",
+                {"op": "create_task",
+                 "payload": {"kind": "create_task", "title": "Ad hoc topics"}})
+            cur.execute("""SELECT state, sightings FROM v_task_candidates
+                           WHERE candidate_id = 'cand-rej'""")
+            row = cur.fetchone()
+            ok(n == 1 and row["state"] == "dismissed",
+               "rejecting a promoted card dismisses the candidate, so it stops "
+               "being offered")
+            ok(row["sightings"] == 2,
+               "and its sightings survive: the evidence stays true, only the "
+               "question is closed")
+            ok(review.dismiss_promoted_candidate(
+                cur, "aad-dev", {"op": "update_status", "payload": {}}) == 0,
+               "a proposal that did not come from the register is untouched")
+            conn.rollback()
+        except psycopg2.errors.UndefinedTable:
+            conn.rollback()
+            print("  skipped: candidate register not migrated here")
+
+    finally:
+        cur.close()
+        conn.close()
+
+
 def main():
     test_owner_guard()
     test_deadline_is_a_date()
@@ -151,6 +199,8 @@ def main():
         return
     import psycopg2.extras
     import review
+
+    test_reject_dismisses_candidate(dsn)
 
     conn = psycopg2.connect(dsn)
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)

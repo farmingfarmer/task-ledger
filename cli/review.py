@@ -306,6 +306,40 @@ def prompt_title(current, inp, out, known=None):
         return t[:120]
 
 
+def dismiss_promoted_candidate(cur, user, prop):
+    """A rejected promotion must not be offered again.
+
+    Promotion moves a candidate to 'promoted' and the projection makes that
+    stick, so it cannot promote twice on its own. But rejecting the card
+    says something stronger than "already asked" -- it says this is not
+    work -- and nothing recorded that. The candidate stayed in 'promoted'
+    forever, indistinguishable from a card still waiting for an answer, so
+    the register could not report how much of what it surfaced was wanted,
+    and a reviewer had no way to tell the two apart.
+
+    Title is the join because CreateTaskPayload is additionalProperties:
+    false and cannot carry the candidate_id. That is exact for a reject,
+    which offers no chance to edit the title; an edit-accept can rename,
+    but an edit-accept is an acceptance and never reaches here.
+
+    Returns the number dismissed, which is 0 for every proposal that did
+    not come from the register.
+    """
+    if prop["op"] != "create_task":
+        return 0
+    title = (prop["payload"] or {}).get("title")
+    if not title:
+        return 0
+    cur.execute("""
+        INSERT INTO task_candidate_events
+          (candidate_id, user_ref, event, title, run_id)
+        SELECT candidate_id, user_ref, 'dismissed', title, 'review-reject'
+        FROM v_task_candidates
+        WHERE user_ref = %s AND title = %s AND state = 'promoted'""",
+        (user, title))
+    return cur.rowcount
+
+
 def prompt_owner(current, inp, out, known=None):
     """Edit-accept of a create ends with an owner. Enter keeps the current
     one when there is one; an empty answer with none re-asks. Returns the
@@ -486,7 +520,7 @@ def run_session(dsn, user, list_only=False, bulk_unconflicted=False,
     conn = psycopg2.connect(dsn)
     conn.autocommit = False
     stats = {"accepted": 0, "rejected": 0, "deferred": 0, "invalidated": 0,
-             "skipped": 0, "created_tasks": []}
+             "skipped": 0, "dismissed": 0, "created_tasks": []}
     try:
         with conn.cursor(
                 cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -584,6 +618,8 @@ def run_session(dsn, user, list_only=False, bulk_unconflicted=False,
                         ON CONFLICT (proposal_id, decided_by) DO NOTHING""",
                         (prop["proposal_id"], packet["packet_id"], reason,
                          user, now()))
+                    stats["dismissed"] += dismiss_promoted_candidate(
+                        cur, user, prop)
                     stats["rejected"] += 1
                 elif choice == "defer":
                     cur.execute("""
@@ -608,6 +644,10 @@ def run_session(dsn, user, list_only=False, bulk_unconflicted=False,
                           stats["accepted"], stats["rejected"],
                           stats["deferred"], stats["invalidated"],
                           stats["skipped"]))
+            if stats["dismissed"]:
+                out.write("  {0} candidate(s) dismissed: rejecting the card "
+                          "retires the work, so it stops being "
+                          "offered\n".format(stats["dismissed"]))
             for t in stats["created_tasks"]:
                 out.write("  created {0}\n".format(t))
         conn.commit()

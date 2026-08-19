@@ -241,7 +241,8 @@ def load_candidates(dsn, user_ref, window_days=None):
                 if not sid:
                     continue
                 cur.execute("""
-                    SELECT s.signal_id, s.description,
+                    SELECT s.signal_id, s.signal_type, s.status_signal,
+                           s.description,
                            s.confidence::float AS confidence,
                            s.owner_candidates, s.raw
                     FROM signals s WHERE s.signal_id = %s""", (sid,))
@@ -253,6 +254,11 @@ def load_candidates(dsn, user_ref, window_days=None):
                 oc = srow.get("owner_candidates")
                 r["lead"] = {
                     "signal_id": srow["signal_id"],
+                    # Carried so promotion can tell a closure claim from
+                    # work: without it a lead from an earlier tick looks
+                    # typeless and every claim reads as new work.
+                    "signal_type": srow["signal_type"],
+                    "status_signal": srow["status_signal"],
                     "description": srow["description"],
                     "confidence": srow["confidence"],
                     "owner_candidates": (json.loads(oc)
