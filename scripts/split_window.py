@@ -33,6 +33,14 @@ import os
 import shutil
 import sys
 
+# One window is one model call, and the size changes what the model
+# returns -- see extraction/windowing.py. Imported rather than repeated:
+# this default disagreeing with quickscan's is what made a preview
+# contradict the pipeline it previews.
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "extraction"))
+from windowing import DEFAULT_WINDOW_ITEMS          # noqa: E402
+
 
 def split(spec, max_items):
     """Mirrors transcript_ingest's chunking: a distinct source_ref per piece
@@ -58,7 +66,7 @@ def main():
     ap = argparse.ArgumentParser(
         description="Split a stuck inbox window into smaller windows.")
     ap.add_argument("file")
-    ap.add_argument("--max-items", type=int, default=8)
+    ap.add_argument("--max-items", type=int, default=DEFAULT_WINDOW_ITEMS)
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 

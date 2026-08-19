@@ -24,6 +24,14 @@ import os
 import re
 import sys
 
+# One window is one model call, and the size changes what the model
+# returns -- see extraction/windowing.py. Imported rather than repeated:
+# this default disagreeing with quickscan's is what made a preview
+# contradict the pipeline it previews.
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "extraction"))
+from windowing import DEFAULT_WINDOW_ITEMS          # noqa: E402
+
 HEADER_RE = re.compile(
     r"MEETING:\s*(?P<MEETING>.*?)\s*DATE:\s*(?P<DATE>[\d-]+)\s*"
     r"START:\s*(?P<START>\d{1,2}:\d{2})\s*END:\s*(?P<END>\d{1,2}:\d{2})\s*"
@@ -180,7 +188,7 @@ def main():
     ap.add_argument("--out", default=os.path.expanduser(
         "~/task-ledger-inbox"))
     ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--max-items", type=int, default=35,
+    ap.add_argument("--max-items", type=int, default=DEFAULT_WINDOW_ITEMS,
                     help="split meetings into sub-windows of at most "
                          "this many utterances (0 = never split)")
     args = ap.parse_args()

@@ -44,6 +44,7 @@ import embedders                                        # noqa: E402
 import extraction_worker                                # noqa: E402
 import cadence_tick                                     # noqa: E402
 import transcript_ingest as ti                          # noqa: E402
+from windowing import DEFAULT_WINDOW_ITEMS               # noqa: E402
 
 
 def windows_from_txt(paths, max_items):
@@ -212,7 +213,8 @@ def main():
         description="Extract work from a transcript and check what is new. "
                     "Read-only.")
     ap.add_argument("files", nargs="+", help=".txt transcript or window .json")
-    ap.add_argument("--max-items", type=int, default=8,
+    ap.add_argument("--max-items", type=int,
+                    default=DEFAULT_WINDOW_ITEMS,
                     help="utterances per model call (default 8; smaller is "
                          "much faster on CPU)")
     ap.add_argument("--model", default=os.environ.get(
