@@ -277,14 +277,22 @@ def write_candidate_events(cur, user_ref, report, run_id):
     """
     n = 0
     for s in report.get("candidate_sightings") or []:
+        # One sighting per signal, ever. A signal that is held rather than
+        # consumed stays in the pool and is re-gated on every tick, so
+        # without this a single remark would be sighted again each run and
+        # clear the persistence bar on its third pass -- corroboration
+        # manufactured from one sentence said once.
         cur.execute("""
             INSERT INTO task_candidate_events
               (candidate_id, user_ref, event, title, signal_id,
                speaker_ref, run_id)
-            VALUES (%s,%s,'sighted',%s,%s,%s,%s)""",
+            SELECT %s,%s,'sighted',%s,%s,%s,%s
+            WHERE NOT EXISTS (
+                SELECT 1 FROM task_candidate_events
+                WHERE signal_id = %s AND event = 'sighted')""",
             (s["candidate_id"], user_ref, s["title"], s["signal_id"],
-             s.get("speaker_ref"), run_id))
-        n += 1
+             s.get("speaker_ref"), run_id, s["signal_id"]))
+        n += cur.rowcount
     for p in report.get("candidate_promotions") or []:
         cur.execute("""
             INSERT INTO task_candidate_events

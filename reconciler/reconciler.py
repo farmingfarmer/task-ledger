@@ -397,6 +397,22 @@ class Reconciler(object):
         signal is dropped with the reason naming what it waited for, which
         is a countable fact rather than a silent one.
         """
+        # Register it before deciding whether to keep waiting. A signal
+        # whose target does not exist is, by definition, naming work on
+        # nobody's board -- which is exactly what the candidate register is
+        # for, and until now only task_mention reached it. Every other type
+        # held and then expired, so "I finished the proof of concept" about
+        # untracked work left no trace at all, while "the proof of concept"
+        # left one. That is backwards: describing progress on work is
+        # stronger evidence the work is real than merely naming it.
+        #
+        # Additive on purpose -- the hold and the expiry are unchanged, so
+        # if the task does appear the update still applies. This only stops
+        # the mention being lost. Held signals are re-gated on every tick,
+        # so this runs repeatedly for the same signal; write_candidate_events
+        # writes one sighting per signal, or a single remark would look like
+        # corroboration by the third tick.
+        self._sight_candidate(sig, report)
         window = self.policy["corroboration"]["window_days"]
         age = sig.get("pooled_days")
         if age is not None and age > window:

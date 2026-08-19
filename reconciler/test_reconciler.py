@@ -827,6 +827,38 @@ def test_uncitable_proposal_dropped():
        "longer costs the whole packet")
 
 
+def test_untracked_work_is_registered_whatever_the_type():
+    print("untracked work from any signal type")
+    # A status_update whose task does not exist. It is held, as before --
+    # but it is now also recorded, because a signal with no target is by
+    # definition naming work on nobody's board.
+    r = make()
+    s = sig(signal_id="sig-su", signal_type="status_update",
+            title="Synth kit project Bayesian conditional graph",
+            status_signal="in_progress", confidence=0.8,
+            author_ref="aad-alex")
+    packet, rep = r.reconcile("aad-alex", [s], [], 0, "run-u")
+    ok(rep["held"] == ["sig-su"],
+       "a status update with no target still waits for one")
+    ok(len(rep["candidate_sightings"]) == 1
+       and rep["candidate_sightings"][0]["signal_id"] == "sig-su",
+       "and is registered as a candidate, which only task_mention used to "
+       "be -- describing progress on work is stronger evidence it is real "
+       "than merely naming it")
+    ok(packet["proposals"] == [],
+       "registering it proposes nothing: the human gate is untouched")
+
+    # Two types naming the same work land on one candidate, not two.
+    r2 = make()
+    m = sig(signal_id="sig-tm", signal_type="task_mention",
+            title="Synth kit project", confidence=0.7, author_ref="aad-alex")
+    _packet2, rep2 = r2.reconcile("aad-alex", [m, s], [], 0, "run-u")
+    ids = {c["candidate_id"] for c in rep2["candidate_sightings"]}
+    ok(len(rep2["candidate_sightings"]) == 2 and len(ids) == 1,
+       "a mention and a status update about the same work corroborate each "
+       "other instead of registering separately")
+
+
 if __name__ == "__main__":
     test_auto_link_and_status()
     test_regression_conflict()
@@ -839,6 +871,7 @@ if __name__ == "__main__":
     test_floors_and_mentions()
     test_auto_apply_gate()
     test_candidate_register()
+    test_untracked_work_is_registered_whatever_the_type()
     test_no_target_waits()
     test_cross_owner_guard()
     test_uncitable_proposal_dropped()
