@@ -36,6 +36,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import sys
 
 import jsonschema
@@ -150,6 +151,10 @@ class Reconciler(object):
             self.schema = json.load(f)
         self.embed = embed
         self.judge_llm = judge_llm
+        self._not_work = [
+            re.compile(pat, re.IGNORECASE)
+            for pat in ((self.policy.get("not_work") or {}).get("patterns")
+                        or [])]
         self.clock = clock or (
             lambda: datetime.datetime.now(datetime.timezone.utc))
 
@@ -329,6 +334,17 @@ class Reconciler(object):
         if sig["confidence"] < rules.get("min_conf", 0.6):
             report["dropped"].append({"signal_id": sig["signal_id"],
                                       "reason": "below_min_conf"})
+            return None
+        # Before anything else decides what to do with it: is it work at
+        # all. "No blockers" is a true and useful fact about tasks, and the
+        # ledger has somewhere to put facts about tasks -- but it is not a
+        # task, and every gate below this line assumes it is looking at
+        # one. See not_work in matching_policy.yaml.
+        title = (sig.get("title") or "").strip()
+        if any(rx.search(title) for rx in self._not_work):
+            report["dropped"].append({"signal_id": sig["signal_id"],
+                                      "reason": "not_work",
+                                      "title": title})
             return None
         task = _task_by_id(tasks, match["task_id"])
 

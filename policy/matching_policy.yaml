@@ -266,6 +266,37 @@ auto_apply:
     - auto_link_only
   undo_window_days: 7     # how long the poke keeps offering to revert it
 
+# =========================================================================
+# NOT WORK. Titles that are assertions ABOUT work rather than work itself.
+#
+# The extractor is deliberately generous: it would rather hand over a
+# sentence that turns out to be nothing than drop one that mattered, and
+# the gates downstream are what decide. That worked while an unmatched
+# signal was simply discarded. Now that every signal type registers a
+# candidate, generosity accumulates -- and a live board grew rows reading
+# "No blockers", "this sprint" and "They did what?", each with its own line
+# and its own timeline, none of them anything anybody could do.
+#
+# "No blockers" is the clearest case and it is not a small one. It is a
+# real and useful FACT -- on that date, that person had nothing blocked --
+# and the ledger has somewhere to put facts about tasks. What it is not is
+# a task, and turning it into one puts the negation of work on the board as
+# work.
+#
+# Matched case-insensitively against the title, and dropped with reason
+# 'not_work' so the count is visible rather than silent. Deliberately short
+# and dull: every pattern here is a phrase observed on a real corpus, not a
+# guess about language, because a clever filter that drops one real task
+# costs more than every fragment it saves.
+not_work:
+  patterns:
+    - '^no\b'                                  # No blockers / No work on X
+    - '^nothing\b'
+    - '^not\b'                                 # Not adding new tests to X
+    - '\?\s*$'                                 # They did what?
+    - '^(this|next|last)\s+(sprint|week|month|meeting)\s*$'
+    - '^ad hoc topics?\s*$'
+
 candidate_promotion:
   # Corroboration has two shapes, and requiring BOTH was the mistake. On
   # the first real corpus 92 candidates registered and 4 promoted, because

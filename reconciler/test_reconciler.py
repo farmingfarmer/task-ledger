@@ -919,6 +919,30 @@ def test_promotion_respects_what_the_evidence_said():
        "claim that the work is over")
 
 
+def test_assertions_about_work_are_not_work():
+    print("not work")
+    r = make()
+    noise = sig(signal_id="sig-nb", signal_type="task_mention",
+                title="No blockers", confidence=0.8, author_ref="aad-alex")
+    real = sig(signal_id="sig-real", signal_type="task_mention",
+               title="Notify the team about the rollout", confidence=0.8,
+               author_ref="aad-alex")
+    packet, rep = r.reconcile("aad-alex", [noise, real], [], 0, "run-n")
+    ok(not any(c["signal_id"] == "sig-nb"
+               for c in rep["candidate_sightings"]),
+       "'No blockers' is a fact about tasks, not a task, and never reaches "
+       "the register")
+    ok(any(d["reason"] == "not_work" for d in rep["dropped"]),
+       "and it is dropped with a reason, so the count is visible rather "
+       "than the row simply never appearing")
+    ok(any(c["signal_id"] == "sig-real"
+           for c in rep["candidate_sightings"]),
+       "a title that merely starts with the same letters is untouched -- "
+       "the filter matches words, not prefixes")
+    ok(packet["proposals"] == [],
+       "and neither becomes a proposal on one sighting")
+
+
 if __name__ == "__main__":
     test_auto_link_and_status()
     test_regression_conflict()
@@ -931,6 +955,7 @@ if __name__ == "__main__":
     test_floors_and_mentions()
     test_auto_apply_gate()
     test_candidate_register()
+    test_assertions_about_work_are_not_work()
     test_promotion_respects_what_the_evidence_said()
     test_untracked_work_is_registered_whatever_the_type()
     test_no_target_waits()
