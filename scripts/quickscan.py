@@ -109,6 +109,104 @@ def load_known(dsn):
     return tasks, cands
 
 
+def cluster(items, floor):
+    """Greedy nearest-cluster, the same shape _sight_candidate uses.
+
+    A mention is compared against the clusters already formed and joins the
+    best one above the floor, or starts its own. First-member vector rather
+    than a centroid, because that is what the register does -- a candidate
+    carries the embedding of the title it was first heard under, and this
+    exists to predict the register, not to out-cluster it.
+    """
+    clusters = []
+    for s, vec in items:
+        best, bi = 0.0, None
+        for i, c in enumerate(clusters):
+            sim = embedders.cosine(vec, c["vec"])
+            if sim > best:
+                best, bi = sim, i
+        if bi is not None and best >= floor:
+            clusters[bi]["members"].append(s)
+        else:
+            clusters.append({"vec": vec, "title": s["title"], "members": [s]})
+    return clusters
+
+
+def report_new_work(new_items, embed):
+    """What the register would actually hold, and what would reach a queue.
+
+    Two corrections to a flat list of new titles, both of which change the
+    number a lot:
+
+    ONE PROJECT IS NOT FOUR CANDIDATES. "Synth kit project", "Synth kit
+    system" and "Synthkit project" are one piece of work said three ways.
+    The register merges them at same_candidate_floor; a flat list counts
+    them separately and overstates how much distinct work was found.
+
+    A CANDIDATE BELONGS TO A POOL, NOT TO THE CORPUS. Sightings accumulate
+    per pool owner, so the same project raised by three different people is
+    three candidates with one sighting each, not one with three -- and none
+    of them promotes on persistence. Clustering globally would report work
+    as corroborated that the pipeline will never treat that way. Routing
+    here is pool_targets, the same function the store uses.
+    """
+    import signal_store_pg
+    import yaml as _yaml
+    with open(os.path.join(ROOT, "policy", "matching_policy.yaml")) as f:
+        pol = _yaml.safe_load(f) or {}
+    floor = (pol.get("candidate_promotion") or {}).get(
+        "same_candidate_floor", 0.62)
+    rule = pol.get("candidate_promotion") or {}
+    need_s = rule.get("min_sightings", 3)
+    need_p = rule.get("min_distinct_speakers", 2)
+    mode = rule.get("mode", "all")
+
+    by_user = {}
+    for s, vec in new_items:
+        targets, _how = signal_store_pg.pool_targets(s, [], False)
+        for u in (targets or ["(unrouted -- reaches nobody)"]):
+            by_user.setdefault(u, []).append((s, vec))
+    if not by_user:
+        return
+
+    print("NEW WORK, clustered as the register would hold it")
+    print("bar: {0} sighting(s) {1} {2} speaker(s), per pool\n".format(
+        need_s, "or" if mode == "any" else "and", need_p))
+
+    grand = [0, 0]
+    for user in sorted(by_user):
+        clusters = cluster(by_user[user], floor)
+        promote, wait = [], []
+        for c in clusters:
+            n = len(c["members"])
+            speakers = set(m.get("author_ref") for m in c["members"]
+                           if m.get("author_ref"))
+            ok_s, ok_p = n >= need_s, len(speakers) >= need_p
+            enough = (ok_s or ok_p) if mode == "any" else (ok_s and ok_p)
+            (promote if enough else wait).append((c, n, len(speakers)))
+        grand[0] += len(promote)
+        grand[1] += len(clusters)
+        print("{0}  --  {1} distinct from {2} mention(s), {3} would "
+              "promote".format(user, len(clusters), len(by_user[user]),
+                               len(promote)))
+        for label, group in (("  WOULD PROMOTE", promote),
+                             ("  would wait", wait)):
+            if not group:
+                continue
+            print(label)
+            for c, n, nsp in group:
+                print("    {0:<52} {1} mention(s), {2} speaker(s)".format(
+                    c["title"][:52], n, nsp))
+                others = [m["title"] for m in c["members"][1:]
+                          if m["title"] != c["title"]]
+                if others:
+                    print("      also heard as: {0}".format(
+                        "; ".join(others[:4])))
+        print("")
+    print("{0} distinct piece(s) of new work; {1} would reach a review "
+          "queue.\n".format(grand[1], grand[0]))
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="Extract work from a transcript and check what is new. "
@@ -179,7 +277,7 @@ def main():
         _th = (_yaml.safe_load(_f) or {}).get("thresholds") or {}
     floor = _th.get("judge_floor", 0.62)
     auto = _th.get("auto_link", 0.90)
-    seen, rows = set(), []
+    seen, rows, new_items = set(), [], []
     for wi, w in enumerate(windows, 1):
         worker = extraction_worker.ExtractionWorker(
             fetcher=lambda job, items=w["items"]: items,
@@ -215,8 +313,12 @@ def main():
                     note += "tick would ask the judge"
             rows.append((verdict, s["type"], s["title"],
                          s.get("author_ref"), note))
+            if verdict == "NEW":
+                new_items.append((s, svec if known else embed([s["title"]])[0]))
 
     print("")
+    report_new_work(new_items, embed)
+
     for verdict in ("NEW", "UNSURE", "TRACKED"):
         group = [r for r in rows if r[0] == verdict]
         if not group:
