@@ -113,6 +113,19 @@ def main():
         print("\nDRY RUN -- nothing done. Re-run with --apply.")
         return 0
 
+    # The same one-line courtesy the tick gives. Without it the first sign
+    # of a stopped Postgres was pg_dump's raw stderr -- accurate, safe, and
+    # unhelpful about what to actually do. Portable Postgres does not
+    # survive a reboot; this is the ordinary case.
+    try:
+        psycopg2.connect(dsn, connect_timeout=3).close()
+    except Exception:
+        print("database unreachable at host={0} port={1} -- nothing has "
+              "been touched. Start it (deploy/windows/pg_start.bat on "
+              "Windows) and re-run.".format(
+                  parts.get("host", "?"), parts.get("port", "?")))
+        return 2
+
     if not args.no_backup:
         cmd = [dump, "-h", parts.get("host", "localhost"),
                "-p", parts.get("port", "5432"), "-d", db, "-f", backup]
