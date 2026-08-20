@@ -184,6 +184,73 @@ def test_reject_dismisses_candidate(dsn):
         conn.close()
 
 
+def test_accept_carries_register_wordings(dsn):
+    """A task born from the register keeps every wording that proved it."""
+    print("accept carries the register's wordings")
+    import psycopg2
+    import psycopg2.extras
+    import review
+    conn = psycopg2.connect(dsn)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("""
+            INSERT INTO extraction_batches (batch_id, extracted_at,
+              extractor_model, prompt_version, source_type, source_ref,
+              window_start, window_end)
+            VALUES ('b-al', now(), 't', 'v1', 'meeting_transcript', 's',
+                    now(), now()) ON CONFLICT DO NOTHING""")
+        cur.execute("""
+            INSERT INTO signals (signal_id, batch_id, signal_type, title,
+              confidence, owner_candidates, raw)
+            VALUES ('sig-al1','b-al','task_mention','The retention sweep',
+                    0.8,'[]','{}'),
+                   ('sig-al2','b-al','status_update',
+                    'Retention sweep phase two',0.8,'[]','{}')
+            ON CONFLICT DO NOTHING""")
+        cur.execute("""
+            INSERT INTO task_candidate_events
+              (candidate_id, user_ref, event, title, signal_id)
+            VALUES ('cand-al','aad-dev','sighted','The retention sweep',
+                    'sig-al1'),
+                   ('cand-al','aad-dev','sighted',
+                    'Retention sweep phase two','sig-al2'),
+                   ('cand-al','aad-dev','promoted','The retention sweep',
+                    NULL)""")
+        cur.execute("""
+            SELECT apply_task_event('task-al','aad-dev','created',
+              'manual_edit', NULL,
+              '{"title":"The retention sweep","description":null,
+                "status":"proposed","owner_ref":"aad-dev",
+                "deadline":null,"parent_task_id":null}'::jsonb)""")
+        n = review.seed_candidate_aliases(
+            cur, "aad-dev",
+            {"op": "create_task",
+             "payload": {"kind": "create_task",
+                         "title": "The retention sweep"}},
+            "task-al")
+        cur.execute("""SELECT alias, source_signal_id FROM task_aliases
+                       WHERE task_id = 'task-al' ORDER BY alias""")
+        rows = cur.fetchall()
+        ok(n == 1 and len(rows) == 1
+           and rows[0]["alias"] == "Retention sweep phase two",
+           "the variant wording that corroborated the candidate becomes an "
+           "alias on the accepted task")
+        ok(rows[0]["source_signal_id"] == "sig-al2",
+           "and the alias traces to the sighting's own signal -- even a "
+           "wording has provenance")
+        ok(review.seed_candidate_aliases(
+            cur, "aad-dev",
+            {"op": "update_status", "payload": {}}, "task-al") == 0,
+           "non-creates carry nothing")
+        conn.rollback()
+    except psycopg2.errors.UndefinedTable:
+        conn.rollback()
+        print("  skipped: candidate register not migrated here")
+    finally:
+        cur.close()
+        conn.close()
+
+
 def main():
     test_owner_guard()
     test_deadline_is_a_date()
@@ -201,6 +268,7 @@ def main():
     import review
 
     test_reject_dismisses_candidate(dsn)
+    test_accept_carries_register_wordings(dsn)
 
     conn = psycopg2.connect(dsn)
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)

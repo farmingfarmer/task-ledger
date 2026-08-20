@@ -306,6 +306,56 @@ def prompt_title(current, inp, out, known=None):
         return t[:120]
 
 
+def seed_candidate_aliases(cur, user, prop, task_id):
+    """Give a task born from the register every wording it was heard under.
+
+    The register merges paraphrases while the work is only a candidate --
+    "Synth kit project", "Synth kit project capability" and "Add new tests
+    to synth kit" corroborate one another at same_candidate_floor, and that
+    merging is why the work promoted at all. The moment the create was
+    accepted, all of that was thrown away: the task began life knowing only
+    its one canonical title, and the very variants that proved the work was
+    real sat in the pool failing to match it -- each one needing a judge
+    call the model kept declining. The matcher embeds alias sets, so the
+    fix is to hand the wordings over: a held signal whose title IS an alias
+    matches at cosine 1.0 and auto-links with no judge at all.
+
+    Written through apply_task_event('alias_added'), the same door every
+    alias goes through, each carrying the sighting's signal_id -- so even
+    an alias traces back to the sentence that produced it. Title joins the
+    candidate because the payload cannot carry a candidate_id; the ORIGINAL
+    proposal title must be passed here, not an edit-accept rename.
+    """
+    if prop["op"] != "create_task":
+        return 0
+    title = (prop["payload"] or {}).get("title")
+    if not title:
+        return 0
+    cur.execute("""
+        SELECT DISTINCT ON (e.title) e.title, e.signal_id
+        FROM task_candidate_events e
+        JOIN v_task_candidates c USING (candidate_id, user_ref)
+        WHERE c.user_ref = %s AND c.title = %s
+          AND c.state IN ('promoted', 'accepted')
+          AND e.event = 'sighted' AND e.title <> c.title
+        ORDER BY e.title, e.event_id DESC""", (user, title))
+    n = 0
+    # run_session's cursor is a RealDictCursor; the review tests use one
+    # too, and plain tuples appear when this is called from elsewhere.
+    # Unpacking a dict row as a tuple yields its KEY STRINGS -- which the
+    # FK on source_signal_id rejected, taking the whole session with it.
+    for row in cur.fetchall():
+        alias, sid = ((row["title"], row["signal_id"])
+                      if isinstance(row, dict) else (row[0], row[1]))
+        cur.execute(
+            "SELECT apply_task_event(%s,%s,'alias_added','system',NULL,"
+            "%s::jsonb)",
+            (task_id, user, json.dumps(
+                {"alias": alias, "source_signal_id": sid})))
+        n += 1
+    return n
+
+
 def dismiss_promoted_candidate(cur, user, prop):
     """A rejected promotion must not be offered again.
 
@@ -520,7 +570,8 @@ def run_session(dsn, user, list_only=False, bulk_unconflicted=False,
     conn = psycopg2.connect(dsn)
     conn.autocommit = False
     stats = {"accepted": 0, "rejected": 0, "deferred": 0, "invalidated": 0,
-             "skipped": 0, "dismissed": 0, "created_tasks": []}
+             "skipped": 0, "dismissed": 0, "aliases": 0,
+             "created_tasks": []}
     try:
         with conn.cursor(
                 cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -609,6 +660,8 @@ def run_session(dsn, user, list_only=False, bulk_unconflicted=False,
                     acted = apply_accept(cur, user, prop, payload)
                     if prop["op"] in ("create_task", "add_subtask"):
                         stats["created_tasks"].append(acted)
+                        stats["aliases"] += seed_candidate_aliases(
+                            cur, user, prop, acted)
                     stats["accepted"] += 1
                 elif choice == "reject":
                     cur.execute("""
@@ -650,6 +703,11 @@ def run_session(dsn, user, list_only=False, bulk_unconflicted=False,
                           "offered\n".format(stats["dismissed"]))
             for t in stats["created_tasks"]:
                 out.write("  created {0}\n".format(t))
+            if stats["aliases"]:
+                out.write("  {0} alias(es) carried over from the register: "
+                          "the wordings that corroborated this work will "
+                          "now match it directly\n".format(
+                              stats["aliases"]))
         conn.commit()
         return stats
     except Exception:

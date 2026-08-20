@@ -1301,6 +1301,23 @@ def candidate_rule():
                     "title": cand["title"], "description": None,
                     "status": "proposed", "owner_ref": v,
                     "deadline": None, "parent_task_id": None})))
+            # Every wording the register heard this work under becomes an
+            # alias, so the paraphrases that corroborated the candidate can
+            # match the task directly instead of asking a judge -- the same
+            # carry-over cli/review.py does on accept.
+            cur.execute("""
+                SELECT DISTINCT ON (title) title, signal_id
+                FROM task_candidate_events
+                WHERE candidate_id = %s AND user_ref = %s
+                  AND event = 'sighted' AND title <> %s
+                ORDER BY title, event_id DESC""", (cid, v, cand["title"]))
+            for alias, sid in [(r["title"], r["signal_id"])
+                               for r in cur.fetchall()]:
+                cur.execute(
+                    "SELECT apply_task_event(%s,%s,'alias_added','system',"
+                    "NULL,%s::jsonb)",
+                    (task_id, v, json.dumps(
+                        {"alias": alias, "source_signal_id": sid})))
             cur.execute("""
                 INSERT INTO task_candidate_events
                   (candidate_id, user_ref, event, title, run_id)
