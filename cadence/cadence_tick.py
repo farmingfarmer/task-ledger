@@ -366,6 +366,13 @@ def run_reconcile(dsn, user, host, embed_model, judge_model):
             len(report["candidate_promotions"]), len(result["superseded"])))
     # A promotion count of zero has three quite different causes and they
     # are worth telling apart without a psql session.
+    for h in (report.get("held_detail") or [])[:8]:
+        log("    held: {0} \u201c{1}\u201d -- {2}".format(
+            h["signal_type"], h["title"][:48],
+            "closest \u201c{0}\u201d at {1:.2f}".format(
+                h["closest"][:40], h["similarity"])
+            if h.get("closest") and h.get("similarity") is not None
+            else "no plausible task on the board"))
     a = report.get("candidate_assessment") or {}
     if a.get("assessed"):
         log("  candidates[{0}]: {1} assessed against {2}; {3} short, "

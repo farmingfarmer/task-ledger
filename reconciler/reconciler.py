@@ -180,7 +180,8 @@ class Reconciler(object):
            Returns (packet, report). report: consumed/held signal ids,
            annotations, merges, drop log, candidate sightings/promotions."""
         all_tasks = all_tasks if all_tasks is not None else tasks
-        report = {"consumed": [], "held": [], "dropped": [],
+        report = {"consumed": [], "held": [], "held_detail": [],
+                  "dropped": [],
                   "annotations": [], "merged": [], "judge_calls": 0,
                   "candidate_sightings": [], "candidate_promotions": [],
                   "auto_applied": []}
@@ -203,6 +204,21 @@ class Reconciler(object):
                         match["similarity"]))
             if outcome == "held":
                 report["held"].append(sig["signal_id"])
+                # Say WHY, per signal. "4 held" was the last silent count
+                # in the pipeline: it cannot distinguish a paraphrase at
+                # 0.87 the ask band should have caught from a fragment at
+                # 0.12 with no home -- and telling those apart has so far
+                # required a psql session on another machine each time.
+                closest = _task_by_id(
+                    tasks, match.get("task_id")
+                    or match.get("closest_task_id"))
+                report["held_detail"].append({
+                    "signal_id": sig["signal_id"],
+                    "signal_type": sig["signal_type"],
+                    "title": sig["title"],
+                    "similarity": match.get("similarity"),
+                    "closest": closest["title"] if closest else None,
+                })
                 continue
             report["consumed"].append(sig["signal_id"])
             if isinstance(outcome, dict):
@@ -321,8 +337,12 @@ class Reconciler(object):
 
         note = "closest match {0} ({1:.2f}) below merge threshold".format(
             best["task_id"], max(best_sim, 0.0))
+        # closest_task_id, NOT task_id: the gates resolve task_id into a
+        # live target and would treat a near-miss as a link. This is for
+        # the held report only -- naming what a held signal almost was.
         return {"kind": "new", "task_id": None, "similarity": best_sim,
-                "note": note, "judge_conf": None}
+                "note": note, "judge_conf": None,
+                "closest_task_id": best["task_id"]}
 
     def _judge(self, sig, candidates, sims, report):
         if self.judge_llm is None:

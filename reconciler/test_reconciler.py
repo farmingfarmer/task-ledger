@@ -997,6 +997,13 @@ def test_ask_band_asks_a_person():
     _p3, rep3 = r3.reconcile("aad-alex", [weak2], board3, 1, "run-a")
     ok(rep3["held"] == [weak2["signal_id"]],
        "no resemblance still holds: the ask band is a band, not a bypass")
+    hd = rep3["held_detail"]
+    ok(len(hd) == 1 and hd[0]["signal_id"] == weak2["signal_id"]
+       and hd[0]["closest"] == "payment intake flow"
+       and hd[0]["similarity"] is not None,
+       "and the hold says why -- which task it almost was and how close -- "
+       "so a 0.87 paraphrase and a 0.12 fragment stop looking identical "
+       "in the log")
 
     # Closures never take the ask path: closing work stays behind the
     # judge whatever the similarity.
