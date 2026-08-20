@@ -42,22 +42,47 @@ def main():
     try:
         with conn, conn.cursor(
                 cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            # Matching is normalized (case and whitespace) and goes through
+            # the candidate's SIGHTED WORDINGS, not only its canonical
+            # title. The first version used exact equality on the canonical
+            # title alone, and a board that said "Synth Kit Project" against
+            # a register that heard "Synth kit project" matched nothing --
+            # and reported "0 across 0" as if that were health. An
+            # edit-accept retitle is matched the same way: if the new title
+            # normalizes to ANY wording the register sighted, it is the
+            # same work.
             cur.execute("""
-                SELECT t.task_id, t.user_ref, t.title,
-                       e.title AS alias, max(e.signal_id) AS signal_id
-                FROM tasks_current t
-                JOIN v_task_candidates c
-                  ON c.user_ref = t.user_ref AND c.title = t.title
-                 AND c.state IN ('promoted', 'accepted')
-                JOIN task_candidate_events e
-                  ON e.candidate_id = c.candidate_id
-                 AND e.user_ref = c.user_ref
-                 AND e.event = 'sighted' AND e.title <> t.title
-                WHERE NOT EXISTS (SELECT 1 FROM task_aliases a
-                                  WHERE a.task_id = t.task_id
-                                    AND a.alias = e.title)
-                GROUP BY t.task_id, t.user_ref, t.title, e.title
-                ORDER BY t.task_id, e.title""")
+                WITH cand AS (
+                  SELECT c.candidate_id, c.user_ref, e.title,
+                         max(e.signal_id) AS signal_id,
+                         lower(regexp_replace(btrim(e.title), '\s+', ' ',
+                               'g')) AS ntitle
+                  FROM v_task_candidates c
+                  JOIN task_candidate_events e
+                    ON e.candidate_id = c.candidate_id
+                   AND e.user_ref = c.user_ref AND e.event = 'sighted'
+                  WHERE c.state IN ('promoted', 'accepted')
+                  GROUP BY c.candidate_id, c.user_ref, e.title
+                ), hit AS (
+                  SELECT DISTINCT t.task_id, t.user_ref, t.title,
+                         k.candidate_id
+                  FROM tasks_current t
+                  JOIN cand k
+                    ON k.user_ref = t.user_ref
+                   AND k.ntitle = lower(regexp_replace(btrim(t.title),
+                                        '\s+', ' ', 'g'))
+                )
+                SELECT h.task_id, h.user_ref, h.title,
+                       k.title AS alias, k.signal_id
+                FROM hit h
+                JOIN cand k ON k.candidate_id = h.candidate_id
+                           AND k.user_ref = h.user_ref
+                WHERE k.ntitle <> lower(regexp_replace(btrim(h.title),
+                                        '\s+', ' ', 'g'))
+                  AND NOT EXISTS (SELECT 1 FROM task_aliases a
+                                  WHERE a.task_id = h.task_id
+                                    AND a.alias = k.title)
+                ORDER BY h.task_id, k.title""")
             rows = cur.fetchall()
             by_task = {}
             for r in rows:
@@ -69,6 +94,45 @@ def main():
                 print("  {0}  \"{1}\"".format(tid, title[:48]))
                 for r in rs:
                     print("      + {0}".format(r["alias"][:64]))
+            # Tasks that matched nothing are the interesting failures, so
+            # they are shown beside what the register could have offered --
+            # a silent zero here already cost a round trip to another
+            # machine.
+            cur.execute("""
+                SELECT t.task_id, t.title, t.user_ref
+                FROM tasks_current t
+                WHERE t.merged_into IS NULL
+                  AND t.status NOT IN ('completed', 'cancelled')
+                  AND NOT EXISTS (
+                    SELECT 1 FROM v_task_candidates c
+                    JOIN task_candidate_events e
+                      ON e.candidate_id = c.candidate_id
+                     AND e.user_ref = c.user_ref AND e.event = 'sighted'
+                    WHERE c.user_ref = t.user_ref
+                      AND c.state IN ('promoted', 'accepted')
+                      AND lower(regexp_replace(btrim(e.title), '\s+', ' ',
+                                'g')) =
+                          lower(regexp_replace(btrim(t.title), '\s+', ' ',
+                                'g')))
+                ORDER BY t.user_ref, t.title""")
+            misses = cur.fetchall()
+            if misses:
+                print("\n{0} task(s) match no promoted candidate under any "
+                      "wording (retitled past recognition, or not born "
+                      "from the register):".format(len(misses)))
+                for m in misses:
+                    print("  {0}  \"{1}\"  [{2}]".format(
+                        m["task_id"], m["title"][:48], m["user_ref"]))
+                    cur.execute("""
+                        SELECT DISTINCT c.title
+                        FROM v_task_candidates c
+                        WHERE c.user_ref = %s
+                          AND c.state IN ('promoted', 'accepted')
+                        ORDER BY c.title LIMIT 6""", (m["user_ref"],))
+                    near = [r["title"] for r in cur.fetchall()]
+                    if near:
+                        print("      register offered: {0}".format(
+                            "; ".join(t[:40] for t in near)))
             if not args.apply:
                 print("\nDRY RUN -- nothing written. Re-run with --apply.")
                 return 0
