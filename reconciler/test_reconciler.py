@@ -1033,6 +1033,23 @@ def test_ask_band_asks_a_person():
        "empty, because author_ref IS the speaker and the policy always "
        "said 'speaker is not owner' is what needs corroboration")
 
+    # The live scenario that exposed the young-task guard: a board
+    # rebuilt this morning, every record hours old, and the owner's own
+    # completion claims -- waiting in the pool since before the records
+    # existed -- refused for lack of corroboration. Record age is not
+    # work age.
+    r4b = make()
+    fresh_board = [task(task_id="task-skr", status="proposed",
+                        title="synth kit project rollout",
+                        owner_ref="aad-alex", age_days=0.05, aliases=[])]
+    _p4b, _rep4b = r4b.reconcile("aad-alex", [copy.deepcopy(done)],
+                                 fresh_board, 1, "run-a")
+    ok(len(_p4b["proposals"]) == 1
+       and _p4b["proposals"][0]["op"] == "complete_task",
+       "an hours-old task record does not disqualify its owner's claim: "
+       "the register creates records long after the work, so the claim "
+       "arriving immediately is the pipeline working")
+
     # A NON-owner's uncorroborated claim in the same band still holds:
     # asking is allowed, closing someone's work on one bystander's say-so
     # is not.

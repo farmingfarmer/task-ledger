@@ -647,10 +647,20 @@ class Reconciler(object):
             c["basis"] in ("self_reference", "explicit_assignment")
             and c["person_ref"] == task.get("owner_ref")
             for c in sig.get("owner_candidates") or [])
-        young = (task.get("age_days") is not None
-                 and task["age_days"] < 1)
-        if owner_claims and not young:
-            pass   # single owner-claim suffices
+        # There used to be a "young task" guard here: an owner's claim on
+        # a task less than a day old demanded corroboration anyway. It
+        # shipped in the original commit with no comment and no test, and
+        # it keyed on the wrong age. The register recovers work that was
+        # mentioned weeks before anyone tracked it, so the task RECORD is
+        # born long after the work -- and the completion claim, waiting in
+        # the pool the whole time, arrives the moment the record exists.
+        # That is the pipeline succeeding, not one meeting's churn. On the
+        # first rebuilt ledger the guard held the owner's own "I finished
+        # it" on every task of theirs, because every record was hours old.
+        # Nothing closes without a person regardless: the claim only ever
+        # becomes a card on the owner's queue.
+        if owner_claims:
+            pass   # the owner's own claim earns the owner's own question
         else:
             n_independent = _independent_support(sig, all_signals)
             if n_independent < self.policy["corroboration"]["independent_source_min"]:
