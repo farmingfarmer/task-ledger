@@ -943,6 +943,72 @@ def test_assertions_about_work_are_not_work():
        "and neither becomes a proposal on one sighting")
 
 
+def test_ask_band_asks_a_person():
+    print("ask band")
+    board = [task(task_id="task-skr", title="synth kit project rollout",
+                  status="proposed", owner_ref="aad-alex",
+                  aliases=[])]
+    para = sig(title="synth kit project rollout capability",
+               signal_type="status_update", status_signal="in_progress",
+               owner_candidates=[{"person_ref": "aad-alex",
+                                  "confidence": 0.9,
+                                  "basis": "self_reference"}])
+    # 0.894 similarity, five tokens (no short-title penalty), no judge
+    # available: the exact shape that used to hold forever. Now it is a
+    # question for the reviewer, who is a better judge than a CPU llama.
+    r = make()
+    packet, rep = r.reconcile("aad-alex", [para], board, 1, "run-a")
+    ok(len(packet["proposals"]) == 1
+       and packet["proposals"][0]["op"] == "update_status"
+       and packet["proposals"][0]["target_task_id"] == "task-skr",
+       "a strong paraphrase with no judge becomes a proposal instead of a "
+       "permanent hold")
+    ok("wording alone" in packet["proposals"][0]["rationale"],
+       "and the card admits its basis, so the reviewer knows exactly what "
+       "they are ruling on")
+    ok(not rep["held"], "nothing is held that a person could answer")
+    ok(r._auto_ok == set(),
+       "and it may NEVER auto-apply: wording alone does not skip a human, "
+       "even for the owner's own claim")
+
+    # A confident judge still outranks the ask band -- asking runs only
+    # after the judge has had its chance.
+    j = judge_script([{"verdict": "same_task",
+                       "matched_task_id": "task-skr", "confidence": 0.92,
+                       "deciding_factor": "same rollout deliverable"}])
+    r2 = make(j)
+    packet2, rep2 = r2.reconcile("aad-alex", [para], board, 1, "run-a")
+    ok(len(packet2["proposals"]) == 1
+       and "wording alone" not in packet2["proposals"][0]["rationale"]
+       and rep2["judge_calls"] == 1,
+       "with a judge available and confident, the link is judged, not "
+       "asked")
+
+    # Below the floor the old caution stands: hold, do not guess.
+    r3 = make()
+    weak = sig(title="review the payment intake flow",
+               signal_type="status_update", status_signal="in_progress")
+    board3 = [task(task_id="task-pif", title="payment intake flow",
+                   status="proposed", aliases=[])]
+    # 0.866 raw, but judge_floor-band closures aside: this one IS in the
+    # band -- use a genuinely weak pair instead.
+    weak2 = sig(title="unrelated words entirely here now",
+                signal_type="status_update", status_signal="in_progress")
+    _p3, rep3 = r3.reconcile("aad-alex", [weak2], board3, 1, "run-a")
+    ok(rep3["held"] == [weak2["signal_id"]],
+       "no resemblance still holds: the ask band is a band, not a bypass")
+
+    # Closures never take the ask path: closing work stays behind the
+    # judge whatever the similarity.
+    r4 = make()
+    done = sig(title="synth kit project rollout capability",
+               signal_type="completion_claim", status_signal="completed",
+               confidence=0.9)
+    _p4, rep4 = r4.reconcile("aad-alex", [done], board, 1, "run-a")
+    ok(not any(pp["op"] == "complete_task" for pp in _p4["proposals"]),
+       "a completion claim at 0.89 with no judge does not close anything")
+
+
 if __name__ == "__main__":
     test_auto_link_and_status()
     test_regression_conflict()
@@ -960,6 +1026,7 @@ if __name__ == "__main__":
     test_untracked_work_is_registered_whatever_the_type()
     test_no_target_waits()
     test_cross_owner_guard()
+    test_ask_band_asks_a_person()
     test_uncitable_proposal_dropped()
     test_pg_live()
     print("\nall {0} reconciler checks passed".format(CHECKS[0]))

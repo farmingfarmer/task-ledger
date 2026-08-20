@@ -51,7 +51,7 @@ def main():
             # edit-accept retitle is matched the same way: if the new title
             # normalizes to ANY wording the register sighted, it is the
             # same work.
-            cur.execute("""
+            cur.execute(r"""
                 WITH cand AS (
                   SELECT c.candidate_id, c.user_ref, e.title,
                          max(e.signal_id) AS signal_id,
@@ -98,7 +98,7 @@ def main():
             # they are shown beside what the register could have offered --
             # a silent zero here already cost a round trip to another
             # machine.
-            cur.execute("""
+            cur.execute(r"""
                 SELECT t.task_id, t.title, t.user_ref
                 FROM tasks_current t
                 WHERE t.merged_into IS NULL
@@ -123,7 +123,7 @@ def main():
                 for m in misses:
                     print("  {0}  \"{1}\"  [{2}]".format(
                         m["task_id"], m["title"][:48], m["user_ref"]))
-                    cur.execute("""
+                    cur.execute(r"""
                         SELECT DISTINCT c.title
                         FROM v_task_candidates c
                         WHERE c.user_ref = %s

@@ -306,6 +306,35 @@ def prompt_title(current, inp, out, known=None):
         return t[:120]
 
 
+def _norm_words(s):
+    return " ".join((s or "").lower().split())
+
+
+def teach_wordings(cur, user, task_id, task_title, wordings):
+    """An accepted link teaches the task the wording it was accepted under.
+
+    An ask-band proposal exists because the wording and the title diverged
+    too far for the auto-link and the judge would not commit. The human
+    committing IS the verdict, and it would be absurd to ask them again
+    next week about the same phrase -- so the wording becomes an alias,
+    the alias set is what the matcher embeds, and the next occurrence
+    links at cosine 1.0 with nobody asked and no judge run. Every accept
+    makes the vocabulary bigger and the questions rarer; that is the whole
+    trade.
+    """
+    n = 0
+    for sid, title in wordings:
+        if not title or _norm_words(title) == _norm_words(task_title):
+            continue
+        cur.execute(
+            "SELECT apply_task_event(%s,%s,'alias_added','system',NULL,"
+            "%s::jsonb)",
+            (task_id, user, json.dumps(
+                {"alias": title, "source_signal_id": sid})))
+        n += 1
+    return n
+
+
 def seed_candidate_aliases(cur, user, prop, task_id):
     """Give a task born from the register every wording it was heard under.
 
@@ -662,6 +691,19 @@ def run_session(dsn, user, list_only=False, bulk_unconflicted=False,
                         stats["created_tasks"].append(acted)
                         stats["aliases"] += seed_candidate_aliases(
                             cur, user, prop, acted)
+                    elif prop["target_task_id"]:
+                        cur.execute("""
+                            SELECT s.signal_id, s.title
+                            FROM proposal_signals ps
+                            JOIN signals s USING (signal_id)
+                            WHERE ps.proposal_id = %s""",
+                            (prop["proposal_id"],))
+                        rows = [((r["signal_id"], r["title"])
+                                 if isinstance(r, dict) else (r[0], r[1]))
+                                for r in cur.fetchall()]
+                        stats["aliases"] += teach_wordings(
+                            cur, user, prop["target_task_id"],
+                            prop.get("target_title"), rows)
                     stats["accepted"] += 1
                 elif choice == "reject":
                     cur.execute("""

@@ -26,6 +26,26 @@ thresholds:
   judge_floor: 0.62      # [judge_floor, auto_link) : send top-k to LLM judge
                          # <  judge_floor for ALL candidates : new-task path, record match_note
   judge_accept_min: 0.75 # judge confidence required to act on a same_task verdict
+  # The top of the judge band, where the judge's failures go to a person
+  # instead of to a permanent hold. Measured on a real corpus with
+  # nomic-embed-text:
+  #
+  #   0.944  "Synth kit project capability"        ~ "Synth kit project"
+  #   0.913  "Add New Baseline Tests to Synth Kit" ~ "Add new tests to synth kit"
+  #   0.862  "Smart problem list proof of concept" ~ "Smart problem list"
+  #   0.708  "Add New Baseline Tests to Synth Kit" ~ "Synth kit project"   <- different work
+  #
+  # Real paraphrases of the same work sit at 0.86+; related-but-different
+  # work sits well under 0.75. A CPU-local judge declined the top pairs
+  # again and again, and a declined judge meant the signal was held forever
+  # -- progress on tracked work, permanently invisible, at 0.94 similarity.
+  # So above this floor a failed judge produces a PROPOSAL that says it was
+  # matched on wording alone, and the reviewer rules. Rejecting it is the
+  # 'Matched the wrong task' reason that has existed since the schema was
+  # written, and it feeds the same calibration numbers. Closures and
+  # cross-owner matches are excluded: closing work and touching someone
+  # else's board both stay behind the judge, whatever the similarity.
+  ask_floor: 0.80
   short_title_penalty:
     max_tokens: 4        # signals whose EMBEDDED TEXT (title + description)
                          # is this short...

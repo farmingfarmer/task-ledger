@@ -194,6 +194,13 @@ class Reconciler(object):
             match = self._match(sig, tasks, task_vecs, report)
             outcome = self._gate(sig, match, tasks, all_tasks, signals,
                                  report)
+            if isinstance(outcome, dict) and match.get("ask"):
+                outcome["rationale"] = _clip(
+                    outcome["rationale"] + " Matched on wording alone "
+                    "(similarity {0:.2f}) -- the judge gave no verdict, so "
+                    "this is yours to rule on; reject as 'Matched the "
+                    "wrong task' if it is not the same work.".format(
+                        match["similarity"]))
             if outcome == "held":
                 report["held"].append(sig["signal_id"])
                 continue
@@ -295,6 +302,22 @@ class Reconciler(object):
                         return {"kind": "subtask", "task_id": tid,
                                 "similarity": best_sim, "note": factor,
                                 "judge_conf": conf}
+
+        # The judge had its chance and failed -- unavailable, unsure, or
+        # saying "different" about a 0.94 match, which a CPU-local model
+        # does routinely. Above ask_floor that failure goes to a person as
+        # a proposal that admits its basis, instead of holding the signal
+        # forever. "ask" is carried so nothing downstream mistakes this for
+        # a judged link: auto-apply must never fire on wording alone, and
+        # closures and cross-owner matches never take this path at all.
+        ask = th.get("ask_floor")
+        if (ask is not None and best_sim >= ask and not never_auto
+                and not cross_owner):
+            return {"kind": "linked", "task_id": best["task_id"],
+                    "similarity": best_sim,
+                    "note": "matched on wording alone ({0:.2f}); no judge "
+                            "verdict".format(best_sim),
+                    "judge_conf": None, "ask": True}
 
         note = "closest match {0} ({1:.2f}) below merge threshold".format(
             best["task_id"], max(best_sim, 0.0))
@@ -500,7 +523,8 @@ class Reconciler(object):
             and c.get("person_ref") == task.get("owner_ref")
             for c in sig.get("owner_candidates") or [])
         if (owner_self_claim and match["kind"] == "linked"
-                and match.get("judge_conf") is None):
+                and match.get("judge_conf") is None
+                and not match.get("ask")):
             self._auto_ok.add(sig["signal_id"])
 
         p = self._mk(sig, "update_status", task["task_id"], {

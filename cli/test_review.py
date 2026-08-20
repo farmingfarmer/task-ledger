@@ -251,6 +251,51 @@ def test_accept_carries_register_wordings(dsn):
         conn.close()
 
 
+def test_accept_teaches_the_wording(dsn):
+    print("accept teaches the wording")
+    import psycopg2
+    import psycopg2.extras
+    import review
+    conn = psycopg2.connect(dsn)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        cur.execute("""
+            INSERT INTO extraction_batches (batch_id, extracted_at,
+              extractor_model, prompt_version, source_type, source_ref,
+              window_start, window_end)
+            VALUES ('b-tw', now(), 't', 'v1', 'meeting_transcript', 's',
+                    now(), now()) ON CONFLICT DO NOTHING""")
+        cur.execute("""
+            INSERT INTO signals (signal_id, batch_id, signal_type, title,
+              confidence, owner_candidates, raw)
+            VALUES ('sig-tw','b-tw','status_update',
+                    'Synth kit project capability',0.8,'[]','{}')
+            ON CONFLICT DO NOTHING""")
+        cur.execute("""
+            SELECT apply_task_event('task-tw','aad-dev','created',
+              'manual_edit', NULL,
+              '{"title":"Synth kit project","description":null,
+                "status":"proposed","owner_ref":"aad-dev",
+                "deadline":null,"parent_task_id":null}'::jsonb)""")
+        n = review.teach_wordings(
+            cur, "aad-dev", "task-tw", "Synth kit project",
+            [("sig-tw", "Synth kit project capability"),
+             ("sig-tw", "  synth  KIT  project ")])
+        cur.execute("""SELECT alias, source_signal_id FROM task_aliases
+                       WHERE task_id = 'task-tw'""")
+        rows = cur.fetchall()
+        ok(n == 1 and len(rows) == 1
+           and rows[0]["alias"] == "Synth kit project capability"
+           and rows[0]["source_signal_id"] == "sig-tw",
+           "the wording the human accepted becomes an alias with its "
+           "sentence attached; a restatement of the title itself teaches "
+           "nothing")
+        conn.rollback()
+    finally:
+        cur.close()
+        conn.close()
+
+
 def main():
     test_owner_guard()
     test_deadline_is_a_date()
@@ -269,6 +314,7 @@ def main():
 
     test_reject_dismisses_candidate(dsn)
     test_accept_carries_register_wordings(dsn)
+    test_accept_teaches_the_wording(dsn)
 
     conn = psycopg2.connect(dsn)
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
