@@ -42,9 +42,15 @@ thresholds:
   # So above this floor a failed judge produces a PROPOSAL that says it was
   # matched on wording alone, and the reviewer rules. Rejecting it is the
   # 'Matched the wrong task' reason that has existed since the schema was
-  # written, and it feeds the same calibration numbers. Closures and
-  # cross-owner matches are excluded: closing work and touching someone
-  # else's board both stay behind the judge, whatever the similarity.
+  # written, and it feeds the same calibration numbers. Cross-owner
+  # matches are excluded -- touching someone else's board stays behind
+  # the judge whatever the similarity. Closures may ASK (the card goes to
+  # the owner, and the closure gate still demands the speaker be the
+  # owner or the claim corroborated) but still never auto-link: an ask
+  # closes nothing, a person does. Measured on the real corpus, "I
+  # completed it" claims about the speaker's own tracked work landed at
+  # 0.80-0.84 -- the most valuable sentences the system hears were the
+  # ones the first version of this floor refused to relay.
   ask_floor: 0.80
   short_title_penalty:
     max_tokens: 4        # signals whose EMBEDDED TEXT (title + description)

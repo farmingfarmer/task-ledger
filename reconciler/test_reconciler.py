@@ -167,12 +167,20 @@ def test_closure_gates():
        and len(completes[0]["evidence"]) == 2,
        "two independent sources corroborate; one aggregated proposal")
 
-    # Malformed judge output fails toward distinct -> no completion.
+    # Malformed judge output is never PARSED into a verdict -- but at
+    # 0.89 similarity it no longer strands the claim either: the ask band
+    # hands the question to the owner, and the card says out loud that no
+    # judge ruled. What this test always guarded against was garbage being
+    # trusted as a match; a human question trusts nothing.
     r4 = make(lambda messages: "I think it matches task-ocr probably")
     packet4, rep4 = r4.reconcile("aad-dev", [copy.deepcopy(s)], BOARD, 3,
                                  "run-t")
-    ok(packet4["proposals"] == [] and rep4["held"],
-       "malformed judge output holds instead of guessing")
+    ok(len(packet4["proposals"]) == 1
+       and packet4["proposals"][0]["op"] == "complete_task"
+       and "wording alone" in packet4["proposals"][0]["rationale"]
+       and packet4["proposals"][0]["payload"].get("kind") == "complete_task",
+       "malformed judge output is not guessed at: the claim becomes a "
+       "question that admits no judge ruled, and closes nothing by itself")
 
 
 def test_assignment_ladder():
@@ -1005,15 +1013,39 @@ def test_ask_band_asks_a_person():
        "so a 0.87 paraphrase and a 0.12 fragment stop looking identical "
        "in the log")
 
-    # Closures never take the ask path: closing work stays behind the
-    # judge whatever the similarity.
+    # A closure may ASK -- the card goes to the owner and closes nothing
+    # by itself -- but only when the speaker IS the owner. This assertion
+    # used to say the opposite ("does not close anything"), and holding
+    # that line meant "I completed it", said by the owner about their own
+    # tracked work, was held forever at 0.84: the most valuable sentence
+    # the system hears, refused on principle. The principle was about
+    # auto-linking, and an ask is not an auto-link.
     r4 = make()
     done = sig(title="synth kit project rollout capability",
                signal_type="completion_claim", status_signal="completed",
-               confidence=0.9)
+               confidence=0.9, author_ref="aad-alex", owner_candidates=[])
     _p4, rep4 = r4.reconcile("aad-alex", [done], board, 1, "run-a")
-    ok(not any(pp["op"] == "complete_task" for pp in _p4["proposals"]),
-       "a completion claim at 0.89 with no judge does not close anything")
+    ok(len(_p4["proposals"]) == 1
+       and _p4["proposals"][0]["op"] == "complete_task"
+       and "wording alone" in _p4["proposals"][0]["rationale"],
+       "the owner reporting their own work finished becomes a question "
+       "for the owner -- even when the extractor left owner_candidates "
+       "empty, because author_ref IS the speaker and the policy always "
+       "said 'speaker is not owner' is what needs corroboration")
+
+    # A NON-owner's uncorroborated claim in the same band still holds:
+    # asking is allowed, closing someone's work on one bystander's say-so
+    # is not.
+    r5 = make()
+    hearsay = sig(signal_id="sig-hearsay",
+                  title="synth kit project rollout capability",
+                  signal_type="completion_claim", status_signal="completed",
+                  confidence=0.9, author_ref="aad-priya",
+                  owner_candidates=[])
+    _p5, rep5 = r5.reconcile("aad-alex", [hearsay], board, 1, "run-a")
+    ok(_p5["proposals"] == [] and rep5["held"] == ["sig-hearsay"],
+       "a bystander's uncorroborated completion claim still waits for a "
+       "second source")
 
 
 if __name__ == "__main__":

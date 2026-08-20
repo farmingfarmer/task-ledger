@@ -326,9 +326,17 @@ class Reconciler(object):
         # forever. "ask" is carried so nothing downstream mistakes this for
         # a judged link: auto-apply must never fire on wording alone, and
         # closures and cross-owner matches never take this path at all.
+        # Closures ARE allowed to ask. never_auto exists so embeddings
+        # alone can never close work -- and it still means that: no
+        # auto-link at any similarity. But an ask closes nothing; it puts
+        # "was this finished?" in front of the task's owner, and the
+        # closure gate downstream still demands the speaker be the owner
+        # or the claim be corroborated. Excluding closures here left "I
+        # completed it", said by the owner, about their own board, held
+        # forever at 0.84 -- the single most valuable sentence this system
+        # hears, and the one it was refusing to relay.
         ask = th.get("ask_floor")
-        if (ask is not None and best_sim >= ask and not never_auto
-                and not cross_owner):
+        if (ask is not None and best_sim >= ask and not cross_owner):
             return {"kind": "linked", "task_id": best["task_id"],
                     "similarity": best_sim,
                     "note": "matched on wording alone ({0:.2f}); no judge "
@@ -626,7 +634,16 @@ class Reconciler(object):
                           or match["judge_conf"] >= 0.85))
         if not strict_ok:
             return "held"
-        owner_claims = any(
+        # The policy has said "speaker is NOT owner -> require
+        # corroboration" since it was written, but the code only ever
+        # consulted owner_candidates -- the extractor's guess about who
+        # the work is FOR -- and never author_ref, which IS the speaker.
+        # An owner saying "I finished it" in a sentence the extractor
+        # didn't decorate with owner_candidates was treated as an
+        # unattributed rumor about their own task.
+        owner_claims = (
+            sig.get("author_ref") is not None
+            and sig.get("author_ref") == task.get("owner_ref")) or any(
             c["basis"] in ("self_reference", "explicit_assignment")
             and c["person_ref"] == task.get("owner_ref")
             for c in sig.get("owner_candidates") or [])
