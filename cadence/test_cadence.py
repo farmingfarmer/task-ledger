@@ -11,6 +11,8 @@ the ordinary wait for Ollama.
 Run: python3 test_cadence.py
 """
 
+import contextlib
+import io
 import json
 import os
 import shutil
@@ -224,9 +226,39 @@ def test_one_bad_window_does_not_block_others():
         shutil.rmtree(tmp)
 
 
+def test_tick_refuses_to_start_without_a_store():
+    print("database down at start")
+    # The preflight used to guard extraction only, so an EMPTY inbox
+    # skipped it entirely and a stopped Postgres surfaced minutes later as
+    # an unhandled OperationalError out of the reconcile -- which reads as
+    # a crash rather than as a service that is not running. Portable
+    # Postgres is not a Windows service; this is the ordinary case.
+    saved = dict(os.environ)
+    os.environ["DB_DSN"] = "host=localhost port=5999 dbname=nope"
+    os.environ["TL_USER"] = "aad-t"
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            rc = ct.main()
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
+    out = buf.getvalue()
+    ok(rc == 2, "the tick exits non-zero, so a scheduled run can tell it "
+                "did not happen")
+    ok("database unreachable" in out,
+       "and says which dependency is down, in one line, before any work")
+    ok("pg_start" in out,
+       "naming how to start it, because that is the next thing anybody "
+       "asks")
+    ok("Traceback" not in out,
+       "no traceback: a service that is not running is not a crash")
+
+
 if __name__ == "__main__":
     test_quarantine_after_repeated_failure()
     test_unreachable_db_costs_nothing()
+    test_tick_refuses_to_start_without_a_store()
     test_success_clears_history()
     test_ollama_down_is_not_a_failure()
     test_corrupt_counter_is_survivable()

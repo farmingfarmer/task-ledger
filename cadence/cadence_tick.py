@@ -182,6 +182,13 @@ def quarantine(inbox, path, record):
         pass
 
 
+def _dsn_label(dsn):
+    """The host and port from a DSN, without leaking a password into a log."""
+    bits = [p for p in (dsn or "").split()
+            if p.startswith(("host=", "port=", "dbname="))]
+    return " ".join(bits) or "the configured DSN"
+
+
 def db_up(dsn, timeout=3):
     """Is the store there to write to."""
     import psycopg2
@@ -431,6 +438,19 @@ def main():
 
     wire_paths()
     log("tick start: user={0} inbox={1}".format(user, inbox))
+    # Nothing below this line works without the store, so ask once, here.
+    # The check existed already but only guarded extraction, so an empty
+    # inbox skipped it and a stopped Postgres surfaced as an unhandled
+    # OperationalError several minutes into the reconcile -- three times in
+    # one day, each time reading as a crash rather than as a service that
+    # is not running. Portable Postgres is not a Windows service and does
+    # not come back by itself, so this is the ordinary case, not the
+    # exceptional one, and it deserves one readable line.
+    if not db_up(dsn):
+        log("FATAL: database unreachable at {0} -- nothing can be read or "
+            "written. Start it (deploy/windows/pg_start.bat on Windows) "
+            "and run again.".format(_dsn_label(dsn)))
+        return 2
     # Echo the models actually received. A pasted `set` line that never
     # reaches the program falls back to the default and logs nothing, so a
     # run with the wrong model is indistinguishable from the one intended.
