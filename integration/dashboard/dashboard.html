@@ -1166,6 +1166,29 @@
       body.appendChild(sec3);
     }
 
+    // Not a task and not a queue item: a fact somebody stated about their
+    // own work. The gates drop these titles precisely because they are not
+    // work, and dropping them silently threw away a true answer to "what
+    // is blocked?" -- which reads better as "nothing, and here is when you
+    // said so" than as an empty list.
+    var nob = d.no_blockers || [];
+    if(nob.length){
+      var sec4 = el2("div","revsec");
+      sec4.appendChild(el("h3", null, "Nothing blocked"));
+      sec4.appendChild(el("p","lede",
+        "You said so. Recorded as a fact about your work, never queued as "
+        + "a task \u2014 there is nothing here to decide."));
+      nob.forEach(function(a){
+        var row = el2("div","revitem");
+        row.appendChild(el("div","ttl", a.title));
+        row.appendChild(el("div","meta",
+          (a.said_at ? String(a.said_at).slice(0,10) : "date unknown")
+          + (a.source_ref ? " \u00b7 " + a.source_ref : "")));
+        sec4.appendChild(row);
+      });
+      body.appendChild(sec4);
+    }
+
     if(!d.writable)
       body.appendChild(el("div","revnote",
         "This is the real ledger, and the dashboard reads it without ever "

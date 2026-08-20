@@ -297,6 +297,18 @@ not_work:
     - '^(this|next|last)\s+(sprint|week|month|meeting)\s*$'
     - '^ad hoc topics?\s*$'
 
+  # A subset of the above that is not merely noise. "No blockers" asserts
+  # something true and useful about a person's work on a date, and throwing
+  # it away silently was the wrong half of the right decision: it is not a
+  # task, and it is not nothing. Still dropped from every gate like the
+  # rest -- nothing here reaches a board -- but reported, because "what is
+  # blocked?" is a better answer when "nothing, and here is who said so and
+  # when" is one of the answers it can give.
+  attests_no_blockers:
+    - '^no\s+blockers?\b'
+    - '^no\s+blocking\b'
+    - '\bnothing\s+(is\s+)?block(ed|ing)\b'
+
 candidate_promotion:
   # Corroboration has two shapes, and requiring BOTH was the mistake. On
   # the first real corpus 92 candidates registered and 4 promoted, because

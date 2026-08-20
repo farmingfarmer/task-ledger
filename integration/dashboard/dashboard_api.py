@@ -967,10 +967,61 @@ def review_queue():
         "quiet": quiet,
         "quiet_days": QUIET_DAYS,
         "candidates": candidates,
+        "no_blockers": _no_blocker_claims(v),
         "auto_applied": [a for a in auto if not a["undone"]],
         "writable": _writable(),
         "profile": profile_name(),
     })
+
+
+_NO_BLOCKER_RX = None
+
+
+def _no_blocker_patterns():
+    """Compiled once, from the same policy file the reconciler reads.
+
+    These titles are dropped by the gates -- see not_work in
+    matching_policy.yaml -- because "no blockers" is not a task. But it is
+    a true statement about somebody's work on a date, and discarding it
+    entirely was the wrong half of a right decision. The signal is already
+    stored; nothing new is written to report it.
+    """
+    global _NO_BLOCKER_RX
+    if _NO_BLOCKER_RX is None:
+        pats = []
+        try:
+            import re
+            import yaml
+            root = os.path.normpath(os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+            with open(os.path.join(root, "policy",
+                                   "matching_policy.yaml")) as f:
+                pats = (((yaml.safe_load(f) or {}).get("not_work") or {})
+                        .get("attests_no_blockers") or [])
+            _NO_BLOCKER_RX = [re.compile(x, re.IGNORECASE) for x in pats]
+        except Exception:                               # noqa: BLE001
+            _NO_BLOCKER_RX = []      # reporting a fact is never worth a 500
+    return _NO_BLOCKER_RX
+
+
+def _no_blocker_claims(v):
+    """When this person last said nothing was blocked, and in what words."""
+    rx = _no_blocker_patterns()
+    if not rx:
+        return []
+    out = []
+    for r in q("""
+            SELECT s.title, b.window_start AS said_at, b.source_ref
+            FROM signals s JOIN extraction_batches b USING (batch_id)
+            WHERE s.author_ref = %s
+              AND b.window_start >= now() - interval '30 days'
+            ORDER BY b.window_start DESC
+            LIMIT 400""", (v,)):
+        if any(x.search(r["title"] or "") for x in rx):
+            out.append(r)
+            if len(out) >= 3:
+                break
+    return out
 
 
 def _review_cli():
