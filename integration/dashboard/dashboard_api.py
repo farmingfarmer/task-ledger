@@ -941,6 +941,32 @@ def review_queue():
         WHERE user_ref = %s AND state = 'sighted'
         ORDER BY sightings DESC, last_seen DESC
         LIMIT 6""", (v,)) if _candidates_available() else []
+    # The register forgets on a clock (candidate_promotion.window_days) and
+    # used to forget silently. A candidate about to fade carries its days
+    # left, so the card can say "claim it or lose it" -- loss framed as
+    # loss, not as an empty list next week.
+    if candidates:
+        try:
+            import datetime as _dt
+            import yaml as _yaml
+            _root = os.path.normpath(os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+            with open(os.path.join(_root, "policy",
+                                   "matching_policy.yaml")) as _f:
+                _win = ((_yaml.safe_load(_f) or {}).get(
+                    "candidate_promotion") or {}).get("window_days")
+            if _win:
+                _now = _dt.datetime.now(_dt.timezone.utc)
+                for c in candidates:
+                    seen = c.get("last_seen")
+                    if isinstance(seen, str):   # q() hands out isoformat
+                        seen = _dt.datetime.fromisoformat(seen)
+                    if seen is not None:
+                        c["days_left"] = max(0, _win - (_now - seen).days)
+        except Exception as _exc:                       # noqa: BLE001
+            import sys as _sys
+            print("countdown skipped: %r" % (_exc,), file=_sys.stderr)
+            # a missing countdown is never worth a 500
 
     # Changes that skipped the queue. If these were invisible the gate
     # would be indefensible: the whole basis for letting anything apply

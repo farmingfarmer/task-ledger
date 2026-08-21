@@ -67,6 +67,9 @@ if /i "%CMD%"=="extract" goto :extract
 if /i "%CMD%"=="ingest" goto :ingest
 if /i "%CMD%"=="transcripts" goto :transcripts
 if /i "%CMD%"=="quickscan" goto :quickscan
+if /i "%CMD%"=="brief" goto :brief
+if /i "%CMD%"=="recall" goto :recall
+if /i "%CMD%"=="handover" goto :handover
 if /i "%CMD%"=="demo-set" goto :demoset
 if /i "%CMD%"=="demo-tx" goto :demotx
 if /i "%CMD%"=="score" goto :score
@@ -92,6 +95,9 @@ echo   extract ^<file^>  one transcript -^> typed signals (writes)
 echo   ingest ^<file^>   a Copilot paste -^> the inbox
 echo   transcripts ^<f^> a Teams transcript (Word .txt) -^> the inbox
 echo   quickscan ^<f^>   what a transcript names + what is new (read-only)
+echo   brief [meeting] before the standup: what this room said + what became of it
+echo   recall ^<words^>  who said that, when -- quoted, with receipts
+echo   handover ^<who^>  everything one person carries, with history
 echo   demo-set        generate the synthetic transcript demo set
 echo   demo-tx ^<src^>   build the demo board from transcripts (writes)
 echo   score ^<dir^>     extraction vs golden labels, measured
@@ -190,6 +196,29 @@ if not defined ARG1 (
 )
 call :banner
 python scripts\copilot_ingest.py "%ARG1%" --out "%TL_INBOX%" %REST%
+exit /b %errorlevel%
+
+:brief
+call :banner
+python scripts\brief.py %ARGS%
+exit /b %errorlevel%
+
+:recall
+if not defined ARG1 (
+  echo tl: recall needs words, e.g. tl recall synthetic data 1>&2
+  exit /b 2
+)
+call :banner
+python scripts\recall.py %ARGS%
+exit /b %errorlevel%
+
+:handover
+if not defined ARG1 (
+  echo tl: handover needs a person, e.g. tl handover hari 1>&2
+  exit /b 2
+)
+call :banner
+python scripts\handover.py %ARGS%
 exit /b %errorlevel%
 
 :quickscan

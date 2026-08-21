@@ -96,6 +96,9 @@ usage() {
   echo "  ingest <file>   a Copilot paste -> the inbox"
   echo "  transcripts <f> a Teams transcript (Word .txt) -> the inbox"
   echo "  quickscan <f>   what a transcript names + what is new (read-only)"
+  echo "  brief [meeting] before the standup: what this room said + what became of it"
+  echo "  recall <words>  who said that, when -- quoted, with receipts"
+  echo "  handover <who>  everything one person carries, with history"
   echo "  demo-set        generate the synthetic transcript demo set"
   echo "  demo-tx <src>   build the demo board from transcripts (writes)"
   echo "  score <dir>     extraction vs golden labels, measured"
@@ -178,6 +181,29 @@ case "$CMD" in
     fi
     banner
     python3 scripts/copilot_ingest.py "$1" --out "$TL_INBOX" "${@:2}"
+    ;;
+
+  brief)
+    banner
+    python3 scripts/brief.py "$@"
+    ;;
+
+  recall)
+    if [ $# -eq 0 ]; then
+      echo "tl: recall needs words, e.g. ./tl recall synthetic data" >&2
+      exit 2
+    fi
+    banner
+    python3 scripts/recall.py "$@"
+    ;;
+
+  handover)
+    if [ $# -eq 0 ]; then
+      echo "tl: handover needs a person, e.g. ./tl handover hari" >&2
+      exit 2
+    fi
+    banner
+    python3 scripts/handover.py "$@"
     ;;
 
   quickscan)

@@ -1334,10 +1334,15 @@
     row.appendChild(el("span","op", "MENTIONED"));
     row.appendChild(el("div","ttl", c.title || "(untitled)"));
     var n = c.sightings || 0, sp = c.speakers || 0;
+    // A candidate on the clock says so: "fades in 2 days" turns the
+    // register's quiet expiry into a decision someone gets to make.
+    var fade = (typeof c.days_left === "number" && c.days_left <= 5)
+      ? " \u00b7 fades in " + c.days_left + " day"
+        + (c.days_left === 1 ? "" : "s") : "";
     row.appendChild(el("div","meta",
       n + " mention" + (n === 1 ? "" : "s")
       + " by " + sp + " " + (sp === 1 ? "person" : "people")
-      + " \u00b7 on no board"));
+      + " \u00b7 on no board" + fade));
 
     var acts = el2("div","revacts");
     var yes = el2("button","yes"); yes.type = "button";
