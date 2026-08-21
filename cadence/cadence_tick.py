@@ -94,6 +94,31 @@ def ollama_chat(model, host):
     return call
 
 
+def installed_models(host, timeout=5):
+    """The models Ollama can actually serve, or None if it cannot say."""
+    try:
+        with urllib.request.urlopen(host + "/api/tags",
+                                    timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        return [m.get("name", "") for m in data.get("models", [])]
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+def missing_models(host, wanted):
+    """Which of the wanted models are not installed. [] when all are, or
+    when Ollama cannot be asked -- an unreachable server is the offline
+    path's business, not this check's."""
+    tags = installed_models(host)
+    if tags is None:
+        return []
+    def ok(m):
+        return any(t == m or t.startswith(m + ":")
+                   or (":" not in m and t.split(":")[0] == m)
+                   for t in tags)
+    return sorted({m for m in wanted if m and not ok(m)})
+
+
 def notify(title, text):
     """Pop the platform's own notification. macOS: osascript. Windows: the
     no-admin toast from deploy/windows, run through PowerShell with the
@@ -457,6 +482,24 @@ def main():
         log("FATAL: database unreachable at {0} -- nothing can be read or "
             "written. Start it (deploy/windows/pg_start.bat on Windows) "
             "and run again.".format(_dsn_label(dsn)))
+        return 2
+    # A configured model that is not installed does not fail fast on its
+    # own: extraction calls time out per window, half an hour each, and
+    # the run "completes" having learned nothing. It happened twice in one
+    # week -- a paste from one machine naming a model only the other one
+    # has. Ollama being DOWN is not this check's business (the offline
+    # path holds work safely); a reachable Ollama that lacks the named
+    # model is a configuration error and gets one line, immediately.
+    missing = missing_models(host, [
+        os.environ.get("TL_EXTRACT_MODEL", "mistral-small3.1"),
+        os.environ.get("TL_JUDGE_MODEL", "mistral-small3.1"),
+        os.environ.get("TL_EMBED_MODEL", "nomic-embed-text")])
+    if missing:
+        log("FATAL: model(s) not installed on this Ollama: {0}. "
+            "Installed: {1}. Set TL_*_MODEL to one of those or pull the "
+            "missing one.".format(
+                ", ".join(missing),
+                ", ".join(installed_models(host) or []) or "none"))
         return 2
     # Echo the models actually received. A pasted `set` line that never
     # reaches the program falls back to the default and logs nothing, so a

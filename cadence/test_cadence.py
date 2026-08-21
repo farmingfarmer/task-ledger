@@ -255,10 +255,40 @@ def test_tick_refuses_to_start_without_a_store():
        "no traceback: a service that is not running is not a crash")
 
 
+def test_tick_refuses_a_model_that_is_not_there():
+    print("model not installed")
+    # A missing model does not fail on its own -- extraction times out per
+    # window, thirty minutes each, and the run "completes" empty. The tick
+    # now checks the named models against what Ollama actually serves.
+    saved = dict(os.environ)
+    real_db, real_inst = ct.db_up, ct.installed_models
+    os.environ["DB_DSN"] = "host=localhost port=5999 dbname=nope"
+    os.environ["TL_USER"] = "aad-t"
+    os.environ["TL_EXTRACT_MODEL"] = "llama3.1:8b"
+    ct.db_up = lambda dsn, timeout=3: True
+    ct.installed_models = lambda host, timeout=5: [
+        "mistral-small3.1:latest", "nomic-embed-text:latest"]
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            rc = ct.main()
+    finally:
+        ct.db_up, ct.installed_models = real_db, real_inst
+        os.environ.clear()
+        os.environ.update(saved)
+    out = buf.getvalue()
+    ok(rc == 2, "the tick refuses to start")
+    ok("llama3.1:8b" in out and "mistral-small3.1" in out,
+       "naming the missing model AND what is actually installed, so the "
+       "fix is a copy-paste away")
+    ok("Traceback" not in out, "one line, not a stack")
+
+
 if __name__ == "__main__":
     test_quarantine_after_repeated_failure()
     test_unreachable_db_costs_nothing()
     test_tick_refuses_to_start_without_a_store()
+    test_tick_refuses_a_model_that_is_not_there()
     test_success_clears_history()
     test_ollama_down_is_not_a_failure()
     test_corrupt_counter_is_survivable()
