@@ -746,10 +746,9 @@ def run_session(dsn, user, list_only=False, bulk_unconflicted=False,
             for t in stats["created_tasks"]:
                 out.write("  created {0}\n".format(t))
             if stats["aliases"]:
-                out.write("  {0} alias(es) carried over from the register: "
-                          "the wordings that corroborated this work will "
-                          "now match it directly\n".format(
-                              stats["aliases"]))
+                out.write("  {0} wording(s) learned this session: they "
+                          "will match their work directly from now on\n"
+                          .format(stats["aliases"]))
         conn.commit()
         return stats
     except Exception:
