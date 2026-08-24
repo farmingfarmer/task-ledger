@@ -65,10 +65,6 @@ thresholds:
   auto_link_guards:
     never_auto_link_types: ["completion_claim", "cancellation"]  # always judged
     never_auto_link_cross_owner: true    # owner mismatch forces judge regardless of similarity
-  merge_scan:            # periodic task<->task dedup (same judge, pairwise)
-    cadence_hours: 24
-    pair_floor: 0.80
-    propose_merge_min_judge_conf: 0.85
 
 corroboration:
   window_days: 7                # uncorroborated strict signals wait this long, then expire
@@ -197,7 +193,7 @@ aggregation:
     # periodic task<->task scan uses, and merges only on same_task.
     auto_merge: 0.93          # >= : near-verbatim restatement; merge, no judge
     judge_floor: 0.78         # [judge_floor, auto_merge): ask the merge judge
-    judge_accept_min: 0.85    # same bar as merge_scan; below it, keep both
+    judge_accept_min: 0.85    # below it, keep both
     no_judge_behavior: "keep both proposals"   # offline ticks fail OPEN: two
                                                # cards is noise, a wrong merge
                                                # hides work the human never sees
