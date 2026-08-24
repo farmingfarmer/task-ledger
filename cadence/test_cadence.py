@@ -266,6 +266,9 @@ def test_tick_refuses_a_model_that_is_not_there():
     os.environ["TL_USER"] = "aad-t"
     os.environ["TL_EXTRACT_MODEL"] = "llama3.1:8b"
     ct.db_up = lambda dsn, timeout=3: True
+    # the lock connects for real, and this test's DSN is deliberately fake
+    real_lock = ct.acquire_tick_lock
+    ct.acquire_tick_lock = lambda dsn: object()
     ct.installed_models = lambda host, timeout=5: [
         "mistral-small3.1:latest", "nomic-embed-text:latest"]
     buf = io.StringIO()
@@ -274,6 +277,7 @@ def test_tick_refuses_a_model_that_is_not_there():
             rc = ct.main()
     finally:
         ct.db_up, ct.installed_models = real_db, real_inst
+        ct.acquire_tick_lock = real_lock
         os.environ.clear()
         os.environ.update(saved)
     out = buf.getvalue()
@@ -284,11 +288,44 @@ def test_tick_refuses_a_model_that_is_not_there():
     ok("Traceback" not in out, "one line, not a stack")
 
 
+def test_only_one_tick_at_a_time():
+    print("tick lock")
+    dsn = os.environ.get("DB_DSN")
+    try:
+        import psycopg2
+        holder = psycopg2.connect(dsn)
+    except Exception as e:
+        print("  skipped: database not reachable ({0})".format(
+            e.__class__.__name__))
+        return
+    holder.autocommit = True
+    saved = dict(os.environ)
+    try:
+        with holder.cursor() as hcur:
+            hcur.execute(
+                "SELECT pg_try_advisory_lock(hashtext('task-ledger-tick'))")
+            ok(hcur.fetchone()[0], "the fixture takes the lock")
+        os.environ["TL_USER"] = "aad-t"
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = ct.main()
+        out = buf.getvalue()
+        ok(rc == 0 and "bows out" in out,
+           "a second tick sees the lock, says so in one line, and starts "
+           "nothing -- an overlap is a fact, not a failure")
+        ok("Traceback" not in out, "and certainly not a crash")
+    finally:
+        holder.close()          # releases the advisory lock with it
+        os.environ.clear()
+        os.environ.update(saved)
+
+
 if __name__ == "__main__":
     test_quarantine_after_repeated_failure()
     test_unreachable_db_costs_nothing()
     test_tick_refuses_to_start_without_a_store()
     test_tick_refuses_a_model_that_is_not_there()
+    test_only_one_tick_at_a_time()
     test_success_clears_history()
     test_ollama_down_is_not_a_failure()
     test_corrupt_counter_is_survivable()

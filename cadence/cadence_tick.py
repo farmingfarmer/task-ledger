@@ -207,6 +207,35 @@ def quarantine(inbox, path, record):
         pass
 
 
+def acquire_tick_lock(dsn):
+    """One tick at a time, enforced by the database itself.
+
+    There is now an hourly scheduled tick AND a human who runs ticks by
+    hand, so collision is not hypothetical -- it is the default. Two ticks
+    race shutil.move on the same inbox file; the loser's exception is
+    recorded as a failed ATTEMPT, so a scheduling accident walks an
+    innocent window toward quarantine. And both pay full model price for
+    the same extraction first.
+
+    A Postgres advisory lock instead of a lock file because a lock file
+    has the one failure mode that matters here: a killed tick leaves it
+    behind, and the machine this runs on gets killed a lot. An advisory
+    lock dies with its connection -- crash, Ctrl+C, reboot, all release
+    it. The connection is returned so the caller can keep it alive for
+    the duration; None means another tick holds it.
+    """
+    import psycopg2
+    conn = psycopg2.connect(dsn)
+    conn.autocommit = True
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT pg_try_advisory_lock(hashtext('task-ledger-tick'))")
+        if cur.fetchone()[0]:
+            return conn
+    conn.close()
+    return None
+
+
 def _dsn_label(dsn):
     """The host and port from a DSN, without leaking a password into a log."""
     bits = [p for p in (dsn or "").split()
@@ -366,7 +395,11 @@ def run_reconcile(dsn, user, host, embed_model, judge_model):
             len(candidates), version))
 
     if ollama_up(host):
-        embed = embedders.OllamaEmbedder(embed_model, host)
+        # Cached because an embedding is a pure function and these texts
+        # barely change between ticks; the wrapper degrades to the plain
+        # embedder on any cache trouble.
+        embed = embedders.CachedEmbedder(
+            embedders.OllamaEmbedder(embed_model, host), dsn, embed_model)
         judge = ollama_chat(judge_model, host)
         mode = "ollama"
     else:
@@ -384,6 +417,9 @@ def run_reconcile(dsn, user, host, embed_model, judge_model):
     result = board_io_pg.write_packet(dsn, packet, report["consumed"],
                                      report["annotations"], run_id,
                                      report=report)
+    if getattr(embed, "calls_saved", 0):
+        log("reconcile[{0}]: embedding cache saved {1} model call(s)"
+            .format(user, embed.calls_saved))
     log("reconcile[{0}]: {1} proposals, {2} consumed, {3} held, "
         "{4} candidate sighting(s), {5} promoted, superseded {6}".format(
             user, result["proposals"], len(report["consumed"]),
@@ -483,6 +519,12 @@ def main():
             "written. Start it (deploy/windows/pg_start.bat on Windows) "
             "and run again.".format(_dsn_label(dsn)))
         return 2
+    lock = acquire_tick_lock(dsn)
+    if lock is None:
+        log("another tick already holds the lock (scheduled and manual "
+            "runs overlap sometimes) -- this one bows out; nothing was "
+            "started twice.")
+        return 0
     # A configured model that is not installed does not fail fast on its
     # own: extraction calls time out per window, half an hour each, and
     # the run "completes" having learned nothing. It happened twice in one
