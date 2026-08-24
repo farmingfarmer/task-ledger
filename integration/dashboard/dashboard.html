@@ -532,6 +532,10 @@
   .revacts button:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
   .revacts .yes{border-color:var(--brand);color:var(--brand-deep)}
   .revdone{font-size:12.5px;color:var(--pine);font-weight:700}
+  .deal{margin:6px 0 0;font-size:12.5px;color:var(--evidence-ink)}
+  .deal summary{cursor:pointer;opacity:.85}
+  .deal ul{margin:8px 0 4px;padding-left:18px;max-width:560px}
+  .deal li{margin:4px 0;line-height:1.45}
   .revnote{font-size:12.5px;color:var(--evidence-ink);
          background:var(--evidence-bg);border:1px solid var(--evidence);
          border-radius:var(--r1);padding:9px 12px;margin-top:12px}
@@ -551,6 +555,31 @@
       <h1>Task ledger</h1>
       <p class="mission">Your work, as the conversations recorded it &mdash;
         every fact traceable to the sentence that produced it.</p>
+      <details class="deal">
+        <summary>Runs on this machine only &middot; suggests, never decides
+          &middot; keeps score on itself, not on you &mdash; the deal</summary>
+        <ul>
+          <li><b>Everything runs here.</b> Transcripts, models, database
+            &mdash; nothing is sent to any cloud, ever.</li>
+          <li><b>It only reads what someone deliberately gave it.</b> No
+            microphones, no live capture. A transcript has to be handed
+            over.</li>
+          <li><b>What it heard about you is yours alone</b> until you
+            confirm it. Unreviewed claims are never shown to anyone
+            else.</li>
+          <li><b>Nothing reaches a board without a named person saying
+            yes.</b> It suggests; people decide. There is no other
+            path.</li>
+          <li><b>Every fact keeps its receipt</b> &mdash; the sentence, the
+            speaker, the meeting, the hash. Nothing here is a summary's
+            opinion.</li>
+          <li><b>Wrong about something?</b> One keystroke corrects it, the
+            correction is permanent, and it is scored against the system
+            &mdash; not against you.</li>
+          <li><b>There is no scorecard of people, and there never will
+            be.</b> It tracks work, not workers.</li>
+        </ul>
+      </details>
       <div class="idbox">
         <label for="viewer-sel">Viewing as</label>
         <select id="viewer-sel" aria-label="Viewing as"></select>
@@ -1113,13 +1142,30 @@
     body.innerHTML = "";
 
     var props = d.proposals || [];
+    // The skeptic's first question is "how much of my time is this?" --
+    // answer it before asking for any. Ten seconds a card is measured
+    // generosity: most answers are one keystroke.
+    var nCards = props.length + (d.candidates || []).length;
+    if(nCards){
+      var secs = nCards * 10;
+      body.appendChild(el("p","lede",
+        nCards + " item" + (nCards === 1 ? "" : "s") + " \u2014 about "
+        + (secs < 60 ? secs + " seconds" : Math.round(secs / 60) + " minute"
+           + (secs < 90 ? "" : "s"))
+        + " of your time. Nothing changes until you answer."));
+    }
     var sec = el2("div","revsec");
     sec.appendChild(el("h3", null, "Heard in your meetings"));
     sec.appendChild(el("p","lede", props.length
-      ? "Claims from conversation that nobody has ruled on. Nothing below "
-        + "is on your board until you say so."
+      ? "Suggestions, each with its sentence attached. Nothing below is "
+        + "on your board until you say so."
       : "Nothing new since your last review."));
     props.forEach(function(p){ sec.appendChild(proposalRow(p, d.writable)); });
+    if(props.length)
+      sec.appendChild(el("div","revnote",
+        "Not yours, or just wrong? Rejecting takes one keystroke, routes "
+        + "misdirected work to the right person, and the miss is recorded "
+        + "against the system \u2014 not against you."));
     body.appendChild(sec);
 
     var quiet = d.quiet || [];
@@ -1187,6 +1233,18 @@
         sec4.appendChild(row);
       });
       body.appendChild(sec4);
+    }
+
+    var ans = d.answered || {};
+    if(ans.asked){
+      body.appendChild(el("div","revnote",
+        "Your record with this system: " + ans.asked + " suggestion"
+        + (ans.asked === 1 ? "" : "s") + " answered, " + (ans.accepted || 0)
+        + " accepted" + ((ans.corrected || 0)
+          ? (", " + ans.corrected + " correction"
+             + (ans.corrected === 1 ? "" : "s")
+             + " \u2014 kept, counted, and held against the system")
+          : "") + "."));
     }
 
     if(!d.writable)

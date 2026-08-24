@@ -611,6 +611,9 @@ def run_session(dsn, user, list_only=False, bulk_unconflicted=False,
                 return stats
             owners = known_owners(cur)
             out.write("Pending for {0}:\n".format(user))
+            n_cards = sum(int(pk["undecided"]) for pk in packs)
+            out.write("  {0} card(s) -- about {1} seconds. Nothing changes "
+                      "until you answer.\n".format(n_cards, n_cards * 10))
             for pk in packs:
                 out.write("  {0}  {1} undecided of {2}  (board v{3}, {4})\n"
                           .format(pk["packet_id"][:12], pk["undecided"],

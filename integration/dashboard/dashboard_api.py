@@ -993,6 +993,19 @@ def review_queue():
         "quiet": quiet,
         "quiet_days": QUIET_DAYS,
         "candidates": candidates,
+        # The system's record WITH THIS PERSON, shown to them. A skeptic's
+        # real question is "how often is this thing wrong" -- the honest
+        # answer is a running count they generated themselves, corrections
+        # included, because a system that hides its misses has decided
+        # they matter less than its image.
+        "answered": (q("""
+            SELECT count(*) AS asked,
+                   count(*) FILTER (WHERE decision = 'accept') AS accepted,
+                   count(*) FILTER (WHERE decision = 'reject'
+                     AND reject_reason IN ('wrong_owner',
+                                           'wrong_task_match'))
+                     AS corrected
+            FROM decisions WHERE decided_by = %s""", (v,)) or [{}])[0],
         "no_blockers": _no_blocker_claims(v),
         "auto_applied": [a for a in auto if not a["undone"]],
         "writable": _writable(),
