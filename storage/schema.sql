@@ -264,6 +264,18 @@ CREATE INDEX blockers_open_idx ON task_blockers(task_id)
 CREATE INDEX blockers_edge_idx ON task_blockers(blocking_task_id)
   WHERE blocking_task_id IS NOT NULL AND resolved_event_id IS NULL;
 
+-- Memoised embeddings: a pure function of (model, text), recomputed
+-- hundreds of times per tick before this table existed. Keyed by model so
+-- a swapped embedder misses rather than poisons. Safe to TRUNCATE; it
+-- only costs the next tick some model calls.
+CREATE TABLE embedding_cache (
+  model      text NOT NULL,
+  text_sha   text NOT NULL,
+  vec        jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (model, text_sha)
+);
+
 -- --------------------------------------------------- append-only enforcement
 
 -- Append-only, with exactly one exemption: a NULL author may be filled in.

@@ -279,6 +279,16 @@ def check_schema(conn):
                "{2}".format(total - noauth, total,
                             "; the rest predate author_ref and promote on "
                             "persistence alone" if noauth else ""))
+        cur.execute("SELECT to_regclass('public.embedding_cache')")
+        if cur.fetchone()[0]:
+            cur.execute("SELECT count(*) FROM embedding_cache")
+            report("PASS", "embedding cache present",
+                   "{0} vector(s) memoised -- repeated texts cost no "
+                   "model calls".format(cur.fetchone()[0]))
+        else:
+            report("WARN", "migration pending: embedding cache",
+                   "every tick re-embeds every unchanged title for every "
+                   "user; apply storage/migrate_embedding_cache.sql")
         cur.execute("SELECT to_regclass('public.v_task_progress')")
         if not cur.fetchone()[0]:
             report("WARN", "migration pending: derived progress",

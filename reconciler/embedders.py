@@ -76,3 +76,70 @@ class OllamaEmbedder(object):
                 data = json.loads(resp.read().decode("utf-8"))
             out.append(data["embedding"])
         return out
+
+class CachedEmbedder(object):
+    """Wraps any embedder with the embedding_cache table.
+
+    An embedding is a pure function of (model, text), and this system's
+    texts barely change between ticks -- task titles, aliases, standing
+    candidates. Before this wrapper, every tick recomputed every one of
+    them for every user, on a CPU, and threw the vectors away. Now a text
+    is embedded once per model, ever.
+
+    Deliberately boring about failure: a missing table, a dead
+    connection, an unwritable row all degrade to "just call the inner
+    embedder" -- a cache must never be the reason a reconcile fails. The
+    one thing it will not do is serve a vector across models: the key
+    includes the model name, so swapping embedders misses cleanly instead
+    of poisoning silently.
+    """
+
+    def __init__(self, inner, dsn, model_name):
+        self.inner = inner
+        self.dsn = dsn
+        self.model = model_name
+        self._off = False
+        self.calls_saved = 0
+
+    def _sha(self, text):
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def __call__(self, texts):
+        if self._off or not texts:
+            return self.inner(texts)
+        try:
+            import psycopg2
+            conn = psycopg2.connect(self.dsn, connect_timeout=5)
+        except Exception:                               # noqa: BLE001
+            self._off = True
+            return self.inner(texts)
+        try:
+            shas = [self._sha(t) for t in texts]
+            found = {}
+            with conn, conn.cursor() as cur:
+                cur.execute(
+                    "SELECT text_sha, vec FROM embedding_cache "
+                    "WHERE model = %s AND text_sha = ANY(%s)",
+                    (self.model, list(set(shas))))
+                for sha, vec in cur.fetchall():
+                    found[sha] = vec
+            miss_idx = [i for i, sha in enumerate(shas)
+                        if sha not in found]
+            if miss_idx:
+                fresh = self.inner([texts[i] for i in miss_idx])
+                with conn, conn.cursor() as cur:
+                    for i, vec in zip(miss_idx, fresh):
+                        found[shas[i]] = vec
+                        cur.execute(
+                            "INSERT INTO embedding_cache "
+                            "(model, text_sha, vec) VALUES (%s,%s,%s) "
+                            "ON CONFLICT DO NOTHING",
+                            (self.model, shas[i], json.dumps(vec)))
+            self.calls_saved += len(texts) - len(miss_idx)
+            return [found[sha] for sha in shas]
+        except Exception:                               # noqa: BLE001
+            self._off = True
+            return self.inner(texts)
+        finally:
+            conn.close()
+

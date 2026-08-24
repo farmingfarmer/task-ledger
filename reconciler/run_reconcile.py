@@ -56,7 +56,10 @@ def main():
                     help="persist packet, consume signals, apply aliases")
     args = ap.parse_args()
 
-    embed = (embedders.OllamaEmbedder(args.embed_model, args.ollama_host)
+    embed = (embedders.CachedEmbedder(
+                 embedders.OllamaEmbedder(args.embed_model,
+                                          args.ollama_host),
+                 args.dsn, args.embed_model)
              if args.embed_model else embedders.TokenEmbedder())
     judge = (ollama_chat(args.judge_model, args.ollama_host)
              if args.judge_model else None)

@@ -200,17 +200,32 @@ def load_candidates(dsn, user_ref, window_days=None):
             # could only ever be assessed on a run where it happened to be
             # mentioned again -- so a relaxed promotion rule did nothing at
             # all until somebody said the words one more time.
+            # One round trip, not one per candidate. The old shape --
+            # a query for the list, then a query per row for the lead
+            # signal -- is the N+1 that creeps into every codebase one
+            # innocent helper at a time; a LATERAL join gets the newest
+            # citable sighting and its signal in the same pass.
             lead = """
-                (SELECT e.signal_id FROM task_candidate_events e
+                LEFT JOIN LATERAL (
+                  SELECT e.signal_id FROM task_candidate_events e
                   WHERE e.candidate_id = c.candidate_id
                     AND e.user_ref = c.user_ref
                     AND e.event = 'sighted'
                     AND e.signal_id IS NOT NULL
-                  ORDER BY e.event_id DESC LIMIT 1) AS lead_signal_id"""
+                  ORDER BY e.event_id DESC LIMIT 1) ls ON true
+                LEFT JOIN signals s
+                  ON s.signal_id = ls.signal_id"""
+            cols = """c.candidate_id, c.title, c.state,
+                      ls.signal_id AS lead_signal_id,
+                      s.signal_type AS lead_type,
+                      s.status_signal AS lead_status_signal,
+                      s.description AS lead_description,
+                      s.confidence::float AS lead_confidence,
+                      s.owner_candidates AS lead_owner_candidates,
+                      s.raw AS lead_raw"""
             if window_days:
                 cur.execute("""
-                    SELECT c.candidate_id, c.title, c.state,
-                           w.sightings, w.speakers, """ + lead + """
+                    SELECT """ + cols + """, w.sightings, w.speakers
                     FROM v_task_candidates c
                     JOIN (
                       SELECT candidate_id, user_ref,
@@ -225,46 +240,43 @@ def load_candidates(dsn, user_ref, window_days=None):
                       GROUP BY candidate_id, user_ref
                     ) w ON w.candidate_id = c.candidate_id
                        AND w.user_ref = c.user_ref
+                    """ + lead + """
                     WHERE c.user_ref = %s AND c.state = 'sighted'
                       AND w.sightings > 0""", (window_days, user_ref))
             else:
                 cur.execute("""
-                    SELECT c.candidate_id, c.title, c.state, c.sightings,
-                           c.speakers, """ + lead + """
+                    SELECT """ + cols + """, c.sightings, c.speakers
                     FROM v_task_candidates c
+                    """ + lead + """
                     WHERE c.user_ref = %s AND c.state = 'sighted'""",
                     (user_ref,))
-            rows = [dict(r) for r in cur.fetchall()]
-            for r in rows:
+            rows = []
+            for r in cur.fetchall():
+                r = dict(r)
                 sid = r.pop("lead_signal_id", None)
-                r["lead"] = None
-                if not sid:
-                    continue
-                cur.execute("""
-                    SELECT s.signal_id, s.signal_type, s.status_signal,
-                           s.description,
-                           s.confidence::float AS confidence,
-                           s.owner_candidates, s.raw
-                    FROM signals s WHERE s.signal_id = %s""", (sid,))
-                srow = cur.fetchone()
-                if not srow:
-                    continue
-                srow = dict(srow)
-                raw = srow.pop("raw") or {}
-                oc = srow.get("owner_candidates")
-                r["lead"] = {
-                    "signal_id": srow["signal_id"],
-                    # Carried so promotion can tell a closure claim from
-                    # work: without it a lead from an earlier tick looks
-                    # typeless and every claim reads as new work.
-                    "signal_type": srow["signal_type"],
-                    "status_signal": srow["status_signal"],
-                    "description": srow["description"],
-                    "confidence": srow["confidence"],
-                    "owner_candidates": (json.loads(oc)
-                                         if isinstance(oc, str) else oc) or [],
-                    "evidence": raw.get("evidence") or [],
-                }
+                raw = r.pop("lead_raw", None) or {}
+                if isinstance(raw, str):
+                    raw = json.loads(raw)
+                oc = r.pop("lead_owner_candidates", None)
+                lead_row = None
+                if sid:
+                    lead_row = {
+                        "signal_id": sid,
+                        "signal_type": r.pop("lead_type", None),
+                        "status_signal": r.pop("lead_status_signal", None),
+                        "description": r.pop("lead_description", None),
+                        "confidence": r.pop("lead_confidence", None),
+                        "owner_candidates": (json.loads(oc)
+                                             if isinstance(oc, str)
+                                             else oc) or [],
+                        "evidence": raw.get("evidence") or [],
+                    }
+                else:
+                    for k in ("lead_type", "lead_status_signal",
+                              "lead_description", "lead_confidence"):
+                        r.pop(k, None)
+                r["lead"] = lead_row
+                rows.append(r)
             return rows
     except psycopg2.errors.UndefinedTable:
         # A database that predates migrate_task_candidates.sql still runs;
