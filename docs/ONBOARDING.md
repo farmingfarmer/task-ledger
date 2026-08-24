@@ -172,10 +172,14 @@ scheduled task (or by hand).
 You're the outside perspective. These are genuinely open — argue with
 any of them:
 
-- **Is the extraction good enough?** `./tl score` measures it against
-  golden labels, and it has *not* been re-run since window size changed
-  to 8. Quantify it. Would a better local model (or an approved hosted
-  one) change the product?
+- **Is the extraction good enough?** Two ways to answer, and you are
+  unusually qualified for the second: `./tl score` against golden
+  labels (not re-run since window size changed to 8), and — if you were
+  given transcripts of meetings you attended — run them through
+  `./tl quickscan` and the full pipeline on a fresh local ledger and
+  grade the output against your own memory of the room. What did it
+  catch, invent, misattribute, or miss? That judgment is the single
+  most valuable thing an outside evaluator can produce here.
 - **Part vs. whole.** "The capability is done" gets matched to the
   whole project. Subtask structure exists in the schema
   (`parent_task_id`, `add_subtask`) but the extractor rarely emits it.
@@ -193,9 +197,15 @@ any of them:
 
 ## Ground rules
 
-- **Real meeting data never enters the repo, a cloud, or your machine.**
-  Develop against synthetic corpora only (`testdata/`, `./tl demo-set`).
-  The real ledger lives on the owner's hardware and stays there.
+- **Real meeting data never enters the repo or any cloud.** Whether a
+  transcript reaches your machine is the owner's call, and the line is
+  participation: meetings you were in are yours to evaluate with —
+  you already heard them — and judging extraction against your own
+  memory of the room is the best test this project has. Meetings you
+  were NOT in stay with the owner. Keep any real transcript outside
+  the git tree (the inbox and source files live outside the repo by
+  design), and use synthetic corpora (`./tl demo-set`) for everything
+  that doesn't need the real thing.
 - **Append-only means append-only.** If a table refuses your UPDATE,
   that's the design working — read the trigger's comment before
   fighting it.
