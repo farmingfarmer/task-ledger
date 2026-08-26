@@ -45,6 +45,7 @@ import extraction_worker                                # noqa: E402
 import cadence_tick                                     # noqa: E402
 import transcript_ingest as ti                          # noqa: E402
 from windowing import DEFAULT_WINDOW_ITEMS               # noqa: E402
+from textio import read_text                             # noqa: E402
 
 
 def windows_from_txt(paths, max_items):
@@ -53,8 +54,8 @@ def windows_from_txt(paths, max_items):
     never disagree with what a real ingest would have produced."""
     lines, unparsed = [], []
     for path in paths:
-        with open(path, encoding="utf-8-sig") as f:
-            lines.extend(f.read().replace("\r\n", "\n").split("\n"))
+        lines.extend(read_text(path, verbose=True)
+                     .replace("\r\n", "\n").split("\n"))
     built = []
     for title, dm, body in ti.split_meetings(lines):
         parsed = ti.parse_meeting(title, dm, body, unparsed)

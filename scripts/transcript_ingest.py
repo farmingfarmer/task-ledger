@@ -78,6 +78,7 @@ import sys
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "extraction"))
 from windowing import DEFAULT_WINDOW_ITEMS          # noqa: E402
+from textio import read_text                        # noqa: E402
 
 MONTHS = ("January February March April May June July August September "
           "October November December").split()
@@ -324,8 +325,8 @@ def main():
 
     lines, unparsed = [], []
     for path in args.files:
-        with open(path, encoding="utf-8-sig") as f:
-            lines.extend(f.read().replace("\r\n", "\n").split("\n"))
+        lines.extend(read_text(path, verbose=True)
+                     .replace("\r\n", "\n").split("\n"))
 
     meetings = split_meetings(lines)
     if not meetings:

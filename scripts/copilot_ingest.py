@@ -31,6 +31,7 @@ import sys
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.abspath(__file__)), "..", "extraction"))
 from windowing import DEFAULT_WINDOW_ITEMS          # noqa: E402
+from textio import read_text                        # noqa: E402
 
 HEADER_RE = re.compile(
     r"MEETING:\s*(?P<MEETING>.*?)\s*DATE:\s*(?P<DATE>[\d-]+)\s*"
@@ -195,8 +196,7 @@ def main():
 
     blocks = []
     for path in args.files:
-        with open(path, encoding="utf-8-sig") as f:
-            blocks.extend(split_blocks(f.read()))
+        blocks.extend(split_blocks(read_text(path, verbose=True)))
     if not blocks:
         print("no MEETING: blocks found")
         return 2

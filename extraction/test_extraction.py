@@ -110,6 +110,39 @@ def make_worker(response_payload, wrap=None):
     return w, calls
 
 
+def test_transcript_encodings():
+    print("transcript encodings")
+    import tempfile
+    import textio
+    body = ("Standup\nMonday, August 17, 2026 9:00 AM - 9:30 AM\n"
+            "AI-generated content may be incorrect\n\n"
+            "Marunycz, Alexander 0 minutes 10 seconds\n"
+            "Working on the synth kit project \u2014 caf\u00e9 notes.\n")
+    tmp = tempfile.mkdtemp()
+    # Every encoding a Windows exporter actually produces. UTF-16 LE is
+    # what Notepad calls "Unicode", and reading it as UTF-8 fails on byte
+    # zero with a message that names the byte and not the cause.
+    for enc in ("utf-8", "utf-8-sig", "utf-16", "utf-16-be", "utf-32"):
+        path = os.path.join(tmp, "t-{0}.txt".format(enc))
+        with open(path, "w", encoding=enc) as f:
+            f.write(body)
+        got = textio.read_text(path)
+        ok(got.replace("\ufeff", "") == body,
+           "{0} reads back byte-identical, accents and dashes "
+           "intact".format(enc))
+    # No BOM and not valid UTF-8: cp1252 is Windows' default and cannot
+    # fail, so this degrades to readable text rather than an exception.
+    path = os.path.join(tmp, "t-cp1252.txt")
+    with open(path, "wb") as f:
+        f.write("caf\u00e9 notes".encode("cp1252"))
+    ok(textio.read_text(path) == "caf\u00e9 notes",
+       "a BOM-less cp1252 file is read as cp1252, not thrown away")
+    enc, why = textio.detect_encoding(b"\xff\xfe\x00\x00hi")
+    ok(enc == "utf-32",
+       "UTF-32 LE is not mistaken for UTF-16 LE: it shares its first two "
+       "bytes, so order of checking is the whole correctness")
+
+
 def test_prompt_build():
     print("prompt construction")
     numbered = [dict(it, item_no=i + 1) for i, it in enumerate(SPEC["items"])]
@@ -556,6 +589,7 @@ def test_pg_store():
 
 
 if __name__ == "__main__":
+    test_transcript_encodings()
     test_prompt_build()
     test_golden()
     test_determinism()
