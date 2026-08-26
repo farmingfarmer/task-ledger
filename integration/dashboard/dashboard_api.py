@@ -128,6 +128,30 @@ if COPILOT_DSN:
                     "inferred. This is what an assistant says happened; the "
                     "board still moves only when a person agrees."}}
 
+# HANDS-ON MODE. The real ledger is read-only from a browser on purpose:
+# a decision is a person's word, and a web page that anyone can point at
+# should not be able to speak for them. That reasoning holds for a
+# deployed system and stops holding for the case this was built for --
+# the team whose own meetings produced the ledger, sitting down together
+# to answer their own cards and see what the thing actually does.
+#
+# So it is a switch, not a default: off unless TL_HANDS_ON=1 is set by
+# whoever starts the server, announced in the UI while it is on, and
+# never silent. Only the real profile is affected. The copilot profile
+# stays read-only in every mode, because nothing on it can be traced to
+# a sentence and accepting an untraceable claim is not a decision anyone
+# should be able to record.
+HANDS_ON = os.environ.get("TL_HANDS_ON", "").strip() in ("1", "true", "yes")
+if HANDS_ON:
+    PROFILES["real"]["writable"] = True
+    PROFILES["real"]["banner"] = {
+        "tag": "Hands-on session",
+        "text": "Your answers are real: accepting a card puts the task on "
+                "your board and rejecting it is recorded with your name "
+                "and reason. This is the ledger of your own meetings, so "
+                "nothing here is invented -- but nothing moves until you "
+                "say so, and every answer can be corrected afterwards."}
+
 DEFAULT_PROFILE = os.environ.get("TL_DEFAULT_PROFILE", "real")
 if DEFAULT_PROFILE not in PROFILES:
     DEFAULT_PROFILE = "real"
@@ -801,13 +825,15 @@ QUIET_DAYS = int(os.environ.get("TL_QUIET_DAYS", "7"))
 
 
 def _writable():
-    """Decisions may be recorded only on a synthetic ledger.
+    """Whether this profile accepts decisions from a browser.
 
-    The read-only session is the reason a browser cannot reach real
-    colleague data, and a demo is not a good enough reason to give that up.
-    On the synthetic profile the same guarantee is not at stake, so the
-    popup can show the invariant working end to end: a human decision, and
-    only then a board change.
+    Read-only is the default and the reason a browser cannot speak for
+    somebody: a decision carries a person's name, and a page anyone can
+    point at should not be able to record one. The synthetic profile is
+    writable because nothing on it is real. The REAL profile becomes
+    writable only under TL_HANDS_ON=1 -- deliberately set by whoever
+    starts the server, for the team whose own meetings made the ledger --
+    and says so on screen the whole time it is.
     """
     return bool(PROFILES.get(profile_name(), {}).get("writable"))
 

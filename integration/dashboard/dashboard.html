@@ -781,6 +781,11 @@
   });
   sel.addEventListener("change", function(){
     state.viewer = sel.value; state.user = null; state.task = null;
+    // A new person is a new conversation: their cards open for them the
+    // way they opened for the last person. The once-per-ledger rule
+    // exists so a prompt does not nag one reader; it should not mean the
+    // second reader has to go hunting for a button.
+    REVIEW.shown = false;
     boot();
   });
 
@@ -1109,7 +1114,12 @@
   function loadReview(autoOpen){
     return get("/api/review").then(function(d){
       REVIEW.data = d;
-      var n = (d.proposals || []).length + (d.quiet || []).length;
+      // Candidates count. "Heard in your meetings, tracked by nobody" is
+      // a question waiting on this person as much as a proposal is, and
+      // a poke that stayed shut when only those were pending hid the
+      // half of the system most worth showing.
+      var n = (d.proposals || []).length + (d.quiet || []).length
+              + (d.candidates || []).length;
       var btn = document.getElementById("revbtn");
       btn.hidden = n === 0;
       btn.innerHTML = "";

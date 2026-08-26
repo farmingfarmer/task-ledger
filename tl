@@ -99,6 +99,7 @@ usage() {
   echo "  brief [meeting] before the standup: what this room said + what became of it"
   echo "  recall <words>  who said that, when -- quoted, with receipts"
   echo "  handover <who>  everything one person carries, with history"
+  echo "  kit             package the system + a ledger copy for a teammate"
   echo "  demo-set        generate the synthetic transcript demo set"
   echo "  demo-tx <src>   build the demo board from transcripts (writes)"
   echo "  score <dir>     extraction vs golden labels, measured"
@@ -181,6 +182,11 @@ case "$CMD" in
     fi
     banner
     python3 scripts/copilot_ingest.py "$1" --out "$TL_INBOX" "${@:2}"
+    ;;
+
+  kit)
+    banner
+    python3 scripts/team_kit.py "$@"
     ;;
 
   brief)
