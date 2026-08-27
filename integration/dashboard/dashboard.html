@@ -507,6 +507,21 @@
   .modal-x{background:none;border:0;font-size:24px;line-height:1;
          color:var(--muted);cursor:pointer;padding:0 4px}
   .modal-body{padding:6px 20px 14px}
+  .wlead{font-size:14.5px;line-height:1.55;margin:2px 0 4px}
+  .wsteps{margin:14px 0 6px;padding:0;list-style:none;counter-reset:w}
+  .wsteps li{counter-increment:w;position:relative;padding:0 0 10px 30px;
+    font-size:13.5px;line-height:1.5;color:var(--evidence-ink)}
+  .wsteps li::before{content:counter(w);position:absolute;left:0;top:0;
+    width:20px;height:20px;border-radius:50%;background:var(--accent,#3E5C76);
+    color:#fff;font-size:11.5px;font-weight:700;display:flex;
+    align-items:center;justify-content:center}
+  .wpick{margin:16px 0 6px;font-size:13px;font-weight:700}
+  .wnames{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+  .wname{font:inherit;font-size:13.5px;padding:9px 14px;cursor:pointer;
+    border:1px solid var(--line,#d9dee5);border-radius:999px;
+    background:var(--panel,#fff);transition:transform .08s,box-shadow .12s}
+  .wname:hover{transform:translateY(-1px);box-shadow:var(--sh-hover)}
+  .wfoot{margin-top:10px;font-size:12.5px;color:var(--evidence-ink)}
   .modal-foot{padding:12px 20px;border-top:1px solid var(--line);
          background:var(--panel-2);font-size:12px;color:var(--faint)}
   .revsec{margin-top:16px}
@@ -602,6 +617,22 @@
          was somewhere below the fold. -->
     <div class="tlbar" id="tlbar"></div>
     <section class="drawer" id="drawer" aria-live="polite"></section>
+
+    <!-- First run. The instructions used to be a markdown file nobody
+         opened; a colleague handed a README has been handed homework.
+         This is the same three sentences, in the product, at the moment
+         they apply, and it disappears for good once used. -->
+    <div class="modal" id="welcomemodal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true"
+           aria-labelledby="wtitle">
+        <div class="modal-head">
+          <h2 id="wtitle">Your meetings, remembered</h2>
+          <button type="button" class="modal-x" id="wclose"
+                  aria-label="Close">&times;</button>
+        </div>
+        <div class="modal-body" id="wbody"></div>
+      </div>
+    </div>
 
     <div class="modal" id="reviewmodal" hidden>
       <div class="modal-card" role="dialog" aria-modal="true"
@@ -1127,6 +1158,79 @@
       if(n) btn.appendChild(el("span","cnt", String(n)));
       if(autoOpen && n && !REVIEW.shown){ REVIEW.shown = true; openReview(); }
     })["catch"](function(){ /* endpoint absent: no popup, no noise */ });
+  }
+
+  // ---- first run: pick yourself, then straight into your cards ----
+  //
+  // Everything a newcomer needs, in the product, at the moment it
+  // applies. It shows once. Choosing a name here does what the dropdown
+  // does, then opens that person's questions -- so the first thing
+  // anyone sees is their own work, not a settings screen.
+  function currentViewers(){
+    var sel = document.getElementById("viewer-sel");
+    var out = [];
+    for(var i = 0; i < sel.options.length; i++) out.push(sel.options[i].value);
+    return out;
+  }
+  function seenWelcome(){
+    try { return window.localStorage.getItem("tl.welcomed") === "1"; }
+    catch(e){ return false; }   // private mode: show it, never crash
+  }
+  function markWelcomed(){
+    try { window.localStorage.setItem("tl.welcomed", "1"); } catch(e){}
+  }
+  function closeWelcome(){
+    document.getElementById("welcomemodal").hidden = true;
+    markWelcomed();
+  }
+  function openWelcome(){
+    var body = document.getElementById("wbody");
+    body.innerHTML = "";
+    body.appendChild(el("p","wlead",
+      "This is a record of what was said in meetings you were in \u2014 "
+      + "who committed to what, what got finished, what nobody wrote "
+      + "down. It read the transcripts; it has not decided anything."));
+
+    var steps = el2("ul","wsteps");
+    [["Say who you are.", " Everything below is scoped to you."],
+     ["Answer a few questions.",
+      " Work it heard about, and updates to work you already have. Each "
+      + "one shows the sentence it came from and who said it."],
+     ["Watch your board fill in.",
+      " Only what you accepted, each item traceable back to the moment "
+      + "somebody said it."]].forEach(function(pair){
+      var li = el("li", null, "");
+      li.appendChild(el("b", null, pair[0]));
+      li.appendChild(document.createTextNode(pair[1]));
+      steps.appendChild(li);
+    });
+    body.appendChild(steps);
+
+    body.appendChild(el("div","wpick", "Which one are you?"));
+    // Read the SELECT, not the VIEWERS fallback: the real identities
+    // arrive from /api/viewers and replace the built-in demo list, so
+    // building these buttons from the constant would greet a real team
+    // with four names none of them recognise.
+    var names = el2("div","wnames");
+    currentViewers().forEach(function(v){
+      var b = el("button","wname", personName(v));
+      b.type = "button";
+      b.addEventListener("click", function(){
+        var sel = document.getElementById("viewer-sel");
+        sel.value = v;
+        state.viewer = v; state.user = null; state.task = null;
+        REVIEW.shown = false;
+        closeWelcome();
+        boot();
+      });
+      names.appendChild(b);
+    });
+    body.appendChild(names);
+    body.appendChild(el("div","wfoot",
+      "Nothing moves until you answer, nothing you answer is held "
+      + "against you, and rejecting a card is as useful as accepting "
+      + "one. It runs entirely on this machine."));
+    document.getElementById("welcomemodal").hidden = false;
   }
 
   function openReview(){
@@ -2937,6 +3041,11 @@
    .then(function(){
      wireAsk();
      document.getElementById("revbtn").onclick = openReview;
+     document.getElementById("wclose").onclick = closeWelcome;
+     // Only where a person can actually choose who they are; on a
+     // single-identity session there is nothing to ask and the greeting
+     // would just be a door in front of the room.
+     if(currentViewers().length > 1 && !seenWelcome()) openWelcome();
      document.getElementById("revclose").onclick = closeReview;
      document.getElementById("reviewmodal").addEventListener(
        "click", function(e){

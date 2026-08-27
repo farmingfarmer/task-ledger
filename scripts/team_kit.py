@@ -38,105 +38,61 @@ import sys
 ROOT = os.path.normpath(os.path.join(
     os.path.dirname(os.path.abspath(__file__)), ".."))
 
-START_HERE = """# Task-ledger — start here
+START_HERE = """# If something goes wrong
 
-You are holding a complete copy of a system that turns meeting
-transcripts into a tracked board of work, plus a copy of the ledger
-built from **your own meetings**. Nothing in here talks to a network.
-Everything you do stays on your machine, and you cannot break anyone
-else's copy.
+You should not need this page. Double-click **START-TASK-LEDGER.bat**
+and the app opens in your browser, greets you, and asks which of the
+names is you. Everything below is for the case where that does not
+happen.
 
-## What you need
+## "Python was not found"
 
-- **Python 3.10+** and **PostgreSQL** (any recent version).
-- **Ollama** only if you want to process new transcripts. To look at
-  what is already here and answer your own cards, you do not need it.
+Install Python 3.10 or newer from python.org. During setup tick **"Add
+python.exe to PATH"** — that box is the whole problem when this
+message appears. Then double-click the launcher again.
 
-## Setting it up (about five minutes)
+## "PostgreSQL was not found"
 
-```
-git clone task-ledger.bundle task-ledger
-cd task-ledger
-createdb taskintel
-psql -d taskintel -f ../ledger.sql
-```
+Ask whoever sent you this kit for the portable PostgreSQL folder, unzip
+it to `%USERPROFILE%\pgsql-portable`, and run the launcher again. It
+does not need installing or admin rights.
 
-Windows: use `tl.bat` wherever this says `./tl`, and the Postgres tools
-live under your install directory (see
-`deploy/windows/WINDOWS_PORT.md`).
+## The window opens and closes immediately
 
-Then tell it where the database is and check everything:
+Open a Command Prompt, drag the launcher into it, press Enter. The
+error stays on screen instead of vanishing with the window. Send us
+whatever it says.
 
-```
-export DB_DSN="host=localhost port=5432 dbname=taskintel user=$(whoami)"
-./tl
-```
+## The browser opens but the page is blank
 
-`./tl` is the doctor. It checks every dependency and names the fix for
-anything missing. If it is red, nothing else is worth trying yet.
+Give it a few seconds and refresh — the database can take a moment on
+first run. If it stays blank, the black window will have a line
+explaining why.
 
-## The part you actually want
+## Nothing is waiting for me
 
-```
-export TL_VIEWER_PICKER=1
-export TL_HANDS_ON=1
-./tl dashboard
-```
+That is a real answer, not a fault: the system had nothing to ask you
+this round. Try the "Viewing as" dropdown to look at a colleague's
+view, or just close it.
 
-Open **http://127.0.0.1:8090** and pick your own name from the "Viewing
-as" dropdown at the top right.
+## What we are actually asking of you
 
-You will get a popup: things the system heard in your meetings and wants
-you to rule on. Three kinds of question:
-
-- **Heard in your meetings** — work somebody mentioned that is on
-  nobody's board. *Yes, track it* or *Not a task*.
-- **New task** — work corroborated enough that the system thinks it is
-  real. Accept and it appears on your board; reject and say why.
-- **Updates to work you already have** — "this looks finished", "this
-  looks in progress". Accept, or reject if it got you wrong.
-
-Every card shows the sentence it came from, who said it, and in which
-meeting. Answer a few, then close the popup and look at your own page:
-what you accepted is now on your board, with its receipts.
-
-**Nothing moves until you answer, and nothing you answer is held against
-you.** Rejecting is as useful to us as accepting — more, actually,
-because it tells us where the system is wrong.
-
-## Worth trying, in order of how interesting it is
-
-```
-./tl brief                       # every meeting the ledger has heard
-./tl brief <part of a name>      # what that meeting said, and what came of it
-./tl recall <some words>         # who said that, quoted, with the receipt
-./tl handover <your name>        # everything you carry, with its history
-./tl review                      # the same cards, in the terminal
-```
-
-`./tl brief` before a recurring meeting is the one most people find
-hardest to give up afterwards.
-
-## What we want back
-
-Blunt opinions, especially negative ones:
+Fifteen minutes. Answer your cards, then tell us:
 
 - What did it get **wrong** about your work — invented, misattributed,
   missed entirely?
-- Which of the five commands above would you actually use, and which are
-  clutter?
-- What would have to be true for you to want this running every week?
+- Would you want this running every week? What would have to change?
 - What made you distrust it?
 
-There is no wrong answer and no scorecard. The system tracks work, never
-people — that is a design commitment, not a setting.
+Rejecting cards is more useful to us than accepting them. There is no
+scorecard of people and never will be — it tracks work, not workers.
 
-## If something breaks
+## For the curious
 
-Run `./tl` first; it usually names the problem and the fix. Beyond that,
-`docs/ONBOARDING.md` explains how the whole pipeline works, and
-`git log` is the real documentation — every commit says what broke and
-why the fix looks the way it does.
+It runs entirely on your machine; nothing is sent anywhere. If you want
+to see how it works, the repository is in `task-ledger.bundle`
+(`git clone task-ledger.bundle`), and `docs/ONBOARDING.md` inside it
+explains the whole pipeline.
 """
 
 
@@ -219,7 +175,17 @@ def main():
             print("pg_dump failed -- kit is incomplete, stopping.")
             return 1
 
-    with open(os.path.join(args.out, "START-HERE.md"), "w",
+    # The launcher goes at the TOP of the kit, alone, because the first
+    # thing a colleague sees should be one obviously-clickable file and
+    # not a directory that needs explaining. The written instructions
+    # come second and exist for the person who wants them; the product
+    # itself greets whoever just double-clicks.
+    launcher = os.path.join(ROOT, "deploy", "windows",
+                            "START-TASK-LEDGER.bat")
+    if os.path.exists(launcher):
+        shutil.copy(launcher, os.path.join(args.out,
+                                           "START-TASK-LEDGER.bat"))
+    with open(os.path.join(args.out, "if-something-goes-wrong.md"), "w",
               encoding="utf-8") as f:
         f.write(START_HERE)
 
