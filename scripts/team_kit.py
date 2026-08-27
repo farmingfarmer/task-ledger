@@ -148,6 +148,26 @@ def main():
     db = parts.get("dbname", "?")
     dump = find_tool("pg_dump")
 
+    # Refuse to ship an empty ledger. A kit built from a rebuilt-but-not-
+    # yet-ingested database packages nothing, says "REAL MEETING CONTENT"
+    # while doing it, and lands on a colleague's desk as a system with no
+    # data and invented names. That happened, and the tool was cheerful
+    # throughout; being cheerful about shipping nothing is the bug.
+    content = None
+    if dsn and not args.no_ledger:
+        try:
+            import psycopg2
+            conn = psycopg2.connect(dsn, connect_timeout=5)
+            with conn, conn.cursor() as cur:
+                cur.execute("SELECT (SELECT count(*) FROM signals), "
+                            "(SELECT count(*) FROM tasks_current)")
+                content = cur.fetchone()
+            conn.close()
+        except Exception as exc:                        # noqa: BLE001
+            print("could not read the ledger ({0}) -- is the database "
+                  "running?".format(exc.__class__.__name__))
+            return 2
+
     print("kit for one teammate -> {0}".format(args.out))
     print("  1. app/                 the runnable code")
     print("     task-ledger.bundle   the repository's full history, for "
@@ -162,9 +182,19 @@ def main():
         print("  2. BLOCKED: pg_dump not found (set PGBIN or PATH)")
         if args.apply:
             return 2
+    elif content == (0, 0):
+        print("  2. BLOCKED: '{0}' holds 0 signals and 0 tasks.".format(db))
+        print("     A kit from this ledger contains no meetings, and the")
+        print("     dashboard would open with nothing to review.")
+        print("     Ingest transcripts and run a tick first:")
+        print("       tl transcripts <your transcripts file>")
+        print("       python cadence/cadence_tick.py")
+        print("     (--no-ledger builds a code-only kit deliberately.)")
+        return 2
     else:
-        print("  2. ledger.sql           a copy of '{0}' -- REAL MEETING "
-              "CONTENT".format(db))
+        print("  2. ledger.sql           a copy of '{0}' -- {1} signal(s), "
+              "{2} task(s), REAL MEETING CONTENT".format(
+                  db, content[0], content[1]))
     print("  3. START-TASK-LEDGER.bat  the one file a teammate opens")
     # Bundling turns "install Python, install Postgres, then double-click"
     # into "double-click". The size is the entire cost, and it is paid

@@ -129,6 +129,24 @@ if errorlevel 1 (
   "%PY%" -m pip install --quiet --user psycopg2-binary flask pyyaml jsonschema >nul 2>&1
 )
 
+rem A database that exists but holds nothing is the failure that shipped
+rem once already: the launcher skips loading when the database is there,
+rem so an empty one from an earlier run is never filled, and the app
+rem opens with no meetings in it. Check the content, not the existence.
+for /f "usebackq delims=" %%N in (`"%PGBIN%\psql.exe" -p %PGPORT% -d %DBNAME% -tAc "SELECT count(*) FROM signals" 2^>nul`) do set "SIGCOUNT=%%N"
+if "%SIGCOUNT%"=="0" (
+  if exist "%KITROOT%ledger.sql" (
+    echo   the ledger looked empty -- loading it now...
+    "%PGBIN%\psql.exe" -q -p %PGPORT% -d %DBNAME% -f "%KITROOT%ledger.sql" >nul 2>&1
+  ) else (
+    echo.
+    echo   [!] This copy of the ledger contains no meetings.
+    echo       Nothing is broken, but there is nothing to review either.
+    echo       Ask whoever sent you this kit to rebuild it.
+    echo.
+  )
+)
+
 set "DB_DSN=host=localhost port=%PGPORT% dbname=%DBNAME% user=%USERNAME%"
 set "TL_VIEWER_PICKER=1"
 set "TL_HANDS_ON=1"

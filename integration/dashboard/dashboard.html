@@ -732,11 +732,16 @@
 <script>
 (function(){
   "use strict";
-  // Demo viewer switcher. In production the viewer is the signed-in AAD
-  // identity and this list disappears.
-  var VIEWERS = ["alex","priya","vic","mallory","aad-dev"];
-  var state = { viewer: VIEWERS[0], user: null, task: null,
-                profile: null, profiles: [] };
+  // NO built-in identities. There used to be five invented ones here as
+  // a fallback, and on an empty ledger they were what a person actually
+  // saw: a colleague opened their team's system and was greeted by
+  // "alex, priya, vic, mallory" -- strangers, presented as if they were
+  // the record of real meetings. A fallback that fabricates its own
+  // subject matter is worse than an empty screen, because an empty
+  // screen is true. The list comes from the ledger or it does not come.
+  var VIEWERS = [];
+  var state = { viewer: null, user: null, task: null,
+                profile: null, profiles: [], ledgerEmpty: false };
 
   // Every request carries the profile, because a page half-real and
   // half-synthetic is worse than either. One helper appends it, so a new
@@ -807,9 +812,6 @@
   }
 
   var sel = document.getElementById("viewer-sel");
-  VIEWERS.forEach(function(v){
-    var o = el("option", null, v); o.value = v; sel.appendChild(o);
-  });
   sel.addEventListener("change", function(){
     state.viewer = sel.value; state.user = null; state.task = null;
     // A new person is a new conversation: their cards open for them the
@@ -1183,6 +1185,33 @@
     document.getElementById("welcomemodal").hidden = true;
     markWelcomed();
   }
+  function openEmptyLedger(){
+    var body = document.getElementById("wbody");
+    body.innerHTML = "";
+    document.getElementById("wtitle").textContent = "This ledger is empty";
+    body.appendChild(el("p","wlead",
+      "No meetings have been processed into it yet, so there is nobody "
+      + "to be and nothing to review. Nothing is broken \u2014 the "
+      + "database is simply empty."));
+    var steps = el2("ul","wsteps");
+    [["Whoever sent you this kit needs to rebuild it.",
+      " The copy of the ledger it carries was taken before any "
+      + "transcripts had been processed."],
+     ["Nothing here is worth working around.",
+      " Every screen below will be blank, and any names you see would "
+      + "be invented rather than real."]].forEach(function(pair){
+      var li = el("li", null, "");
+      li.appendChild(el("b", null, pair[0]));
+      li.appendChild(document.createTextNode(pair[1]));
+      steps.appendChild(li);
+    });
+    body.appendChild(steps);
+    body.appendChild(el("div","wfoot",
+      "For whoever built the kit: ingest the transcripts, run a tick, "
+      + "confirm the board has content, then rebuild the kit."));
+    document.getElementById("welcomemodal").hidden = false;
+  }
+
   function openWelcome(){
     var body = document.getElementById("wbody");
     body.innerHTML = "";
@@ -2966,11 +2995,20 @@
     return fetch(withProfile("/api/viewers")).then(function(r){
       return r.ok ? r.json() : null;        // 404 = picker disabled
     }).then(function(d){
-      if(!d || !d.viewers || !d.viewers.length){
-        sel.hidden = true;                  // no list: type a ref instead
+      if(!d){
+        sel.hidden = true;                  // picker off: type a ref
         txt.hidden = false;
         return;
       }
+      if(!d.viewers || !d.viewers.length){
+        // The picker is on and the ledger knows nobody, which means it
+        // holds no meetings at all. Say that, rather than dressing the
+        // emptiness in invented names.
+        state.ledgerEmpty = true;
+        sel.hidden = true; txt.hidden = true;
+        return;
+      }
+      state.ledgerEmpty = false;
       sel.hidden = false; txt.hidden = true;
       sel.innerHTML = "";
       d.viewers.forEach(function(v){
@@ -3045,7 +3083,10 @@
      // Only where a person can actually choose who they are; on a
      // single-identity session there is nothing to ask and the greeting
      // would just be a door in front of the room.
-     if(currentViewers().length > 1 && !seenWelcome()) openWelcome();
+     // An empty ledger is told to everyone, every time -- it is a
+     // broken deliverable, not a preference to remember.
+     if(state.ledgerEmpty) openEmptyLedger();
+     else if(currentViewers().length > 1 && !seenWelcome()) openWelcome();
      document.getElementById("revclose").onclick = closeReview;
      document.getElementById("reviewmodal").addEventListener(
        "click", function(e){
