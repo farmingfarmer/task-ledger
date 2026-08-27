@@ -13,7 +13,25 @@ rem  Safe to run repeatedly: it creates and loads only what is
 rem  missing, and never touches an existing database.
 rem ============================================================
 setlocal EnableDelayedExpansion
-cd /d "%~dp0..\.."
+
+rem This file runs from two places and must work in both: inside a kit,
+rem where the code sits in .\app and the ledger beside it, and inside a
+rem repo checkout, where it lives in deploy\windows. Detect rather than
+rem assume -- a launcher that only works from one of them is a launcher
+rem that works on the builder's machine.
+set "KITROOT=%~dp0"
+if exist "%~dp0app\cadence\cadence_tick.py" (
+  set "APPDIR=%~dp0app"
+) else if exist "%~dp0..\..\cadence\cadence_tick.py" (
+  set "APPDIR=%~dp0..\.."
+  set "KITROOT=%~dp0..\..\"
+) else (
+  echo   [X] Cannot find the application files next to this launcher.
+  echo       Keep this file in the folder it arrived in.
+  pause
+  exit /b 1
+)
+cd /d "%APPDIR%"
 
 set "DBNAME=taskintel_demo"
 set "PGPORT=5433"
@@ -26,21 +44,34 @@ echo   Task ledger -- starting up. This window can be minimised,
 echo   but closing it stops the app.
 echo.
 
-rem ---- Python -------------------------------------------------
-where python >nul 2>&1
-if errorlevel 1 (
-  echo   [X] Python was not found.
+rem ---- Python: the bundled runtime first ----------------------
+rem A kit built with --with-runtime carries its own Python, so nothing
+rem needs installing and nothing already on the machine is disturbed.
+rem The bundled copy wins when present: a teammate's own Python may be
+rem any version, with or without the packages, and debugging that on
+rem someone else's laptop is exactly the errand this exists to avoid.
+set "PY="
+if exist "%KITROOT%python-runtime\python.exe" set "PY=%KITROOT%python-runtime\python.exe"
+if not defined PY if exist "%USERPROFILE%\task-ledger-runtime\python.exe" set "PY=%USERPROFILE%\task-ledger-runtime\python.exe"
+if not defined PY (
+  where python >nul 2>&1
+  if not errorlevel 1 set "PY=python"
+)
+if not defined PY (
+  echo   [X] No Python found, and this kit did not come with one.
   echo.
-  echo       Install Python 3.10 or newer from python.org, tick
-  echo       "Add python.exe to PATH" during setup, then run this
-  echo       file again.
+  echo       Either ask for a kit built with --with-runtime, or
+  echo       install Python 3.10+ from python.org, ticking
+  echo       "Add python.exe to PATH" during setup.
   echo.
   pause
   exit /b 1
 )
 
 rem ---- Postgres: prefer the portable copy, else anything on PATH
-if exist "%PGDIR%\bin\pg_ctl.exe" (
+if exist "%KITROOT%postgres\bin\pg_ctl.exe" (
+  set "PGBIN=%KITROOT%postgres\bin"
+) else if exist "%PGDIR%\bin\pg_ctl.exe" (
   set "PGBIN=%PGDIR%\bin"
 ) else (
   for /f "delims=" %%P in ('where pg_ctl 2^>nul') do set "PGBIN=%%~dpP"
@@ -48,8 +79,8 @@ if exist "%PGDIR%\bin\pg_ctl.exe" (
 if not defined PGBIN (
   echo   [X] PostgreSQL was not found.
   echo.
-  echo       Ask whoever sent you this kit for the portable
-  echo       PostgreSQL folder, unzip it to:
+  echo       Ask for a kit built with --with-postgres, which
+  echo       carries its own copy, or unzip a portable PostgreSQL to:
   echo         %USERPROFILE%\pgsql-portable
   echo       then run this file again.
   echo.
@@ -83,8 +114,8 @@ rem ---- create + load the ledger, once --------------------------
 if errorlevel 1 (
   echo   preparing your copy of the ledger...
   "%PGBIN%\createdb.exe" -p %PGPORT% %DBNAME% >nul 2>&1
-  if exist "%~dp0..\..\ledger.sql" (
-    "%PGBIN%\psql.exe" -q -p %PGPORT% -d %DBNAME% -f "%~dp0..\..\ledger.sql" >nul 2>&1
+  if exist "%KITROOT%ledger.sql" (
+    "%PGBIN%\psql.exe" -q -p %PGPORT% -d %DBNAME% -f "%KITROOT%ledger.sql" >nul 2>&1
   ) else (
     "%PGBIN%\psql.exe" -q -p %PGPORT% -d %DBNAME% -f storage\schema.sql >nul 2>&1
     "%PGBIN%\psql.exe" -q -p %PGPORT% -d %DBNAME% -f access\access_control.sql >nul 2>&1
@@ -92,10 +123,10 @@ if errorlevel 1 (
 )
 
 rem ---- Python packages, quietly, only if absent ----------------
-python -c "import psycopg2, flask, yaml, jsonschema" >nul 2>&1
+"%PY%" -c "import psycopg2, flask, yaml, jsonschema" >nul 2>&1
 if errorlevel 1 (
   echo   installing what Python needs ^(one time, about a minute^)...
-  python -m pip install --quiet --user psycopg2-binary flask pyyaml jsonschema >nul 2>&1
+  "%PY%" -m pip install --quiet --user psycopg2-binary flask pyyaml jsonschema >nul 2>&1
 )
 
 set "DB_DSN=host=localhost port=%PGPORT% dbname=%DBNAME% user=%USERNAME%"
@@ -107,4 +138,4 @@ echo   Ready. Opening http://127.0.0.1:8090 in your browser.
 echo   Pick your name when it asks.
 echo.
 start "" http://127.0.0.1:8090
-python integration\dashboard\dashboard_api.py
+"%PY%" integration\dashboard\dashboard_api.py

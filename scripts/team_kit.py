@@ -96,6 +96,17 @@ explains the whole pipeline.
 """
 
 
+def _dir_mb(path):
+    total = 0
+    for root, _dirs, files in os.walk(path):
+        for name in files:
+            try:
+                total += os.path.getsize(os.path.join(root, name))
+            except OSError:
+                pass
+    return total // (1024 * 1024)
+
+
 def run(cmd):
     return subprocess.run(cmd, cwd=ROOT).returncode == 0
 
@@ -119,6 +130,17 @@ def main():
     ap.add_argument("--no-ledger", action="store_true",
                     help="ship the code only -- for someone who was not in "
                          "the meetings")
+    ap.add_argument("--with-runtime", action="store_true",
+                    help="bundle the portable Python from "
+                         "deploy/windows/build_portable_python.bat, so the "
+                         "teammate needs nothing installed")
+    ap.add_argument("--with-postgres", action="store_true",
+                    help="bundle the portable PostgreSQL too -- a much "
+                         "larger kit that needs nothing at all")
+    ap.add_argument("--runtime", default=os.path.join(
+        os.path.expanduser("~"), "task-ledger-runtime"))
+    ap.add_argument("--postgres", default=os.path.join(
+        os.path.expanduser("~"), "pgsql-portable"))
     args = ap.parse_args()
 
     dsn = os.environ.get("DB_DSN")
@@ -127,7 +149,9 @@ def main():
     dump = find_tool("pg_dump")
 
     print("kit for one teammate -> {0}".format(args.out))
-    print("  1. task-ledger.bundle   the repository, full history")
+    print("  1. app/                 the runnable code")
+    print("     task-ledger.bundle   the repository's full history, for "
+          "the curious")
     if args.no_ledger:
         print("  2. (no ledger -- code only)")
     elif not dsn:
@@ -141,7 +165,26 @@ def main():
     else:
         print("  2. ledger.sql           a copy of '{0}' -- REAL MEETING "
               "CONTENT".format(db))
-    print("  3. START-HERE.md        one page, for someone new to all of it")
+    print("  3. START-TASK-LEDGER.bat  the one file a teammate opens")
+    # Bundling turns "install Python, install Postgres, then double-click"
+    # into "double-click". The size is the entire cost, and it is paid
+    # once by whoever builds the kit rather than repeatedly by every
+    # person asked to evaluate the thing.
+    for want, path, label in (
+            (args.with_runtime, args.runtime, "python-runtime"),
+            (args.with_postgres, args.postgres, "postgres")):
+        if not want:
+            continue
+        if not os.path.isdir(path):
+            print("  !  {0} not found at {1}".format(label, path))
+            if label == "python-runtime":
+                print("     build it first: "
+                      "deploy\\windows\\build_portable_python.bat")
+            if args.apply:
+                return 2
+        else:
+            print("  +  {0:<16} {1} MB, bundled -- nothing to install"
+                  .format(label, _dir_mb(path)))
     if not args.apply:
         print("\nDRY RUN -- nothing written. Re-run with --apply.")
         return 0
@@ -165,6 +208,24 @@ def main():
         print("git bundle failed -- is this a git checkout?")
         return 1
 
+    # The runnable code, extracted. The bundle is for whoever wants the
+    # history; it is useless to everyone else, because unpacking it needs
+    # git -- one more thing to install, in a kit whose entire purpose is
+    # that nothing needs installing. git archive takes exactly the
+    # tracked files, so nothing local or accidental travels.
+    app = os.path.join(args.out, "app")
+    if os.path.isdir(app):
+        shutil.rmtree(app)
+    os.makedirs(app)
+    tar = os.path.join(args.out, "_app.tar")
+    if not run(["git", "archive", "--format=tar", "-o", tar, "HEAD"]):
+        print("git archive failed -- stopping.")
+        return 1
+    import tarfile
+    with tarfile.open(tar) as tf:
+        tf.extractall(app)
+    os.remove(tar)
+
     if not args.no_ledger and dsn and dump:
         target = os.path.join(args.out, "ledger.sql")
         cmd = [dump, "-h", parts.get("host", "localhost"),
@@ -185,6 +246,16 @@ def main():
     if os.path.exists(launcher):
         shutil.copy(launcher, os.path.join(args.out,
                                            "START-TASK-LEDGER.bat"))
+    for want, path, name in (
+            (args.with_runtime, args.runtime, "python-runtime"),
+            (args.with_postgres, args.postgres, "postgres")):
+        if want and os.path.isdir(path):
+            dest = os.path.join(args.out, name)
+            if os.path.isdir(dest):
+                shutil.rmtree(dest)
+            print("  copying {0} ({1} MB)...".format(name, _dir_mb(path)))
+            shutil.copytree(path, dest)
+
     with open(os.path.join(args.out, "if-something-goes-wrong.md"), "w",
               encoding="utf-8") as f:
         f.write(START_HERE)
