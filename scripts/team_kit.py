@@ -63,6 +63,14 @@ Open a Command Prompt, drag the launcher into it, press Enter. The
 error stays on screen instead of vanishing with the window. Send us
 whatever it says.
 
+## The page is full of red errors, or panels say 500
+
+Close the black window, delete the file `setup-log.txt` if it is there,
+and double-click the launcher again — it checks the database really
+works now and rebuilds it from scratch if not. If it still fails it
+will stop with a message and point at `setup-log.txt`; send us that
+file.
+
 ## The browser opens but the page is blank
 
 Give it a few seconds and refresh — the database can take a moment on

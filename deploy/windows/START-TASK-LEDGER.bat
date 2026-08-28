@@ -109,16 +109,52 @@ if errorlevel 1 (
 )
 :pgup
 
-rem ---- create + load the ledger, once --------------------------
-"%PGBIN%\psql.exe" -p %PGPORT% -d %DBNAME% -c "SELECT 1" >nul 2>&1
-if errorlevel 1 (
+rem ---- the ledger: verify it works, rebuild it if it does not ----
+rem
+rem This used to ask "does the database exist?" and load the dump only
+rem when it did not. Two ways that fails, both seen: a database left
+rem over from an earlier run keeps an OLDER SCHEMA, and restoring a dump
+rem on top of existing tables half-succeeds -- CREATE TABLE errors,
+rem COPY fails for any column the old table lacks, and psql still exits
+rem 0. Every word of that was going to >nul, so the app started against
+rem a database missing columns it needs and the first thing the person
+rem saw was a wall of UndefinedColumn tracebacks.
+rem
+rem So: ask whether the database actually answers the questions the app
+rem asks. If it cannot, rebuild it from scratch -- never on top -- and
+rem keep the log.
+set "SETUPLOG=%KITROOT%setup-log.txt"
+set "DBOK=1"
+"%PGBIN%\psql.exe" -p %PGPORT% -d %DBNAME% -tAc "SELECT author_ref FROM signals LIMIT 1" >nul 2>&1 || set "DBOK="
+if defined DBOK "%PGBIN%\psql.exe" -p %PGPORT% -d %DBNAME% -tAc "SELECT expires_at FROM v_current_grants LIMIT 1" >nul 2>&1 || set "DBOK="
+if defined DBOK for /f "usebackq delims=" %%N in (`"%PGBIN%\psql.exe" -p %PGPORT% -d %DBNAME% -tAc "SELECT count(*) FROM signals" 2^>nul`) do if "%%N"=="0" set "DBOK="
+
+if not defined DBOK (
   echo   preparing your copy of the ledger...
-  "%PGBIN%\createdb.exe" -p %PGPORT% %DBNAME% >nul 2>&1
+  rem Dropped, not reused: a half-built database is the thing being fixed.
+  "%PGBIN%\dropdb.exe" -p %PGPORT% --if-exists %DBNAME% >"%SETUPLOG%" 2>&1
+  "%PGBIN%\createdb.exe" -p %PGPORT% %DBNAME% >>"%SETUPLOG%" 2>&1
   if exist "%KITROOT%ledger.sql" (
-    "%PGBIN%\psql.exe" -q -p %PGPORT% -d %DBNAME% -f "%KITROOT%ledger.sql" >nul 2>&1
+    "%PGBIN%\psql.exe" -q -v ON_ERROR_STOP=1 -p %PGPORT% -d %DBNAME% -f "%KITROOT%ledger.sql" >>"%SETUPLOG%" 2>&1
   ) else (
-    "%PGBIN%\psql.exe" -q -p %PGPORT% -d %DBNAME% -f storage\schema.sql >nul 2>&1
-    "%PGBIN%\psql.exe" -q -p %PGPORT% -d %DBNAME% -f access\access_control.sql >nul 2>&1
+    "%PGBIN%\psql.exe" -q -v ON_ERROR_STOP=1 -p %PGPORT% -d %DBNAME% -f storage\schema.sql >>"%SETUPLOG%" 2>&1
+    "%PGBIN%\psql.exe" -q -v ON_ERROR_STOP=1 -p %PGPORT% -d %DBNAME% -f access\access_control.sql >>"%SETUPLOG%" 2>&1
+  )
+
+  rem Prove it before handing over a browser window.
+  set "DBOK=1"
+  "%PGBIN%\psql.exe" -p %PGPORT% -d %DBNAME% -tAc "SELECT author_ref FROM signals LIMIT 1" >nul 2>&1 || set "DBOK="
+  if not defined DBOK (
+    echo.
+    echo   [X] The ledger could not be prepared, so the app would only
+    echo       show errors. Nothing here is your fault.
+    echo.
+    echo       What went wrong is written to:
+    echo         %SETUPLOG%
+    echo       Send that file to whoever gave you this kit.
+    echo.
+    pause
+    exit /b 1
   )
 )
 
