@@ -522,6 +522,14 @@
     background:var(--panel,#fff);transition:transform .08s,box-shadow .12s}
   .wname:hover{transform:translateY(-1px);box-shadow:var(--sh-hover)}
   .wfoot{margin-top:10px;font-size:12.5px;color:var(--evidence-ink)}
+  .revsub{margin:8px 0 2px;display:flex;flex-wrap:wrap;gap:8px;
+    align-items:center;padding:10px;border-radius:var(--r2,8px);
+    background:var(--wash,#f6f8fa)}
+  .subsel{font:inherit;font-size:13px;padding:7px 9px;max-width:320px;
+    border:1px solid var(--line,#d9dee5);border-radius:var(--r1,6px)}
+  .subnew{font:inherit;font-size:13px;padding:7px 9px;min-width:260px;
+    flex:1;border:1px solid var(--line,#d9dee5);
+    border-radius:var(--r1,6px)}
   .modal-foot{padding:12px 20px;border-top:1px solid var(--line);
          background:var(--panel-2);font-size:12px;color:var(--faint)}
   .revsec{margin-top:16px}
@@ -1570,9 +1578,52 @@
         .then(function(){ done("Dismissed \u2014 it will not be raised again"); })
         ["catch"](function(e){ done(e.message); });
     };
-    [yes, no].forEach(function(b){ b.disabled = !writable; });
-    acts.appendChild(yes); acts.appendChild(no);
+    // The third answer, and on this ledger the most common true one.
+    // Half the register is fragments -- "finish what was discussed
+    // yesterday", "count events per day" -- real work said in the
+    // shorthand of a room where everyone knew the context. Alone they
+    // are noise; under the project they belong to they are right. The
+    // system often cannot infer the parent. The person reading the card
+    // always can.
+    var part = el2("button", null); part.type = "button";
+    part.textContent = "Part of something bigger";
+    var picker = el2("div","revsub"); picker.hidden = true;
+
+    var sel = document.createElement("select");
+    sel.className = "subsel";
+    var ph = el("option", null, "\u2014 choose the work it belongs to \u2014");
+    ph.value = ""; sel.appendChild(ph);
+    ((REVIEW.data && REVIEW.data.my_tasks) || []).forEach(function(t){
+      var o = el("option", null, t.title); o.value = t.task_id;
+      sel.appendChild(o);
+    });
+    var orNew = document.createElement("input");
+    orNew.type = "text"; orNew.className = "subnew";
+    orNew.placeholder = "\u2026 or name a project nobody has tracked yet";
+    var go = el2("button","yes"); go.type = "button";
+    go.textContent = "File it under this";
+
+    picker.appendChild(sel);
+    picker.appendChild(orNew);
+    picker.appendChild(go);
+
+    part.onclick = function(){ picker.hidden = !picker.hidden; };
+    go.onclick = function(){
+      var body = {candidate_id: c.candidate_id, action: "attach"};
+      if(sel.value) body.parent_task_id = sel.value;
+      else if(orNew.value.trim()) body.parent_title = orNew.value.trim();
+      else { orNew.focus(); return; }   // say which parent, or nothing
+      post("/api/candidate", body).then(function(){
+        done("Filed under " + (sel.value
+             ? sel.options[sel.selectedIndex].text
+             : orNew.value.trim()));
+      })["catch"](function(e){ done(e.message); });
+    };
+
+    [yes, part, no, go].forEach(function(b){ b.disabled = !writable; });
+    acts.appendChild(yes); acts.appendChild(part); acts.appendChild(no);
     row.appendChild(acts);
+    row.appendChild(picker);
     return row;
   }
 

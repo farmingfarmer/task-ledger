@@ -1065,10 +1065,54 @@ def test_ask_band_asks_a_person():
        "second source")
 
 
+def test_one_card_per_fact():
+    print("one card per fact")
+    # Observed live: "Alex to finish all initial onboarding items" asked
+    # twice in one packet -- once as a status change to completed, once as
+    # a completion. Different ops, so aggregation kept them apart, and the
+    # reviewer was asked the same question twice with the same sentence
+    # under both.
+    board = [task(task_id="task-onb", title="finish all onboarding items",
+                  status="in_progress", owner_ref="aad-alex",
+                  aliases=["onboarding items"])]
+    j = judge_script([{"verdict": "same_task", "matched_task_id":
+                       "task-onb", "confidence": 0.95,
+                       "deciding_factor": "same onboarding work"},
+                      {"verdict": "same_task", "matched_task_id":
+                       "task-onb", "confidence": 0.95,
+                       "deciding_factor": "same onboarding work"}])
+    r = make(j)
+    said = sig(signal_id="sig-st", signal_type="status_update",
+               title="finish all onboarding items", status_signal="completed",
+               confidence=0.9, author_ref="aad-alex",
+               owner_candidates=[{"person_ref": "aad-alex",
+                                  "confidence": 0.9,
+                                  "basis": "self_reference"}])
+    done = sig(signal_id="sig-cc", signal_type="completion_claim",
+               title="finish all onboarding items", status_signal="completed",
+               confidence=0.9, author_ref="aad-alex",
+               owner_candidates=[{"person_ref": "aad-alex",
+                                  "confidence": 0.9,
+                                  "basis": "self_reference"}])
+    packet, rep = r.reconcile("aad-alex", [said, done], board, 1, "run-1")
+    ops = [p["op"] for p in packet["proposals"]]
+    ok(ops.count("complete_task") == 1 and "update_status" not in ops,
+       "a completion and a status-change-to-completed about one task "
+       "become one card, not two")
+    closure = [p for p in packet["proposals"]
+               if p["op"] == "complete_task"][0]
+    ok(set(closure["source_signals"]) == {"sig-st", "sig-cc"},
+       "and the folded card carries BOTH sentences, so nothing is lost "
+       "by asking once")
+    ok(any(d["reason"] == "folded_into_closure" for d in rep["dropped"]),
+       "the fold is recorded, not silent")
+
+
 if __name__ == "__main__":
     test_auto_link_and_status()
     test_regression_conflict()
     test_closure_gates()
+    test_one_card_per_fact()
     test_assignment_ladder()
     test_create_and_subtask()
     test_packet_local_create_dedup()

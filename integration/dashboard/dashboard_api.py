@@ -1032,6 +1032,13 @@ def review_queue():
                                            'wrong_task_match'))
                      AS corrected
             FROM decisions WHERE decided_by = %s""", (v,)) or [{}])[0],
+        # What a fragment could be attached to. Open work only: nobody
+        # files a new piece of work under something already finished.
+        "my_tasks": q("""
+            SELECT task_id, title FROM tasks_current
+            WHERE user_ref = %s AND merged_into IS NULL
+              AND status NOT IN ('completed', 'cancelled')
+            ORDER BY title""", (v,)),
         "no_blockers": _no_blocker_claims(v),
         "auto_applied": [a for a in auto if not a["undone"]],
         "writable": _writable(),
@@ -1334,8 +1341,9 @@ def candidate_rule():
     body = request.get_json(silent=True) or {}
     cid = (body.get("candidate_id") or "").strip()
     action = (body.get("action") or "").strip()
-    if action not in ("track", "dismiss"):
-        return jsonify({"error": "action must be track or dismiss"}), 400
+    if action not in ("track", "dismiss", "attach"):
+        return jsonify({"error": "action must be track, dismiss or "
+                                 "attach"}), 400
 
     conn = _write_conn()
     try:
@@ -1358,6 +1366,42 @@ def candidate_rule():
                 conn.commit()
                 return jsonify({"ok": True, "action": "dismiss"})
 
+            # ATTACH: this is a piece of something bigger.
+            #
+            # The register is full of fragments -- "finish what was
+            # discussed yesterday", "count events per day" -- that are
+            # real work described in the shorthand people use when the
+            # context is obvious to everyone in the room. Standing alone
+            # they are useless; under the project they belong to they are
+            # exactly right. The system cannot always infer the parent,
+            # but the person reading the card always knows it, so this is
+            # the one keystroke that lets them say so: pick an existing
+            # task, or name a new parent that does not exist yet.
+            parent_id = (body.get("parent_task_id") or "").strip() or None
+            parent_title = (body.get("parent_title") or "").strip() or None
+            if action == "attach" and not (parent_id or parent_title):
+                return jsonify({"error": "attach needs parent_task_id or "
+                                         "parent_title"}), 400
+            if action == "attach" and parent_id:
+                cur.execute("""SELECT task_id FROM tasks_current
+                               WHERE task_id = %s AND user_ref = %s""",
+                            (parent_id, v))
+                if not cur.fetchone():
+                    return jsonify({"error": "no such task on your "
+                                             "board"}), 404
+            if action == "attach" and not parent_id:
+                # A named parent nobody has tracked yet: create it, then
+                # hang this under it. Two tasks from one keystroke, which
+                # is the shape of the thought being expressed.
+                parent_id = "task-p" + cid[:7]
+                cur.execute(
+                    "SELECT apply_task_event(%s,%s,'created','manual_edit',"
+                    "NULL,%s::jsonb)",
+                    (parent_id, v, json.dumps({
+                        "title": parent_title[:120], "description": None,
+                        "status": "proposed", "owner_ref": v,
+                        "deadline": None, "parent_task_id": None})))
+
             task_id = "task-" + cid[:8]
             cur.execute(
                 "SELECT apply_task_event(%s,%s,'created','manual_edit',"
@@ -1365,7 +1409,9 @@ def candidate_rule():
                 (task_id, v, json.dumps({
                     "title": cand["title"], "description": None,
                     "status": "proposed", "owner_ref": v,
-                    "deadline": None, "parent_task_id": None})))
+                    "deadline": None,
+                    "parent_task_id": parent_id
+                    if action == "attach" else None})))
             # Every wording the register heard this work under becomes an
             # alias, so the paraphrases that corroborated the candidate can
             # match the task directly instead of asking a judge -- the same
@@ -1389,7 +1435,10 @@ def candidate_rule():
                 VALUES (%s,%s,'accepted',%s,'dashboard')""",
                 (cid, v, cand["title"]))
             conn.commit()
-            return jsonify({"ok": True, "action": "track", "task_id": task_id})
+            return jsonify({"ok": True, "action": action,
+                             "task_id": task_id,
+                             "parent_task_id": parent_id
+                             if action == "attach" else None})
     finally:
         conn.close()
 

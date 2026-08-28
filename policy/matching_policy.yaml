@@ -318,6 +318,16 @@ not_work:
     - '\?\s*$'                                 # They did what?
     - '^(this|next|last)\s+(sprint|week|month|meeting)\s*$'
     - '^ad hoc topics?\s*$'
+    # Meeting mechanics: the things people say in order to HAVE a
+    # meeting, not things anybody does afterwards. "Share screen for
+    # spring planning board" was proposed as new work at 98% confidence,
+    # which is the system confidently tracking somebody clicking a
+    # button. Screen shares, calls, and "let me pull that up" are the
+    # furniture of talking, and a ledger of work should not contain the
+    # act of showing it.
+    - '^(let me |i.ll |i will |can (i|you) )?(share|showing|show) (my |the )?(screen|tab|window)\b'
+    - '^(pull|bring) (that|this|it) up\b'
+    - '^(get|hop|jump) on a (call|meeting)\b'
 
   # A subset of the above that is not merely noise. "No blockers" asserts
   # something true and useful about a person's work on a date, and throwing

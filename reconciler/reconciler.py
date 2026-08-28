@@ -226,6 +226,7 @@ class Reconciler(object):
 
         draft.extend(self._promote_candidates(report))
         draft = self._dedupe_creates(draft, report)
+        draft = self._one_card_per_fact(draft, report)
         proposals = self._aggregate(draft, report, cadence_run_id)
         proposals = self._split_auto_apply(proposals, user_ref, tasks,
                                            report)
@@ -1086,6 +1087,55 @@ class Reconciler(object):
             return False   # malformed judge output never merges
         return (r["verdict"] == "same_task"
                 and r["confidence"] >= cfg.get("judge_accept_min", 0.85))
+
+    def _one_card_per_fact(self, draft, report):
+        """Two proposals saying the same thing are one question.
+
+        "Alex to finish all initial onboarding items" arrived twice in a
+        single packet: once as update_status -> completed, from someone
+        describing progress, and once as complete_task, from someone
+        saying it was done. Different ops, so aggregation -- which groups
+        by (op, target, payload) -- kept them apart, and the reviewer was
+        asked the same question twice in a row, with the same sentence
+        under both.
+
+        A closure is the stronger and more specific claim: it says the
+        work is over, which is everything a status change to 'completed'
+        says and more. So where both exist for one task, the closure
+        stands and the status change folds into it, contributing its
+        evidence rather than a second card.
+        """
+        closing = {p["target_task_id"] for p in draft
+                   if p["op"] in ("complete_task", "cancel_task")
+                   and p["target_task_id"]}
+        if not closing:
+            return draft
+        out = []
+        for p in draft:
+            if (p["op"] == "update_status"
+                    and p["target_task_id"] in closing
+                    and (p["payload"] or {}).get("to_status")
+                    in ("completed", "cancelled")):
+                for c in draft:
+                    if (c["target_task_id"] == p["target_task_id"]
+                            and c["op"] in ("complete_task",
+                                            "cancel_task")):
+                        c["source_signals"] = sorted(
+                            set(c["source_signals"])
+                            | set(p["source_signals"]))
+                        seen = {(e.get("resource_id"), e.get("content_hash"))
+                                for e in c["evidence"]}
+                        for e in p["evidence"]:
+                            if (e.get("resource_id"),
+                                    e.get("content_hash")) not in seen:
+                                c["evidence"].append(e)
+                        break
+                report["dropped"].append(
+                    {"signal_id": ",".join(p["source_signals"]),
+                     "reason": "folded_into_closure"})
+                continue
+            out.append(p)
+        return out
 
     def _aggregate(self, draft, report, run_salt=""):
         floors = self.policy["per_op_confidence_floor"]
