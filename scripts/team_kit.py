@@ -38,7 +38,7 @@ import sys
 ROOT = os.path.normpath(os.path.join(
     os.path.dirname(os.path.abspath(__file__)), ".."))
 
-START_HERE = """# If something goes wrong
+START_HERE = r"""# If something goes wrong
 
 You should not need this page. Double-click **START-TASK-LEDGER.bat**
 and the app opens in your browser, greets you, and asks which of the
@@ -233,6 +233,14 @@ def main():
         print("   commit first, or the kit ships without your latest work.")
 
     os.makedirs(args.out, exist_ok=True)
+    # Only names this tool has ever produced -- never a blanket wipe, in
+    # case somebody points --out at a folder holding something else.
+    for stale in ("START-HERE.md", "if-something-goes-wrong.md",
+                  "START-TASK-LEDGER.bat", "ledger.sql",
+                  "task-ledger.bundle"):
+        old_path = os.path.join(args.out, stale)
+        if os.path.exists(old_path):
+            os.remove(old_path)
     bundle = os.path.join(args.out, "task-ledger.bundle")
     if not run(["git", "bundle", "create", bundle, "--all"]):
         print("git bundle failed -- is this a git checkout?")
@@ -292,8 +300,12 @@ def main():
 
     print("\nkit ready: {0}".format(args.out))
     for name in sorted(os.listdir(args.out)):
-        size = os.path.getsize(os.path.join(args.out, name))
-        print("  {0:<24} {1:>8} KB".format(name, size // 1024))
+        full = os.path.join(args.out, name)
+        if os.path.isdir(full):
+            print("  {0:<24} {1:>8} MB".format(name + "/", _dir_mb(full)))
+        else:
+            print("  {0:<24} {1:>8} KB".format(
+                name, os.path.getsize(full) // 1024))
     if not args.no_ledger:
         print("\nledger.sql holds real meeting content. Give this kit only "
               "to people who were in those meetings.")
