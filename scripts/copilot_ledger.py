@@ -87,7 +87,13 @@ def main():
     createdb, dropdb, psql = (psql_tool("createdb"), psql_tool("dropdb"),
                               psql_tool("psql"))
     if not all((createdb, dropdb, psql)):
-        print("could not find createdb/dropdb/psql -- set PGBIN or PATH.")
+        # Name the place, not the variable. "Set PGBIN" tells somebody
+        # who already knows; the path tells everybody.
+        print("could not find createdb/dropdb/psql.")
+        print("  On Windows they ship with the portable Postgres:")
+        print("     set \"PGBIN=%USERPROFILE%\\pgsql-portable\\pgsql\\bin\"")
+        print("  Then re-run. (tl.bat sets this for you when the portable")
+        print("  install is in its usual place.)")
         return 2
 
     print("comparison ledger '{0}' (beside your real '{1}')".format(

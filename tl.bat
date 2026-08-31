@@ -28,6 +28,18 @@ if "%PROFILE%"=="synth" (
 )
 if not defined TL_SYNTH_DSN set "TL_SYNTH_DSN=host=localhost port=%TL_PORT% dbname=taskintel_synth user=%USERNAME%"
 
+rem Where the Postgres command-line tools live. Several subcommands shell
+rem out to psql/createdb/dropdb, and a fresh terminal has no PGBIN -- so
+rem "could not find createdb/dropdb/psql" was the first thing a new window
+rem said, about a program sitting in a known place on this very machine.
+rem The portable install is checked first because that is what the Windows
+rem port ships; anything on PATH still works when this finds nothing.
+if not defined PGBIN (
+  if exist "%USERPROFILE%\pgsql-portable\pgsql\bin\psql.exe" (
+    set "PGBIN=%USERPROFILE%\pgsql-portable\pgsql\bin"
+  )
+)
+
 if not defined TL_USER set "TL_USER=aad-dev"
 if not defined TL_EMBED_MODEL set "TL_EMBED_MODEL=nomic-embed-text"
 if not defined TL_JUDGE_MODEL set "TL_JUDGE_MODEL=mistral-small3.1"

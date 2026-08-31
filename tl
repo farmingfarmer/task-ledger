@@ -54,6 +54,18 @@ fi
 TL_SYNTH_DSN="${TL_SYNTH_DSN:-host=localhost port=5432 dbname=taskintel_synth user=$ME}"
 export DB_DSN TL_INBOX TL_SYNTH_DSN
 
+# Same courtesy as tl.bat: subcommands that shell out to psql should not
+# fail over a variable this script can work out. PATH first here, since a
+# unix box normally has the client tools on it.
+if [ -z "${PGBIN:-}" ]; then
+  if command -v psql >/dev/null 2>&1; then
+    PGBIN="$(dirname "$(command -v psql)")"
+  elif [ -x "$HOME/pgsql-portable/pgsql/bin/psql" ]; then
+    PGBIN="$HOME/pgsql-portable/pgsql/bin"
+  fi
+  [ -n "${PGBIN:-}" ] && export PGBIN
+fi
+
 USER_ID="${TL_USER:-aad-dev}"
 EMBED_MODEL="${TL_EMBED_MODEL:-nomic-embed-text}"
 JUDGE_MODEL="${TL_JUDGE_MODEL:-mistral-small3.1}"
