@@ -20,6 +20,11 @@ and it separates progress from blockers from next actions.
     python3 scripts/copilot_claims_ingest.py claims.json --dry-run
     python3 scripts/copilot_claims_ingest.py claims.json --dsn "$TL_COPILOT_DSN"
 
+The prompt that produces this shape, and the vocabularies it must hit,
+are in docs/prompts/copilot-claims-prompt.md. The values below are
+PARSED: a claim_type outside the map degrades to task_mention, which
+proposes nothing, so the prompt's wording is load-bearing.
+
 THIS DOES NOT RUN THE EXTRACTOR. Copilot already extracted; re-extracting
 its output would be a second lossy pass over a paraphrase. This writes the
 same batch shape the worker writes, validated against the same contract, so
