@@ -1039,6 +1039,18 @@ def review_queue():
             WHERE user_ref = %s AND merged_into IS NULL
               AND status NOT IN ('completed', 'cancelled')
             ORDER BY title""", (v,)),
+        # Who could own a fragment instead of the viewer: only people who
+        # spoke in the meetings these candidates came from.
+        "room": [r["author_ref"] for r in q("""
+            SELECT DISTINCT s2.author_ref
+            FROM task_candidate_events e
+            JOIN signals s ON s.signal_id = e.signal_id
+            JOIN signals s2 ON s2.batch_id = s.batch_id
+            JOIN v_task_candidates c
+              ON c.candidate_id = e.candidate_id AND c.user_ref = e.user_ref
+            WHERE e.user_ref = %s AND c.state = 'sighted'
+              AND s2.author_ref IS NOT NULL AND s2.author_ref <> %s
+            ORDER BY 1""", (v, v))],
         "no_blockers": _no_blocker_claims(v),
         "auto_applied": [a for a in auto if not a["undone"]],
         "writable": _writable(),
@@ -1341,9 +1353,9 @@ def candidate_rule():
     body = request.get_json(silent=True) or {}
     cid = (body.get("candidate_id") or "").strip()
     action = (body.get("action") or "").strip()
-    if action not in ("track", "dismiss", "attach"):
-        return jsonify({"error": "action must be track, dismiss or "
-                                 "attach"}), 400
+    if action not in ("track", "dismiss", "attach", "reassign"):
+        return jsonify({"error": "action must be track, dismiss, attach "
+                                 "or reassign"}), 400
 
     conn = _write_conn()
     try:
@@ -1356,6 +1368,57 @@ def candidate_rule():
                 return jsonify({"error": "no such candidate"}), 404
             if cand["state"] != "sighted":
                 return jsonify({"error": "already ruled on"}), 409
+
+            # "Not mine -- it is theirs." The extractor deliberately
+            # returns NO owner for an impersonal sentence, and the pool
+            # then routes it to whoever said it, which is right for
+            # asking and wrong for owning. Until now the only ways out
+            # were to accept it (making it yours by clicking a button --
+            # the attribution error people actually complained about) or
+            # dismiss it (throwing away real work). Proposals have had
+            # this third way for a while; candidates never did.
+            #
+            # It re-pools rather than writing to their board: nobody's
+            # board moves except by their own decision, so this reaches
+            # them as their own card to rule on.
+            if action == "reassign":
+                to = (body.get("to") or "").strip()
+                if not to or to == v:
+                    return jsonify({"error": "name whose it is, and not "
+                                             "yourself"}), 400
+                cur.execute("""
+                    SELECT DISTINCT s2.author_ref
+                    FROM task_candidate_events e
+                    JOIN signals s ON s.signal_id = e.signal_id
+                    JOIN signals s2 ON s2.batch_id = s.batch_id
+                    WHERE e.candidate_id = %s AND e.user_ref = %s
+                      AND s2.author_ref IS NOT NULL""", (cid, v))
+                inroom = {r["author_ref"] for r in cur.fetchall()}
+                if to not in inroom:
+                    # Correcting attribution must not double as a way to
+                    # put work on any colleague you can name.
+                    return jsonify({"error": "that person did not speak in "
+                                             "the meeting this came from"}), 400
+                cur.execute("""
+                    SELECT DISTINCT signal_id FROM task_candidate_events
+                    WHERE candidate_id = %s AND user_ref = %s
+                      AND signal_id IS NOT NULL""", (cid, v))
+                moved = 0
+                for row in cur.fetchall():
+                    cur.execute("""
+                        INSERT INTO signal_pool_events
+                          (signal_id, user_ref, event, run_id)
+                        VALUES (%s,%s,'pooled','dashboard-reassign')""",
+                        (row["signal_id"], to))
+                    moved += 1
+                cur.execute("""
+                    INSERT INTO task_candidate_events
+                      (candidate_id, user_ref, event, title, run_id)
+                    VALUES (%s,%s,'dismissed',%s,'dashboard-reassign')""",
+                    (cid, v, cand["title"]))
+                conn.commit()
+                return jsonify({"ok": True, "action": "reassign",
+                                "to": to, "signals_repooled": moved})
 
             if action == "dismiss":
                 cur.execute("""

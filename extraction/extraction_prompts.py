@@ -94,6 +94,14 @@ NEGATIVE_GUIDANCE = """Do NOT emit signals for:
   built the pipeline...")
 - meta-conversation about the meeting itself (scheduling the next call,
   minute-taking)
+- ANYTHING THAT HAPPENS DURING THIS MEETING and is finished when it ends.
+  Sharing or showing a screen, pulling something up, walking through a
+  document, reading a chart aloud, handing over to the next speaker.
+  "Let me share my screen and show the spring planning board" is one
+  person operating a computer for thirty seconds, not work anybody does
+  afterwards. Test it this way: if the sentence describes something the
+  speaker is doing AS THEY SPEAK, and nothing remains to be done once
+  the call ends, it is not a signal at any confidence.
 - pleasantries, greetings, or acknowledgments
 - administrative, HR, facilities, or social announcements, EVEN WHEN they
   contain concrete dates. "benefits enrollment closes friday" is not a

@@ -1620,10 +1620,44 @@
       })["catch"](function(e){ done(e.message); });
     };
 
-    [yes, part, no, go].forEach(function(b){ b.disabled = !writable; });
-    acts.appendChild(yes); acts.appendChild(part); acts.appendChild(no);
+    // "Not mine." Work mentioned in your hearing lands in your queue,
+    // which is right for asking and wrong for owning -- and until now
+    // the only ways out were to make it yours or throw it away. This
+    // sends it to whoever it belongs to, as their card to rule on.
+    // Nobody's board moves except by their own decision.
+    var mine = el2("button", null); mine.type = "button";
+    mine.textContent = "Not mine";
+    var whose = el2("div","revsub"); whose.hidden = true;
+    var wsel = document.createElement("select");
+    wsel.className = "subsel";
+    var wph = el("option", null, "\u2014 whose is it? \u2014");
+    wph.value = ""; wsel.appendChild(wph);
+    ((REVIEW.data && REVIEW.data.room) || []).forEach(function(r){
+      var o = el("option", null, personName(r)); o.value = r;
+      wsel.appendChild(o);
+    });
+    var send = el2("button","yes"); send.type = "button";
+    send.textContent = "Send it to them";
+    whose.appendChild(wsel); whose.appendChild(send);
+    mine.onclick = function(){ whose.hidden = !whose.hidden; };
+    send.onclick = function(){
+      if(!wsel.value){ wsel.focus(); return; }
+      post("/api/candidate", {candidate_id: c.candidate_id,
+                              action: "reassign", to: wsel.value})
+        .then(function(){
+          done("Sent to " + personName(wsel.value)
+               + " \u2014 it is their call now");
+        })["catch"](function(e){ done(e.message); });
+    };
+
+    [yes, part, mine, no, go, send].forEach(function(b){
+      b.disabled = !writable; });
+    acts.appendChild(yes); acts.appendChild(part);
+    if(((REVIEW.data && REVIEW.data.room) || []).length) acts.appendChild(mine);
+    acts.appendChild(no);
     row.appendChild(acts);
     row.appendChild(picker);
+    row.appendChild(whose);
     return row;
   }
 
