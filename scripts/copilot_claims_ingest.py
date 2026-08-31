@@ -263,6 +263,40 @@ def build_batch(records, exported_at, label, bootstrap=False):
     return batch, report
 
 
+def _scan_json(text):
+    """Every JSON array or object in the text, in order.
+
+    A chat session produces one response per meeting, and a week of
+    meetings gets pasted into one document -- so the file holds several
+    arrays with prose between them, and json.loads fails on the second
+    one with "Extra data: line 4 column 1", which names a position and
+    explains nothing. Slicing from the first [ to the last ] does not
+    help either: that span contains all of them and is not itself valid
+    JSON.
+
+    raw_decode reads ONE value and reports where it stopped, so this
+    walks the file taking values and skipping whatever sits between
+    them. One array, ten arrays, arrays with commentary in between, or a
+    bare object per meeting all arrive the same way.
+    """
+    dec = json.JSONDecoder()
+    out, i, n = [], 0, len(text)
+    while i < n:
+        starts = [x for x in (text.find("[", i), text.find("{", i))
+                  if x != -1]
+        if not starts:
+            break
+        s = min(starts)
+        try:
+            value, end = dec.raw_decode(text, s)
+        except ValueError:
+            i = s + 1          # not the start of a value after all
+            continue
+        out.append(value)
+        i = end
+    return out
+
+
 def load_records(path):
     """Tolerant of how this arrives: pasted out of a chat window.
 
@@ -270,9 +304,9 @@ def load_records(path):
     and sometimes trails one -- and the file often arrives via Word, which
     curls every quote into a character JSON does not accept. Failing on any
     of that would be technically correct and practically useless, so the
-    array is sliced out of whatever came with it and the quotes are
-    straightened -- the same tolerance the extraction worker applies to
-    model responses, for the same reason.
+    quotes are straightened and every JSON value in the file is collected
+    -- the same tolerance the extraction worker applies to model
+    responses, for the same reason.
     """
     with open(path, encoding="utf-8-sig") as f:
         text = f.read()
@@ -286,17 +320,27 @@ def load_records(path):
         # already parses is never touched.
         text = (text.replace(u"\u201c", '"').replace(u"\u201d", '"')
                     .replace(u"\u2018", "'").replace(u"\u2019", "'"))
-        start, end = text.find("["), text.rfind("]")
-        if start == -1 or end <= start:
+        values = _scan_json(text)
+        if not values:
             raise SystemExit(
-                "no JSON array found in {0}. Paste the export as-is -- "
-                "fences and surrounding prose are fine, but the claims "
-                "themselves must be a JSON array.".format(path))
-        try:
-            data = json.loads(text[start:end + 1])
-        except ValueError as e:
-            raise SystemExit("could not parse the JSON array in {0}: {1}"
-                             .format(path, e))
+                "no JSON found in {0}. Paste the export as-is -- fences "
+                "and surrounding prose are fine, but the claims "
+                "themselves must be JSON.".format(path))
+        data = []
+        for v in values:
+            if isinstance(v, list):
+                data.extend(v)
+            elif isinstance(v, dict):
+                for key in ("claims", "items", "records", "data"):
+                    if isinstance(v.get(key), list):
+                        data.extend(v[key])
+                        break
+                else:
+                    data.append(v)
+        if len(values) > 1:
+            print("   ({0} separate JSON blocks found and merged -- one "
+                  "per response, by the look of it)".format(len(values)))
+        return data
     if isinstance(data, dict):
         for key in ("claims", "items", "records", "data"):
             if isinstance(data.get(key), list):

@@ -143,6 +143,41 @@ def test_transcript_encodings():
        "bytes, so order of checking is the whole correctness")
 
 
+def test_copilot_paste_shapes():
+    print("copilot paste shapes")
+    import tempfile
+    sys.path.insert(0, os.path.join(os.path.dirname(
+        os.path.abspath(__file__)), "..", "scripts"))
+    import copilot_claims_ingest as ci
+    rec = ('{"person": "A B", "task": "t", "status": "open", '
+           '"claim_type": "mention", "confidence": "high", '
+           '"blockers": [], "sources": []}')
+    tmp = tempfile.mkdtemp()
+
+    def load(text):
+        path = os.path.join(tmp, "c.txt")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        return ci.load_records(path)
+
+    # A week of meetings is a week of chat responses, pasted into one
+    # document. json.loads fails on the second array with "Extra data:
+    # line 4 column 1", and slicing first-[ to last-] spans them all and
+    # is not valid JSON either. Observed on a real export.
+    ok(len(load("[%s]" % rec)) == 1, "one array, as documented")
+    ok(len(load("First:\n[%s]\nSecond:\n[%s]" % (rec, rec))) == 2,
+       "several responses pasted together are merged, not rejected")
+    ok(len(load("```json\n[%s]\n```\nnote\n```json\n[%s]\n```"
+                % (rec, rec))) == 2,
+       "and the markdown fences a chat window adds do not matter")
+    ok(len(load("%s\n\n%s" % (rec, rec))) == 2,
+       "bare objects with no array around them still load")
+    ok(len(load('{"claims": [%s]}' % rec)) == 1,
+       "a wrapper object is unwrapped")
+    ok(len(load(("[%s]" % rec).replace('"', "\u201c", 1))) == 1,
+       "and a quote curled by Word does not cost the whole file")
+
+
 def test_prompt_build():
     print("prompt construction")
     numbered = [dict(it, item_no=i + 1) for i, it in enumerate(SPEC["items"])]
@@ -590,6 +625,7 @@ def test_pg_store():
 
 if __name__ == "__main__":
     test_transcript_encodings()
+    test_copilot_paste_shapes()
     test_prompt_build()
     test_golden()
     test_determinism()
