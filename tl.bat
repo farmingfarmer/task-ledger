@@ -69,6 +69,7 @@ if /i "%CMD%"=="transcripts" goto :transcripts
 if /i "%CMD%"=="quickscan" goto :quickscan
 if /i "%CMD%"=="brief" goto :brief
 if /i "%CMD%"=="kit" goto :kit
+if /i "%CMD%"=="copilot" goto :copilot
 if /i "%CMD%"=="recall" goto :recall
 if /i "%CMD%"=="handover" goto :handover
 if /i "%CMD%"=="demo-set" goto :demoset
@@ -100,6 +101,7 @@ echo   brief [meeting] before the standup: what this room said + what became of 
 echo   recall ^<words^>  who said that, when -- quoted, with receipts
 echo   handover ^<who^>  everything one person carries, with history
 echo   kit             package the system + a ledger copy for a teammate
+echo   copilot ^<file^>  build a Copilot-claims ledger beside yours, to compare
 echo   demo-set        generate the synthetic transcript demo set
 echo   demo-tx ^<src^>   build the demo board from transcripts (writes)
 echo   score ^<dir^>     extraction vs golden labels, measured
@@ -198,6 +200,15 @@ if not defined ARG1 (
 )
 call :banner
 python scripts\copilot_ingest.py "%ARG1%" --out "%TL_INBOX%" %REST%
+exit /b %errorlevel%
+
+:copilot
+if not defined ARG1 (
+  echo tl: copilot needs the claims file, e.g. tl copilot copilot_claims_raw.txt 1>&2
+  exit /b 2
+)
+call :banner
+python scripts\copilot_ledger.py %ARGS%
 exit /b %errorlevel%
 
 :kit
