@@ -148,6 +148,10 @@ def claim_signal(rec, batch_id, idx, bootstrap=False):
     status still rides along, and the description still says what Copilot
     called it.
     """
+    if not isinstance(rec, dict):
+        # Belt and braces: whatever the scanner lets through, one bad
+        # entry must cost that entry and not the import.
+        return None, "not a claim object"
     person = (rec.get("person") or "").strip()
     task = (rec.get("task") or "").strip()
     if not task:
@@ -292,8 +296,22 @@ def _scan_json(text):
         except ValueError:
             i = s + 1          # not the start of a value after all
             continue
-        out.append(value)
-        i = end
+        # Only things that could BE claims. When one record is malformed
+        # -- a truncated paste, a stray quote -- the array around it fails
+        # to parse, this walks forward, and the next [ it meets is an
+        # inner one: "sources": ["Scrum - Aug 28"]. Collected blindly,
+        # that arrives downstream as the string "Scrum - Aug 28" being
+        # asked for its .get("person"), which is a crash naming a type
+        # rather than the mangled record that caused it.
+        if isinstance(value, dict):
+            out.append(value)
+            i = end
+        elif isinstance(value, list) and any(isinstance(x, dict)
+                                             for x in value):
+            out.append([x for x in value if isinstance(x, dict)])
+            i = end
+        else:
+            i = s + 1          # a list of strings is not a claim list
     return out
 
 
@@ -340,6 +358,12 @@ def load_records(path):
         if len(values) > 1:
             print("   ({0} separate JSON blocks found and merged -- one "
                   "per response, by the look of it)".format(len(values)))
+        bad = sum(1 for d in data if not isinstance(d, dict))
+        if bad:
+            print("   ({0} fragment(s) skipped -- not claim objects. A "
+                  "malformed record usually means a truncated paste; the "
+                  "rest still imports.)".format(bad))
+            data = [d for d in data if isinstance(d, dict)]
         return data
     if isinstance(data, dict):
         for key in ("claims", "items", "records", "data"):

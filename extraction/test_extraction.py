@@ -177,6 +177,25 @@ def test_copilot_paste_shapes():
     ok(len(load(("[%s]" % rec).replace('"', "\u201c", 1))) == 1,
        "and a quote curled by Word does not cost the whole file")
 
+    # One malformed record makes its whole array unparseable, the scan
+    # walks forward, and the next [ it meets is an INNER one -- a
+    # "sources" or "blockers" list. Collected blindly those arrive as
+    # bare strings and crash on .get("person"), which names a type
+    # instead of the mangled record that caused it.
+    torn = ('[{"person": "A B", "task": "good", "status": "open", '
+            '"claim_type": "mention", "confidence": "high", '
+            '"blockers": [], "sources": ["Scrum - Aug 28"]},'
+            ' {"person": "C D", "task": "truncated here, '
+            '"sources": ["Scrum - Aug 28"], "blockers": ["needs data"]}]')
+    got = load(torn)
+    ok(len(got) == 1 and all(isinstance(g, dict) for g in got),
+       "a truncated record costs that record, not the import -- and "
+       "never leaks its inner lists in as claims")
+    sig, why = ci.claim_signal("a bare string", "b", 0)
+    ok(sig is None and why == "not a claim object",
+       "and the claim builder refuses a non-object outright, whatever "
+       "reaches it")
+
 
 def test_prompt_build():
     print("prompt construction")
