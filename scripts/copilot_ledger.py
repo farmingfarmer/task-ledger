@@ -96,6 +96,23 @@ def main():
         print("  install is in its usual place.)")
         return 2
 
+    # Checked BEFORE anything is dropped. The first version asked after
+    # recreating the database, so a stopped Ollama cost the previous
+    # comparison ledger and left an empty one in its place -- destroying
+    # something to discover a dependency was missing. The tick learned
+    # this twice; this script had to learn it again.
+    host = os.environ.get("OLLAMA_HOST_URL", "http://localhost:11434")
+    try:
+        import urllib.request
+        urllib.request.urlopen(host + "/api/tags", timeout=5).close()
+    except Exception:                                   # noqa: BLE001
+        print("\nOllama is not answering at {0}.".format(host))
+        print("  Reconciling needs it for embeddings, so this would import")
+        print("  the claims and then fail once per person.")
+        print("  Start it in its own window, then run this again:")
+        print("     start \"ollama\" ollama serve")
+        return 2
+
     print("comparison ledger '{0}' (beside your real '{1}')".format(
         args.dbname, real))
     print("  1. drop and recreate it -- it exists only for this comparison")
@@ -143,6 +160,7 @@ def main():
           .format(len(people)))
     embed = os.environ.get("TL_EMBED_MODEL", "nomic-embed-text")
     judge = os.environ.get("TL_JUDGE_MODEL")
+    failed = []
     for who in people:
         cmd = [sys.executable, os.path.join(ROOT, "reconciler",
                                             "run_reconcile.py"),
@@ -150,8 +168,20 @@ def main():
                "--embed-model", embed]
         if judge:
             cmd += ["--judge-model", judge]
-        run(cmd, stdout=subprocess.DEVNULL)
-        print("   {0}".format(who))
+        # stderr is kept: a reconcile that dies should say why here, not
+        # scroll past as somebody else's stack trace.
+        rc = run(cmd, stdout=subprocess.DEVNULL)
+        print("   {0}{1}".format(who, "" if rc == 0 else "   FAILED"))
+        if rc != 0:
+            failed.append(who)
+
+    if failed:
+        print("\n{0} of {1} reconcile(s) failed, so this ledger is "
+              "half-built and would compare badly for reasons that have "
+              "nothing to do with Copilot.".format(len(failed), len(people)))
+        print("Fix what the error above says and run this again -- it "
+              "rebuilds from scratch, so a second run costs nothing.")
+        return 1
 
     print("\nBuilt. To see both side by side:\n")
     print('   set "TL_COPILOT_DSN={0}"'.format(target))
