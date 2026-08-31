@@ -42,7 +42,15 @@ if not defined PGBIN (
 
 if not defined TL_USER set "TL_USER=aad-dev"
 if not defined TL_EMBED_MODEL set "TL_EMBED_MODEL=nomic-embed-text"
-if not defined TL_JUDGE_MODEL set "TL_JUDGE_MODEL=mistral-small3.1"
+rem The judge model is NOT defaulted to a name. It used to default to
+rem mistral-small3.1, which exists on the machine this was written on and
+rem not on the machine it runs on -- so every call that needed a judge
+rem came back HTTP 404 from /api/chat, several frames deep, on a ledger
+rem that was already half-built. A default that is wrong on the target
+rem machine is worse than no default: unset, the reconciler simply runs
+rem without a judge, holds what it cannot decide, and the ask band puts
+rem the strong matches in front of a person anyway.
+rem   set TL_JUDGE_MODEL=llama3.1:8b     to turn the judge on
 
 set "CMD=%~1"
 if "%CMD%"=="" set "CMD=up"

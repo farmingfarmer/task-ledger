@@ -113,6 +113,41 @@ def main():
         print("     start \"ollama\" ollama serve")
         return 2
 
+    # A model that is not installed does not fail at startup: it fails on
+    # the first call that needs it, as HTTP 404 from /api/chat, several
+    # frames deep, after the ledger is already half-built. Worse for a
+    # COMPARISON, because the judge is only consulted on ambiguous
+    # matches -- so five people reconcile cleanly, three explode, and the
+    # resulting ledger looks like Copilot produced worse work rather than
+    # like a model name being wrong.
+    try:
+        import urllib.request as _u
+        with _u.urlopen(host + "/api/tags", timeout=5) as r:
+            import json as _j
+            tags = [m.get("name", "")
+                    for m in _j.loads(r.read().decode("utf-8"))
+                             .get("models", [])]
+    except Exception:                                   # noqa: BLE001
+        tags = []
+
+    def installed(m):
+        return not m or not tags or any(
+            t == m or t.startswith(m + ":") or t.split(":")[0] == m
+            for t in tags)
+
+    want_embed = os.environ.get("TL_EMBED_MODEL", "nomic-embed-text")
+    want_judge = os.environ.get("TL_JUDGE_MODEL")
+    missing = [m for m in (want_embed, want_judge) if not installed(m)]
+    if missing:
+        print("\nmodel(s) not installed on this Ollama: {0}".format(
+            ", ".join(missing)))
+        print("  installed: {0}".format(", ".join(tags) or "none"))
+        print("  Both ledgers must use the SAME models or the comparison")
+        print("  measures the models instead of the extractors. Set them")
+        print("  to something above and run again, e.g.:")
+        print('     set TL_JUDGE_MODEL=llama3.1:8b')
+        return 2
+
     print("comparison ledger '{0}' (beside your real '{1}')".format(
         args.dbname, real))
     print("  1. drop and recreate it -- it exists only for this comparison")
