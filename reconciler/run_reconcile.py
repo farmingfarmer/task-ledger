@@ -20,6 +20,7 @@ to stderr. Python 3.8 compatible.
 import argparse
 import datetime
 import json
+import os
 import sys
 import urllib.request
 
@@ -28,15 +29,38 @@ import embedders
 import reconciler
 
 
+# A judge answer is a short JSON object -- a verdict, a confidence, a
+# task id, one sentence. Left uncapped, an 8B model on a laptop CPU will
+# happily spend minutes explaining itself first, and the reply is
+# discarded past the closing brace anyway. num_predict is the difference
+# between a judge call that takes twenty seconds and one that takes five
+# minutes, on the same machine and the same model.
+JUDGE_NUM_PREDICT = int(os.environ.get("TL_JUDGE_NUM_PREDICT", "256"))
+
+# Per-call budget, not a session budget. 300s was chosen when nothing had
+# ever hit it; the first real multi-person run hit it twice, and back
+# then a hit meant an unhandled TimeoutError and a lost packet. The
+# reconciler now degrades a failed judge to a hold, so a shorter budget
+# costs a held signal rather than a person's whole run -- and holding is
+# the documented behaviour when there is no judge at all.
+JUDGE_TIMEOUT = int(os.environ.get("TL_JUDGE_TIMEOUT", "90"))
+
+
 def ollama_chat(model, host="http://localhost:11434"):
     def call(messages):
         body = json.dumps({"model": model, "messages": messages,
                            "stream": False,
-                           "options": {"temperature": 0.0}}).encode("utf-8")
+                           "options": {"temperature": 0.0,
+                                       "num_predict": JUDGE_NUM_PREDICT},
+                           # Keep the weights resident between calls. A
+                           # judge is consulted a handful of times per
+                           # person; reloading several GB before each one
+                           # is most of the wall clock.
+                           "keep_alive": "10m"}).encode("utf-8")
         req = urllib.request.Request(
             host + "/api/chat", data=body,
             headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=300) as resp:
+        with urllib.request.urlopen(req, timeout=JUDGE_TIMEOUT) as resp:
             data = json.loads(resp.read().decode("utf-8"))
         return data["message"]["content"]
     return call

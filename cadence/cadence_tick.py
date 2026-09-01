@@ -425,6 +425,16 @@ def run_reconcile(dsn, user, host, embed_model, judge_model):
             user, result["proposals"], len(report["consumed"]),
             len(report["held"]), len(report["candidate_sightings"]),
             len(report["candidate_promotions"]), len(result["superseded"])))
+    # A judge that could not be reached held signals that a working one
+    # might have linked. Silent, that reads as a quiet week; said, it is
+    # one line pointing at the model.
+    if report.get("judge_failures"):
+        log("  judge[{0}]: {1} of {2} call(s) FAILED ({3}) -- those "
+            "signals were held, not guessed at. A slow local model is "
+            "the usual cause; TL_JUDGE_TIMEOUT is the budget."
+            .format(user, report["judge_failures"], report["judge_calls"],
+                    ", ".join("{0} x{1}".format(k, n) for k, n in sorted(
+                        (report.get("judge_failure_kinds") or {}).items()))))
     # A promotion count of zero has three quite different causes and they
     # are worth telling apart without a psql session.
     for h in (report.get("held_detail") or [])[:8]:

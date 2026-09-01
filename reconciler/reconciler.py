@@ -183,6 +183,7 @@ class Reconciler(object):
         report = {"consumed": [], "held": [], "held_detail": [],
                   "dropped": [],
                   "annotations": [], "merged": [], "judge_calls": 0,
+                  "judge_failures": 0, "judge_failure_kinds": {},
                   "candidate_sightings": [], "candidate_promotions": [],
                   "auto_applied": []}
         draft = []   # gate outputs before aggregation
@@ -353,6 +354,33 @@ class Reconciler(object):
                 "note": note, "judge_conf": None,
                 "closest_task_id": best["task_id"]}
 
+    def _ask_judge(self, msgs, report):
+        """Call the judge, or return None if it could not be called.
+
+        A judge is an OPTIONAL consultant: with none configured, this
+        system already holds what it cannot decide, and that path is
+        tested. A judge that times out is the same situation arriving by
+        a different route -- but it used to arrive as an unhandled
+        TimeoutError out of urllib, five frames deep, which killed
+        reconcile() for that person and cost them their whole packet:
+        every proposal, every consumed mark, every candidate sighting.
+        Two of eight people on the first real run.
+
+        A local 8B model on a laptop CPU taking longer than the timeout
+        is ordinary, not exceptional. It must degrade to "no opinion",
+        which is what holding means, and it must be counted so a run
+        that quietly held half its judge-band signals says so.
+        """
+        try:
+            return self.judge_llm(msgs)
+        except Exception as exc:                        # noqa: BLE001
+            report["judge_failures"] = report.get("judge_failures", 0) + 1
+            report.setdefault("judge_failure_kinds", {})
+            kind = exc.__class__.__name__
+            report["judge_failure_kinds"][kind] = (
+                report["judge_failure_kinds"].get(kind, 0) + 1)
+            return None
+
     def _judge(self, sig, candidates, sims, report):
         if self.judge_llm is None:
             return None
@@ -370,7 +398,9 @@ class Reconciler(object):
              "evidence_excerpts": []},
             cand_dicts)
         report["judge_calls"] += 1
-        raw = self.judge_llm(msgs)
+        raw = self._ask_judge(msgs, report)
+        if raw is None:
+            return None          # unreachable judge == no judge: hold it
         try:
             r = judge_prompts.parse_judge_response(raw)
         except (ValueError, KeyError):
@@ -1091,8 +1121,11 @@ class Reconciler(object):
             _as_merge_block("pending-kept", kept),
             _as_merge_block("pending-other", other))
         report["judge_calls"] += 1
+        raw = self._ask_judge(msgs, report)
+        if raw is None:
+            return False   # unreachable judge never merges, same as none
         try:
-            r = judge_prompts.parse_judge_response(self.judge_llm(msgs))
+            r = judge_prompts.parse_judge_response(raw)
         except (ValueError, KeyError):
             return False   # malformed judge output never merges
         return (r["verdict"] == "same_task"

@@ -703,6 +703,44 @@ def test_cross_owner_guard():
     ok(seen["called"], "identical title but different owner forces the judge")
 
 
+def test_judge_that_will_not_answer():
+    print("judge that will not answer")
+
+    def timeout_judge(messages):
+        raise TimeoutError("timed out")
+
+    r = reconciler.Reconciler(embed=embedders.TokenEmbedder(),
+                              judge_llm=timeout_judge)
+    board = [task(task_id="task-ocr", title="Fix OCR crash in intake")]
+    s = sig(title="Sort out the OCR crash on intake",
+            signal_type="status_update", status_signal="in_progress",
+            owner_candidates=[{"person_ref": "aad-dev", "confidence": 0.9,
+                               "basis": "self_reference"}])
+    packet, report = r.reconcile("aad-dev", [s], board, 1, "run-jt")
+    ok(True, "a judge that times out does not take the run down with it -- "
+             "reconcile() returned instead of raising five frames deep in "
+             "urllib, which used to cost that person every proposal, every "
+             "consumed mark and every candidate sighting they had")
+    ok(report["judge_failures"] == 1
+       and report["judge_failure_kinds"].get("TimeoutError") == 1,
+       "the failure is COUNTED and named, so a run that quietly held its "
+       "judge-band signals says so instead of looking like a quiet day")
+    ok(s["signal_id"] in report["held"]
+       and s["signal_id"] not in report["consumed"],
+       "and the signal is HELD, not guessed at: an unreachable judge is "
+       "the same situation as no judge, and that path was always to wait")
+
+    def broken_judge(messages):
+        raise ValueError("connection reset")
+
+    r2 = reconciler.Reconciler(embed=embedders.TokenEmbedder(),
+                               judge_llm=broken_judge)
+    packet2, report2 = r2.reconcile("aad-dev", [dict(s)], board, 1, "run-jt2")
+    ok(report2["judge_failures"] == 1,
+       "any transport failure counts, not just timeouts -- a reset "
+       "connection and a stopped Ollama fail the same way")
+
+
 def test_parent_hint_rides_to_the_card():
     print("parent hint")
     r = reconciler.Reconciler(embed=embedders.TokenEmbedder())
@@ -1172,6 +1210,7 @@ if __name__ == "__main__":
     test_cross_owner_guard()
     test_ask_band_asks_a_person()
     test_uncitable_proposal_dropped()
+    test_judge_that_will_not_answer()
     test_parent_hint_rides_to_the_card()
     test_pg_live()
     print("\nall {0} reconciler checks passed".format(CHECKS[0]))
