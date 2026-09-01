@@ -1420,6 +1420,11 @@
   }
 
   function proposalRow(p, writable){
+    // A card whose evidence is only an assistant's word is never
+    // answerable, on any profile. The server refuses it too -- this is
+    // so the buttons say so before they are clicked, rather than the
+    // reason arriving as an error after a person has already decided.
+    if(p.traceable === false) writable = false;
     var row = el2("div","revitem");
     row.appendChild(el("span","op", opLabel(p.op)));
     var title = (p.payload && p.payload.title) || p.target_title
@@ -1507,6 +1512,12 @@
     if(own) acts.appendChild(own);
     acts.appendChild(later);
     row.appendChild(acts);
+    if(p.traceable === false){
+      row.appendChild(el("div","why",
+        "No sentence behind this one \u2014 an assistant asserted it and "
+        + "released nothing to check it against, so there is nothing here "
+        + "to agree or disagree with."));
+    }
     return row;
   }
 

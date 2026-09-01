@@ -117,16 +117,20 @@ if COPILOT_DSN:
     PROFILES["copilot"] = {
         "dsn": COPILOT_DSN, "synthetic": False, "writable": False,
         "label": os.environ.get("TL_COPILOT_LABEL", "Copilot claims"),
-        "blurb": "Claims Copilot exported, none of them verifiable here.",
+        "blurb": "Claims Copilot exported, traceable only where the quote "
+                 "was found in a transcript we hold.",
         "banner": {
-            "tag": "Unverified claims",
-            "text": "Copilot extracted these itself and asserted that a "
-                    "transcript supports them, but released no message, no "
-                    "utterance and no span -- only meeting names. Nothing "
-                    "on this screen can be traced to a sentence, so "
-                    "confidence is capped and every owner is marked "
-                    "inferred. This is what an assistant says happened; the "
-                    "board still moves only when a person agrees."}}
+            "tag": "Assistant claims, anchored where possible",
+            "text": "Copilot extracted these itself. Where it quoted a "
+                    "sentence we could find in the transcript, the claim "
+                    "cites that utterance by id and hash and carries the "
+                    "speaker who actually said it -- those cards are "
+                    "answerable. Where the quote matched nothing, the "
+                    "claim keeps its cap, its owner stays 'inferred', and "
+                    "the card is read-only: accepting something nobody can "
+                    "check is not a decision anyone should be able to "
+                    "record. The board still moves only when a person "
+                    "agrees."}}
 
 # HANDS-ON MODE. The real ledger is read-only from a browser on purpose:
 # a decision is a person's word, and a web page that anyone can point at
@@ -137,13 +141,20 @@ if COPILOT_DSN:
 #
 # So it is a switch, not a default: off unless TL_HANDS_ON=1 is set by
 # whoever starts the server, announced in the UI while it is on, and
-# never silent. Only the real profile is affected. The copilot profile
-# stays read-only in every mode, because nothing on it can be traced to
-# a sentence and accepting an untraceable claim is not a decision anyone
-# should be able to record.
+# never silent.
+#
+# The copilot profile used to stay read-only in every mode, because
+# nothing on it could be traced to a sentence. Quote anchoring changed
+# what is true there, but only for some cards: a claim whose quote was
+# found in a transcript we hold cites that utterance by id and hash, and
+# a claim whose quote matched nothing still cites nobody. So the gate
+# moved from the profile to the card -- see _untraceable(). A mixed
+# ledger must not be wholly writable just because part of it earned it.
 HANDS_ON = os.environ.get("TL_HANDS_ON", "").strip() in ("1", "true", "yes")
 if HANDS_ON:
     PROFILES["real"]["writable"] = True
+    if COPILOT_DSN:
+        PROFILES["copilot"]["writable"] = True
     PROFILES["real"]["banner"] = {
         "tag": "Hands-on session",
         "text": "Your answers are real: accepting a card puts the task on "
@@ -929,7 +940,11 @@ def review_queue():
             SELECT p.proposal_id, p.op, p.payload, p.confidence,
                    p.rationale, p.conflict_type, p.target_task_id,
                    t.title AS target_title, t.status AS target_status,
-                   count(ev.resource_id) AS sources
+                   count(ev.resource_id) AS sources,
+                   count(*) FILTER (
+                     WHERE ev.source_type = ANY(ARRAY['teams_message',
+                       'email_message','transcript_utterance',
+                       'document_span'])) > 0 AS traceable
             FROM proposals p
             LEFT JOIN decisions d ON d.proposal_id = p.proposal_id
             LEFT JOIN tasks_current t ON t.task_id = p.target_task_id
@@ -1144,6 +1159,45 @@ def _refuse_write():
                   "there through the Teams card or cli/review.py."}), 403
 
 
+# Evidence source_types that point at something a person can go and read.
+# 'assistant_claim' is deliberately absent: it is the marker written when
+# an assistant asserted a transcript supports it but produced no locator.
+CITABLE_SOURCES = ("teams_message", "email_message", "transcript_utterance",
+                   "document_span")
+
+
+def _untraceable(cur, proposal_id):
+    """Reason this proposal cannot be answered from a browser, or None.
+
+    Anchoring made the copilot ledger a MIXED one: some claims quoted a
+    sentence we found and now cite it by id and hash, others quoted
+    something no transcript contains and still cite nobody. Gating that
+    at the profile level can only be wrong in one of two directions --
+    lock the whole ledger and the anchoring was cosmetic, open it and a
+    made-up sentence becomes acceptable with one click.
+
+    So the gate is per card, and it asks the only question that matters:
+    is there evidence here a person could go and read? Applies to every
+    profile, because the answer should not depend on which ledger the
+    claim happens to be sitting in.
+    """
+    cur.execute("""
+        SELECT count(*) FILTER (WHERE ev.source_type = ANY(%s)) AS citable,
+               count(*) AS total
+        FROM proposal_signals ps
+        JOIN evidence_refs ev ON ev.signal_id = ps.signal_id
+        WHERE ps.proposal_id = %s""", (list(CITABLE_SOURCES), proposal_id))
+    row = cur.fetchone()
+    citable = (row["citable"] if isinstance(row, dict) else row[0]) or 0
+    if citable:
+        return None
+    return ("Nothing on this card can be traced to a sentence. An "
+            "assistant asserted it and released no utterance to check it "
+            "against, so it cannot be accepted or rejected here -- "
+            "rejecting it would be recorded as a judgement too. Find the "
+            "quote in the meeting and it becomes answerable.")
+
+
 @app.route("/api/decide", methods=["POST"])
 def decide():
     """Record a human decision on one proposal. SELF ONLY, synthetic only."""
@@ -1185,6 +1239,17 @@ def decide():
                 return jsonify({"error": "no such undecided proposal"}), 404
             if prop["user_ref"] != v:
                 return jsonify({"error": "that packet is not yours"}), 403
+            # After the request has been checked and before anything is
+            # recorded: a malformed request is wrong whatever card it
+            # names, and this refusal is about the card. Rejection is
+            # gated too, not only acceptance -- "no" is a judgement, and
+            # it feeds the eval set, so it needs something real to be a
+            # judgement about.
+            why = _untraceable(cur, proposal_id)
+            if why:
+                return jsonify({"error": "this card cannot be answered "
+                                         "from the browser",
+                                "detail": why}), 403
 
             if choice == "defer":
                 review_cli.defer_signals(cur, v, prop)

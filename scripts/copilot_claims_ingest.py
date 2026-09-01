@@ -114,6 +114,22 @@ STATUS = {
 CONFIDENCE = {"high": 0.75, "medium": 0.62, "low": 0.45}
 MAX_CONFIDENCE = 0.75
 
+# ANCHORED claims -- the quote was found in a transcript this system
+# holds, so the citation is checkable and the reason for capping is gone.
+# The cap was never about Copilot being untrustworthy in general; it was
+# about a claim nobody could verify not being allowed to outrank one that
+# could. A matched claim IS one that can.
+#
+# 'high' sits above the closure floors (complete_task and cancel_task at
+# 0.80/0.85) on purpose: a verified completion claim SHOULD be able to
+# propose that work is finished. That is the whole payoff, and it is
+# still only a proposal -- the closure gate continues to demand the
+# speaker be the owner or the claim corroborated, and no board moves
+# without a person. 'medium' and 'low' stay under those floors, because
+# an assistant hedging about a sentence it did find is different from an
+# assistant certain about one.
+ANCHORED_CONFIDENCE = {"high": 0.88, "medium": 0.70, "low": 0.50}
+
 PROMPT_VERSION = "copilot-claims-v1"
 
 
@@ -134,7 +150,7 @@ def slug(text, n=40):
     return re.sub(r"[^A-Za-z0-9_-]+", "_", text or "").strip("_")[:n] or "x"
 
 
-def claim_signal(rec, batch_id, idx, bootstrap=False):
+def claim_signal(rec, batch_id, idx, bootstrap=False, transcripts=None):
     """One exported claim -> one signal, or (None, reason).
 
     bootstrap matters more than it looks. A Copilot export is mostly
@@ -151,16 +167,16 @@ def claim_signal(rec, batch_id, idx, bootstrap=False):
     if not isinstance(rec, dict):
         # Belt and braces: whatever the scanner lets through, one bad
         # entry must cost that entry and not the import.
-        return None, "not a claim object"
+        return None, "not a claim object", None
     person = (rec.get("person") or "").strip()
     task = (rec.get("task") or "").strip()
     if not task:
-        return None, "no task text"
+        return None, "no task text", None
     if not person:
         # Everything here is per-person by construction; a record without
         # one is malformed, and guessing an owner is the failure this
         # system exists to avoid.
-        return None, "no person named"
+        return None, "no person named", None
 
     raw_type = (rec.get("claim_type") or "").strip().lower()
     stype = CLAIM_TYPE.get(raw_type, "task_mention")
@@ -177,8 +193,26 @@ def claim_signal(rec, batch_id, idx, bootstrap=False):
             and not rec.get("progress"):
         stype = "blocker"
 
-    conf = CONFIDENCE.get((rec.get("confidence") or "").strip().lower(), 0.40)
-    conf = min(conf, MAX_CONFIDENCE)
+    said = (rec.get("confidence") or "").strip().lower()
+    conf = CONFIDENCE.get(said, 0.40)
+
+    # ANCHORING. The cap and the 'inferred' basis exist for exactly one
+    # reason: Copilot cites a meeting, not a sentence, so nobody can check
+    # it. When the export carries the quote AND that sentence is found in
+    # a transcript already on disk, that reason is gone -- the claim gets
+    # the same evidence ref the local extractor would have written, the
+    # same content hash, and the speaker from the transport rather than
+    # from the model. It is then a claim about a sentence somebody said,
+    # which is what every other signal in this system is, so it is capped
+    # no further and marked no differently.
+    anchor, how = (None, None)
+    quote = (rec.get("quote") or "").strip()
+    if transcripts is not None and quote:
+        anchor, how = transcripts.find(quote)
+    if anchor is None:
+        conf = min(conf, MAX_CONFIDENCE)
+    else:
+        conf = ANCHORED_CONFIDENCE.get(said, conf)
 
     sources = [s for s in (rec.get("sources") or []) if s]
     # The pointer names what Copilot named -- a meeting, not a message --
@@ -192,12 +226,20 @@ def claim_signal(rec, batch_id, idx, bootstrap=False):
     # said it was. The contract forbids extra keys on a signal, and burying
     # them in a raw blob would hide them from the person deciding -- which
     # is exactly who needs to see that the citation is unverifiable.
-    asserted = "Copilot: {0}, evidence {1} (UNVERIFIED - no retrievable " \
-               "source), self-rated {2}{3}".format(
-                   rec.get("claim_type") or "unspecified",
-                   rec.get("evidence_strength") or "unstated",
-                   rec.get("confidence") or "unstated",
-                   (", sources: " + "; ".join(sources)) if sources else "")
+    if anchor is not None:
+        asserted = ("Copilot: {0}, self-rated {1}. Quote matched to the "
+                    "transcript ({2}) -- {3}, so this cites a sentence "
+                    "like any other signal.").format(
+                        rec.get("claim_type") or "unspecified",
+                        rec.get("confidence") or "unstated",
+                        how, anchor["resource_id"])
+    else:
+        asserted = "Copilot: {0}, evidence {1} (UNVERIFIED - no retrievable " \
+                   "source), self-rated {2}{3}".format(
+                       rec.get("claim_type") or "unspecified",
+                       rec.get("evidence_strength") or "unstated",
+                       rec.get("confidence") or "unstated",
+                       (", sources: " + "; ".join(sources)) if sources else "")
     description = " ".join(x for x in [
         rec.get("progress"),
         ("Blocked on: " + "; ".join(blockers)) if blockers else None,
@@ -212,10 +254,16 @@ def claim_signal(rec, batch_id, idx, bootstrap=False):
         "description": description,
         "status_signal": STATUS.get((rec.get("status") or "").strip().lower()),
         "confidence": conf,
-        "author_ref": None,          # nobody was heard; there is no speaker
+        # The speaker comes from the TRANSCRIPT when the quote matched --
+        # a transport fact, the same place the local extractor takes it
+        # from -- and is None otherwise, because without a matched
+        # sentence nobody was heard. said_by is deliberately not trusted
+        # on its own: it is the model's account of who spoke.
+        "author_ref": anchor["author_ref"] if anchor else None,
         "owner_candidates": [{
             "person_ref": ref_for(person),
-            # Rule 3: never promoted, whatever Copilot called it.
+            # Still 'inferred': the quote proves the sentence was said,
+            # not that the assistant read the ownership out of it right.
             "basis": "inferred",
             "confidence": conf,
         }],
@@ -223,18 +271,25 @@ def claim_signal(rec, batch_id, idx, bootstrap=False):
         "blocker": ({"description": "; ".join(blockers)[:300],
                      "blocking_party_ref": None} if blockers else None),
         "evidence": [{
-            "source_type": "assistant_claim",
-            "resource_id": resource_id,
+            "source_type": ("transcript_utterance" if anchor
+                            else "assistant_claim"),
+            "resource_id": (anchor["resource_id"] if anchor
+                            else resource_id),
             "span": None,
-            # Hash of the record as exported: this cannot prove what anyone
-            # said, but it does prove the export was not edited afterwards.
-            "content_hash": sha(json.dumps(rec, sort_keys=True)),
+            # Anchored: the hash of the utterance, byte-identical to what
+            # the extraction worker writes, so the receipt verifies the
+            # same way whichever path produced it. Unanchored: the hash of
+            # the exported record, which cannot prove what anyone said but
+            # does prove the export was not edited afterwards.
+            "content_hash": (anchor["content_hash"] if anchor
+                             else sha(json.dumps(rec, sort_keys=True))),
         }],
     }
-    return signal, None
+    return signal, None, (how if anchor else None)
 
 
-def build_batch(records, exported_at, label, bootstrap=False):
+def build_batch(records, exported_at, label, bootstrap=False,
+                transcripts=None):
     source_ref = "copilot-claims-{0}-{1}".format(exported_at[:10], slug(label,
                                                                        24))
     batch_id = sha(source_ref, exported_at, PROMPT_VERSION)[:32]
@@ -249,10 +304,16 @@ def build_batch(records, exported_at, label, bootstrap=False):
                    "time_end": exported_at},
         "signals": [],
     }
-    report = {"records": len(records), "kept": 0, "dropped": []}
+    report = {"records": len(records), "kept": 0, "dropped": [],
+              "anchored": 0, "anchor_how": {}}
     seen = set()
     for i, rec in enumerate(records):
-        sig, why = claim_signal(rec, batch_id, i, bootstrap)
+        sig, why, how = claim_signal(rec, batch_id, i, bootstrap,
+                                     transcripts)
+        if how:
+            report["anchored"] += 1
+            kind = how.split()[0]      # exact / contained / fuzzy
+            report["anchor_how"][kind] = report["anchor_how"].get(kind, 0) + 1
         if sig is None:
             report["dropped"].append({"index": i, "reason": why,
                                       "task": (rec.get("task") or "")[:60]})
@@ -389,6 +450,9 @@ def main():
                          "claim to a type that can create a task, so "
                          "progress updates about work the board has "
                          "never seen are not silently consumed")
+    ap.add_argument("--no-anchor", action="store_true",
+                    help="do not try to match quotes to transcripts; every "
+                         "claim stays unverified and capped")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -398,8 +462,21 @@ def main():
     total = 0
     for path in args.files:
         records = load_records(path)
+        # The transcripts the ledger already holds. A quote that matches
+        # one of them turns an unverifiable claim into a cited one.
+        transcripts = None
+        if not args.no_anchor:
+            sys.path.insert(0, os.path.join(ROOT, "extraction"))
+            import quote_anchor
+            inbox = os.path.expanduser(
+                os.environ.get("TL_INBOX", "~/task-ledger-inbox"))
+            transcripts = quote_anchor.Transcripts(inbox)
+            if not len(transcripts):
+                print("   (no transcripts found in {0} -- claims will stay "
+                      "unverified)".format(inbox))
+                transcripts = None
         batch, report = build_batch(records, exported_at, args.label,
-                                    args.bootstrap)
+                                    args.bootstrap, transcripts)
 
         import jsonschema
         with open(os.path.join(ROOT, "contracts",
@@ -416,9 +493,19 @@ def main():
             len(people)))
         print("   types: " + ", ".join(
             "{0}={1}".format(k, v) for k, v in sorted(kinds.items())))
-        print("   every owner basis 'inferred', confidence capped at "
-              "{0} -- these claims cannot be checked, so they must not "
-              "outrank claims that can".format(MAX_CONFIDENCE))
+        n_anchored = report["anchored"]
+        if n_anchored:
+            how = ", ".join("{0} {1}".format(v, k) for k, v
+                            in sorted(report["anchor_how"].items()))
+            print("   {0} of {1} claim(s) matched a sentence in your "
+                  "transcripts ({2}) -- those cite an utterance, carry the "
+                  "speaker, and are NOT capped".format(
+                      n_anchored, report["kept"], how))
+        if report["kept"] - n_anchored:
+            print("   {0} unmatched: owner basis 'inferred', confidence "
+                  "capped at {1} -- claims nobody can check must not "
+                  "outrank claims that can".format(
+                      report["kept"] - n_anchored, MAX_CONFIDENCE))
         for d in report["dropped"]:
             print("   dropped [{0}]: {1}".format(d["reason"], d["task"]))
 

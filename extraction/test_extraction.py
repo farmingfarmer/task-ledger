@@ -191,10 +191,57 @@ def test_copilot_paste_shapes():
     ok(len(got) == 1 and all(isinstance(g, dict) for g in got),
        "a truncated record costs that record, not the import -- and "
        "never leaks its inner lists in as claims")
-    sig, why = ci.claim_signal("a bare string", "b", 0)
+    sig, why, _how = ci.claim_signal("a bare string", "b", 0)
     ok(sig is None and why == "not a claim object",
        "and the claim builder refuses a non-object outright, whatever "
        "reaches it")
+
+
+def test_quote_anchoring():
+    print("quote anchoring")
+    import tempfile
+    import quote_anchor
+    tmp = tempfile.mkdtemp()
+    said = ("So the plan is to finalise the CGM cohort definition and get "
+            "the patient counts over to Lorenzo by Thursday.")
+    window = {"job": {"source_ref": "teams-2026-08-31-scrum"},
+              "directory": {},
+              "items": [
+                  {"resource_id": "tx1-001", "author_ref": "aad-hari",
+                   "text": said},
+                  {"resource_id": "tx1-002", "author_ref": "aad-yesha",
+                   "text": "I can pick up the observation extraction work "
+                           "once the cohort is settled."}]}
+    with open(os.path.join(tmp, "w.json"), "w") as f:
+        json.dump(window, f)
+    t = quote_anchor.Transcripts(tmp)
+    ok(len(t) == 2, "utterances on disk are indexed")
+
+    rec, how = t.find(said)
+    ok(rec and rec["resource_id"] == "tx1-001" and how == "exact",
+       "a verbatim quote finds its own utterance")
+    ok(rec["content_hash"] == quote_anchor._sha(said),
+       "and carries the same content hash the extraction worker writes, "
+       "so a receipt verifies identically whichever path produced it")
+
+    # What a model actually returns: the sentence, lightly tidied.
+    rec, how = t.find("So the plan is to finalize the CGM cohort "
+                      "definition and get the patient counts over to "
+                      "Lorenzo by Thursday")
+    ok(rec and rec["resource_id"] == "tx1-001" and how.startswith("fuzzy"),
+       "a lightly reworded quote still matches -- models tidy grammar "
+       "and drop fillers")
+
+    # The failure that matters. A receipt pointing at the wrong sentence
+    # is not a weaker citation, it is a lie with a hash on it.
+    rec, how = t.find("We should migrate the whole platform to Kubernetes "
+                      "next quarter and rewrite ingestion in Rust")
+    ok(rec is None,
+       "a sentence nobody said is REFUSED, not mapped to the nearest "
+       "thing available")
+    rec, how = t.find("yes agreed")
+    ok(rec is None,
+       "and a quote too short to identify anything is refused too")
 
 
 def test_prompt_build():
@@ -645,6 +692,7 @@ def test_pg_store():
 if __name__ == "__main__":
     test_transcript_encodings()
     test_copilot_paste_shapes()
+    test_quote_anchoring()
     test_prompt_build()
     test_golden()
     test_determinism()

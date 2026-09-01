@@ -49,6 +49,10 @@ SIGNAL_CREATE = "signal-dash-create"
 # A fresh id per run keeps exactly one of these open at the point it counts.
 ATTRIB_PROP = "prop-dash-attrib-{0}".format(int(time.time() * 1000))
 ATTRIB_SIGNAL = "sig-dash-attrib-{0}".format(int(time.time() * 1000))
+# A claim an assistant asserted and produced no locator for. Fresh id per
+# run for the same reason as ATTRIB_PROP: this run rules on it.
+UNCITED_PROP = "prop-dash-uncited-{0}".format(int(time.time() * 1000))
+UNCITED_SIGNAL = "sig-dash-uncited-{0}".format(int(time.time() * 1000))
 # Ruled on by this run, and candidate events are append-only, so a
 # fixed id would be "sighted" once and "dismissed" ever after.
 CAND_ID = "cand-dash-{0}".format(int(time.time() * 1000))
@@ -71,6 +75,27 @@ def seed(conn):
     grants. Returns the id of the board event that carries provenance."""
     with conn:
         with conn.cursor() as cur:
+            # FIRST, before any of the early returns below: close attrib
+            # proposals left open by an earlier run. The fresh-id-per-run
+            # trick assumes each run DECIDES the one it creates, and a run
+            # that dies before that point leaks it -- every later run then
+            # counts one more undecided proposal and fails an assertion
+            # about state it never created. Deciding them is append-only,
+            # and it restores the invariant the count depends on: exactly
+            # one open attrib proposal, this run's.
+            cur.execute("""
+                INSERT INTO decisions (proposal_id, packet_id, decision,
+                  decided_by, reject_reason, decided_at)
+                SELECT p.proposal_id, p.packet_id, 'reject', %s, 'stale',
+                       now()
+                FROM proposals p
+                LEFT JOIN decisions d ON d.proposal_id = p.proposal_id
+                WHERE (p.proposal_id LIKE 'prop-dash-attrib-%%'
+                       OR p.proposal_id LIKE 'prop-dash-uncited-%%')
+                  AND p.proposal_id NOT IN (%s, %s)
+                  AND d.decision_id IS NULL
+                ON CONFLICT (proposal_id, decided_by) DO NOTHING""",
+                (OWNER, ATTRIB_PROP, UNCITED_PROP))
             cur.execute("SELECT 1 FROM tasks_current WHERE task_id = %s",
                         (TASK,))
             if cur.fetchone() is None:
@@ -175,10 +200,55 @@ def seed(conn):
                      "confidence": 0.6},
                     {"person_ref": MATE, "basis": "inferred",
                      "confidence": 0.4}])))
+            # It needs a citation like any other signal. Without one this
+            # card is indistinguishable from an assistant assertion with
+            # nothing behind it, which the browser now refuses to let
+            # anyone answer -- and the fixture would be testing owner
+            # correction on a card no real reviewer could reach.
+            cur.execute("""
+                INSERT INTO evidence_refs (signal_id, ordinal, source_type,
+                  resource_id, content_hash)
+                VALUES (%s, 1, 'transcript_utterance', %s, 'hash-attrib')
+                ON CONFLICT DO NOTHING""",
+                (ATTRIB_SIGNAL, "utt-" + ATTRIB_SIGNAL))
             cur.execute("""
                 INSERT INTO proposal_signals (proposal_id, signal_id)
                 VALUES (%s,%s)
                 ON CONFLICT DO NOTHING""", (ATTRIB_PROP, ATTRIB_SIGNAL))
+            # And its opposite: the same shape of card, cited only as
+            # 'assistant_claim' -- something asserted with no utterance
+            # released to check it against. Seeded here so the refusal is
+            # tested against a card that is otherwise perfectly ordinary.
+            cur.execute("""
+                INSERT INTO proposals (proposal_id, packet_id, op,
+                  target_task_id, rationale, confidence, conflict_type,
+                  conflict_detail, payload)
+                VALUES (%s,%s,'create_task',NULL,
+                        'asserted by an assistant',0.88,NULL,NULL,%s)
+                ON CONFLICT (proposal_id) DO NOTHING""",
+                (UNCITED_PROP, PACKET,
+                 json.dumps({"kind": "create_task",
+                             "title": "Fixture uncited claim",
+                             "owner_ref": OWNER})))
+            cur.execute("""
+                INSERT INTO signals (signal_id, batch_id, signal_type, title,
+                  confidence, owner_candidates, raw)
+                VALUES (%s, %s, 'task_mention', 'Fixture uncited claim',
+                        0.88, %s, '{}')
+                ON CONFLICT (signal_id) DO NOTHING""",
+                (UNCITED_SIGNAL, BATCH, json.dumps([
+                    {"person_ref": OWNER, "basis": "inferred",
+                     "confidence": 0.6}])))
+            cur.execute("""
+                INSERT INTO evidence_refs (signal_id, ordinal, source_type,
+                  resource_id, content_hash)
+                VALUES (%s, 1, 'assistant_claim', %s, NULL)
+                ON CONFLICT DO NOTHING""",
+                (UNCITED_SIGNAL, "claim-" + UNCITED_SIGNAL))
+            cur.execute("""
+                INSERT INTO proposal_signals (proposal_id, signal_id)
+                VALUES (%s,%s)
+                ON CONFLICT DO NOTHING""", (UNCITED_PROP, UNCITED_SIGNAL))
             cur.execute("""
                 INSERT INTO decisions (proposal_id, packet_id, decision,
                   reject_reason, decided_by, decided_at)
@@ -335,7 +405,7 @@ def main():
 
     print("self-only endpoints")
     code, pend = as_viewer(client, "/api/pending", OWNER)
-    ok(code == 200 and pend["undecided"] == 2
+    ok(code == 200 and pend["undecided"] == 3
        and pend["packets"][0]["packet_id"] == PACKET,
        "owner sees their own pending packet and undecided count")
     code, mate_pend = as_viewer(client, "/api/pending", MATE)
@@ -739,6 +809,36 @@ def main():
                                        "reassign_to": MATE})
         ok(code == 400,
            "a reassignment is a wrong_owner rejection, not any rejection")
+
+        print("uncited claims")
+        uncited = [p for p in rev["proposals"]
+                   if p["proposal_id"] == UNCITED_PROP]
+        ok(len(uncited) == 1 and uncited[0]["traceable"] is False,
+           "a card whose only evidence is an assistant's word is marked "
+           "untraceable, so the buttons can be dead before they are "
+           "clicked rather than after")
+        ok(attrib[0]["traceable"] is True,
+           "and an anchored card beside it is not -- the distinction is "
+           "per card, because an anchored ledger is a MIXED one")
+        code, body = post("/api/decide", {"proposal_id": UNCITED_PROP,
+                                          "decision": "accept"})
+        ok(code == 403 and "trace" in json.dumps(body),
+           "accepting it is refused with the reason, not silently allowed "
+           "because the profile happened to be writable")
+        code, body = post("/api/decide", {"proposal_id": UNCITED_PROP,
+                                          "decision": "reject",
+                                          "reject_reason": "not_a_task"})
+        ok(code == 403,
+           "and so is rejecting it -- 'no' is a judgement too, and it "
+           "trains the eval, so it needs something real to be about")
+        check3 = psycopg2.connect(dsn)
+        with check3.cursor() as c4:
+            c4.execute("SELECT count(*) FROM decisions WHERE proposal_id = %s",
+                       (UNCITED_PROP,))
+            ok(c4.fetchone()[0] == 0,
+               "and nothing was recorded either way: a refused card leaves "
+               "no trace of a decision nobody was allowed to make")
+        check3.close()
         code, _ = post("/api/decide", {"proposal_id": ATTRIB_PROP,
                                        "decision": "reject",
                                        "reject_reason": "wrong_owner",

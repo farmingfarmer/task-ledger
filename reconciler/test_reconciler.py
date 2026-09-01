@@ -720,9 +720,10 @@ def test_pg_live():
     conn = psycopg2.connect(dsn)
     with conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT 1 FROM tasks_current WHERE task_id=%s",
+            cur.execute("SELECT status FROM tasks_current WHERE task_id=%s",
                         ("task-devocr",))
-            if cur.fetchone() is None:
+            row = cur.fetchone()
+            if row is None:
                 cur.execute(
                     "SELECT apply_task_event('task-devocr','aad-dev',"
                     "'created','manual_edit',NULL,"
@@ -730,6 +731,20 @@ def test_pg_live():
                     (json.dumps({"title": "Fix OCR crash in intake",
                                  "status": "in_progress",
                                  "owner_ref": "aad-dev"}),))
+            elif row[0] not in ("in_progress", "not_started", "blocked"):
+                # Reopen it. This suite ACCEPTS the completion proposal it
+                # generates, so run one closes the very task run two needs
+                # open -- load_board only returns matchable (open) tasks,
+                # and the seed above is create-if-absent, which a closed
+                # row satisfies. The result was a suite that passed once
+                # per fresh database and failed forever after, on a
+                # machine where nobody had touched the code. A fixture
+                # must establish the state it needs, not merely the row.
+                cur.execute(
+                    "SELECT apply_task_event('task-devocr','aad-dev',"
+                    "'status_changed','manual_edit',NULL,"
+                    "%s::jsonb)",
+                    (json.dumps({"to_status": "in_progress"}),))
             # Backdate so the completion youth gate (age < 1 day holds
             # 'done' echoes) does not trip on a freshly seeded task.
             cur.execute("UPDATE tasks_current SET created_at = "
