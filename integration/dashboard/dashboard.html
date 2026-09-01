@@ -530,6 +530,17 @@
   .subnew{font:inherit;font-size:13px;padding:7px 9px;min-width:260px;
     flex:1;border:1px solid var(--line,#d9dee5);
     border-radius:var(--r1,6px)}
+  .vfixed{font-weight:600;font-size:14px}
+  .ksteps{list-style:none;margin:14px 0;padding:0}
+  .ksteps li{display:flex;gap:10px;align-items:flex-start;
+         padding:9px 0;border-bottom:1px solid var(--line)}
+  .ksteps .knum{flex:0 0 24px;height:24px;border-radius:50%;
+         border:1.5px solid var(--line);display:flex;align-items:center;
+         justify-content:center;font-size:12.5px;font-weight:600}
+  .ksteps li.kdone .knum{background:var(--accent,#2f6fed);
+         border-color:var(--accent,#2f6fed);color:#fff}
+  .ksteps li.kdone .ktxt{color:var(--faint);text-decoration:line-through}
+  .ksteps .ktxt{font-size:13.5px;padding-top:2px}
   .build{font-size:11px;color:var(--faint);font-family:ui-monospace,
          Menlo,Consolas,monospace;margin-left:10px}
   .modal-foot{padding:12px 20px;border-top:1px solid var(--line);
@@ -625,6 +636,7 @@
       <div class="idbox">
         <label for="viewer-sel">Viewing as</label>
         <select id="viewer-sel" aria-label="Viewing as"></select>
+        <span id="viewer-fixed" class="vfixed" hidden></span>
         <input id="viewer-txt" aria-label="Viewing as (type an identity)"
                placeholder="type a ref" size="14" hidden>
         <div class="profsw" id="profsw" hidden></div>
@@ -784,7 +796,8 @@
   // screen is true. The list comes from the ledger or it does not come.
   var VIEWERS = [];
   var state = { viewer: null, user: null, task: null,
-                profile: null, profiles: [], ledgerEmpty: false };
+                profile: null, profiles: [], ledgerEmpty: false,
+                kit: null, blind: false };
 
   // Every request carries the profile, because a page half-real and
   // half-synthetic is worse than either. One helper appends it, so a new
@@ -1285,6 +1298,106 @@
     document.getElementById("welcomemodal").hidden = false;
   }
 
+  // ---- a personal kit greets its person ----
+  //
+  // Shown on EVERY launch, deliberately not localStorage-gated like the
+  // generic welcome: for somebody non-technical this modal IS the
+  // instructions, and instructions that vanish after the first open are
+  // instructions they cannot re-read next morning. It always reflects
+  // where they actually are -- steps they have finished are ticked, so
+  // reopening the app mid-task says "carry on from step 3", not "start".
+  function openKitWelcome(){
+    var kit = state.kit;
+    return get("/api/survey").then(function(spec){
+      return spec.already_done || [];
+    })["catch"](function(){ return []; }).then(function(done){
+      var arms = state.blind ? ["arm-a", "arm-b"] : [state.profile];
+      var doneCount = arms.filter(function(a){
+        return done.indexOf(a) !== -1; }).length;
+      var allDone = doneCount >= arms.length;
+      var name = (kit.for_name || "").split(" ")[0] || "there";
+
+      var body = document.getElementById("wbody");
+      body.innerHTML = "";
+      document.getElementById("wtitle").textContent = allDone
+        ? "You\u2019re finished, " + name + " \u2014 one last step"
+        : "Hello " + name + " \u2014 this one is yours";
+
+      body.appendChild(el("p","wlead", allDone
+        ? "Everything is answered and saved. All that is left is to "
+          + "send the answers back \u2014 step 4 below."
+        : "This was built from meetings you were in. It has read the "
+          + "transcripts and drawn up cards to check with you \u2014 "
+          + "nothing is decided until you answer. It runs only on this "
+          + "computer, and nothing leaves it until you email the "
+          + "results yourself."));
+
+      var steps = [];
+      if(state.blind){
+        steps = [
+          ["Press the Review button and answer the cards.",
+           "There are two ledgers here, built from the same meetings "
+           + "two different ways \u2014 which is which is hidden on "
+           + "purpose. You start on one of them. Most cards take a few "
+           + "seconds; honest and quick beats careful and slow.",
+           done.indexOf(arms[0]) !== -1],
+          ["Fill in the short form when it appears.",
+           "It pops up by itself when you finish the cards. Say what "
+           + "you actually thought \u2014 blunt is useful.",
+           done.indexOf(arms[0]) !== -1],
+          ["Switch to the other ledger and do the same.",
+           "Use the Ledger A / Ledger B switch at the top. Its form "
+           + "asks one extra question: which of the two was better.",
+           done.indexOf("arm-b") !== -1 && done.indexOf("arm-a") !== -1],
+          ["Email your answers back.", null, false]];
+      } else {
+        steps = [
+          ["Press the Review button and answer the cards.",
+           "Most take a few seconds; honest and quick beats careful "
+           + "and slow.", doneCount > 0],
+          ["Fill in the short form when it appears.",
+           "It pops up by itself when you finish. Blunt is useful.",
+           doneCount > 0],
+          ["Email your answers back.", null, false]];
+      }
+
+      var ol = el2("ul","ksteps");
+      steps.forEach(function(s, i){
+        var li = el2("li", s[2] ? "kdone" : null);
+        li.appendChild(el("span","knum", s[2] ? "\u2713" : String(i + 1)));
+        var t = el2("div","ktxt");
+        t.appendChild(el("div", null, s[0]));
+        if(s[1]) t.appendChild(el("div","lede", s[1]));
+        if(!s[1]){   // the email step carries the address and the folder
+          t.appendChild(el("div","lede",
+            "Your answers are saved as ordinary files in the folder "
+            + "below \u2014 attach everything in it to an email to "
+            + (kit.return_to || "whoever gave you this kit") + "."));
+          t.appendChild(el("div","svpath", kit.answers_dir || ""));
+          var cp = el2("button", null); cp.type = "button";
+          cp.textContent = "Copy the folder path";
+          cp.onclick = function(){
+            if(navigator.clipboard)
+              navigator.clipboard.writeText(kit.answers_dir || "");
+            cp.textContent = "Copied \u2014 paste it into the address "
+                             + "bar of any folder window";
+          };
+          t.appendChild(cp);
+        }
+        li.appendChild(t);
+        ol.appendChild(li);
+      });
+      body.appendChild(ol);
+
+      body.appendChild(el("p","lede",
+        "You cannot break anything here. Every answer can be changed "
+        + "afterwards, nothing you do touches anyone else\u2019s work, "
+        + "and closing this window loses nothing \u2014 it reopens "
+        + "exactly where you left off."));
+      document.getElementById("welcomemodal").hidden = false;
+    });
+  }
+
   function openWelcome(){
     var body = document.getElementById("wbody");
     body.innerHTML = "";
@@ -1433,8 +1546,12 @@
     body.innerHTML = ""; foot.innerHTML = "";
     document.getElementById("svtitle").textContent = "Saved \u2014 thank you";
     body.appendChild(el("p","lede",
-      "Your answers are in a file on this machine. Send it on; nothing "
-      + "left this laptop by itself."));
+      "Your answers are in a file on this machine. "
+      + (state.kit && state.kit.return_to
+         ? "Email everything in this folder to " + state.kit.return_to
+           + " when you are done. "
+         : "Send it on. ")
+      + "Nothing left this laptop by itself."));
     body.appendChild(el("div","svpath", r.file || r.folder || ""));
     var copy = el2("button", null); copy.type = "button";
     copy.textContent = "Copy the folder path";
@@ -1454,7 +1571,14 @@
     }
     var done = el2("button","yes"); done.type = "button";
     done.textContent = "Close";
-    done.onclick = closeSurvey;
+    done.onclick = function(){
+      closeSurvey();
+      // In a kit, the finish line is the email step -- put the
+      // checklist back up with everything ticked so the last screen
+      // they see says exactly what remains.
+      if(state.kit && state.kit["for"]
+         && !(r.remaining && r.remaining.length)) openKitWelcome();
+    };
     foot.appendChild(done);
   }
 
@@ -3286,6 +3410,18 @@
   // none in the other, so the picker is reloaded on every switch and keeps
   // the current viewer only if that ledger actually knows them.
   function loadViewers(){
+    // A personal kit fixes who this is. The dropdown was the one place
+    // a recipient could do unrecoverable damage -- picking a colleague's
+    // name records DECISIONS under that colleague -- so in a kit it is
+    // not a control at all, just their name.
+    if(state.kit && state.kit["for"]){
+      state.viewer = state.kit["for"];
+      sel.hidden = true; txt.hidden = true;
+      var fx = document.getElementById("viewer-fixed");
+      fx.hidden = false;
+      fx.textContent = state.kit.for_name || personName(state.kit["for"]);
+      return Promise.resolve();
+    }
     return fetch(withProfile("/api/viewers")).then(function(r){
       return r.ok ? r.json() : null;        // 404 = picker disabled
     }).then(function(d){
@@ -3373,15 +3509,20 @@
   // has three causes that look identical from outside -- the pull did
   // not land, the server was not restarted, the browser served a cached
   // page -- and this tells them apart at a glance.
-  fetch("/api/version").then(function(r){ return r.ok ? r.json() : null; })
+  var kitReady = fetch("/api/version")
+    .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(v){
       if(!v) return;
+      state.kit = v.kit || null;
+      state.blind = !!v.blind;
       var n = document.getElementById("build");
       if(n) n.textContent = "build " + v.build
                             + (v.blind ? " \u00b7 blind" : "");
     })["catch"](function(){ /* never worth a broken page */ });
 
-  fetch("/api/profiles").then(function(r){
+  kitReady.then(function(){
+    return fetch("/api/profiles");
+  }).then(function(r){
     return r.ok ? r.json() : null;
   }).then(function(d){
     if(d && d.profiles && d.profiles.length){
@@ -3402,6 +3543,7 @@
      // An empty ledger is told to everyone, every time -- it is a
      // broken deliverable, not a preference to remember.
      if(state.ledgerEmpty) openEmptyLedger();
+     else if(state.kit && state.kit["for"]) openKitWelcome();
      else if(currentViewers().length > 1 && !seenWelcome()) openWelcome();
      document.getElementById("revclose").onclick = closeReview;
      document.getElementById("reviewmodal").addEventListener(

@@ -909,6 +909,26 @@ def main():
         dashboard_api.PROFILES.clear()
         dashboard_api.PROFILES.update(saved_profiles)
 
+        print("personal kit")
+        saved_kit = dashboard_api.KIT
+        dashboard_api.KIT = {"for": OWNER, "for_name": "Dash Owner",
+                             "return_to": "Alex (a@example.com)"}
+        code, ver = as_viewer(client, "/api/version", OWNER)
+        ok(code == 200 and ver["kit"]["for"] == OWNER
+           and ver["kit"]["for_name"] == "Dash Owner"
+           and ver["kit"]["return_to"] == "Alex (a@example.com)"
+           and ver["kit"]["answers_dir"],
+           "a personal kit tells the page who it is for, by name, where "
+           "the answers land, and who they go back to -- the three facts "
+           "the greeting, the identity lock and the final screen are "
+           "built from")
+        dashboard_api.KIT = None
+        code, ver = as_viewer(client, "/api/version", OWNER)
+        ok(ver["kit"] is None,
+           "and without a kit config the page gets nothing, so a generic "
+           "kit keeps the picker and the generic welcome")
+        dashboard_api.KIT = saved_kit
+
         print("unreachable ledger")
         saved = dict(dashboard_api.PROFILES.get("copilot") or {})
         dashboard_api.PROFILES["copilot"] = {

@@ -329,7 +329,12 @@ def version():
     return jsonify({"build": BUILD_ID, "blind": bool(blind_map(viewer())),
                     "hands_on": HANDS_ON,
                     "ledgers": [n for n in ("real", "synthetic", "copilot")
-                                if n in PROFILES]})
+                                if n in PROFILES],
+                    "kit": ({"for": KIT.get("for"),
+                             "for_name": KIT.get("for_name"),
+                             "return_to": KIT.get("return_to"),
+                             "answers_dir": SURVEY_DIR}
+                            if KIT and KIT.get("for") else None)})
 
 
 @app.route("/api/profiles")
@@ -400,6 +405,23 @@ def _active_arm(mapping, active):
 # is gone by the time anyone opens their email to write it up. So the
 # form arrives there, and writes a file they can send on without having
 # to describe anything twice.
+# PERSONAL KIT. A kit built with `tl kit --for <person>` carries a
+# kit-config.json naming who it is for and where the answers go back to.
+# The point is to remove every decision a recipient could get wrong:
+# they are greeted by name, their identity is fixed (picking the wrong
+# name in a dropdown records DECISIONS under the wrong person -- the one
+# unrecoverable mistake this UI offered), and the final screen says
+# exactly what to send and to whom.
+KIT = None
+_kit_path = os.environ.get("TL_KIT_CONFIG")
+if _kit_path and os.path.exists(_kit_path):
+    try:
+        with open(_kit_path) as _f:
+            KIT = json.load(_f)
+    except Exception as _exc:                           # noqa: BLE001
+        print("kit-config.json unreadable ({0!r}) -- running as a "
+              "generic kit".format(_exc))
+
 SURVEY_DIR = os.path.expanduser(
     os.environ.get("TL_SURVEY_DIR", "~/task-ledger-surveys"))
 
@@ -2483,6 +2505,10 @@ def _startup_banner():
                           "people answer their own cards"))
     print("feedback: " + SURVEY_DIR)
     print("code:     " + BUILD_ID)
+    if KIT and KIT.get("for"):
+        print("kit for:  {0} -- answers go back to {1}".format(
+            KIT.get("for_name") or KIT["for"],
+            KIT.get("return_to") or "whoever built the kit"))
     if os.environ.get("TL_VIEWER_PICKER") != "1":
         print("viewers:  picker off (it enumerates everyone with a task); "
               "type an identity in the header, or set TL_VIEWER_PICKER=1")

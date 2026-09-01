@@ -30,6 +30,7 @@ the most useful thing they can do with it. Everyone else gets
 ./tl demo-set, which invents its own meetings.
 """
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -140,6 +141,16 @@ def main():
                          "another extractor. Shipped as ledger-b.sql and "
                          "shown blind beside the first, so the comparison "
                          "measures the cards and not the labels.")
+    ap.add_argument("--for", dest="for_person", default=None,
+                    help="who this kit is for. Their dashboard greets them "
+                         "by name, fixes their identity (no dropdown to "
+                         "pick the wrong person in), and shows them the "
+                         "steps and the return address. Matched against "
+                         "the people the ledger actually knows.")
+    ap.add_argument("--return-to", default=None,
+                    help="where the answer files go back to, shown on "
+                         "their final screen. Defaults to your git "
+                         "name and email.")
     ap.add_argument("--blind-salt", default=os.environ.get("TL_BLIND_SALT"),
                     help="the salt that decides who sees which ledger "
                          "first. Pick one with 'tl blind <people> "
@@ -165,6 +176,64 @@ def main():
 
     dsn = os.environ.get("DB_DSN")
     parts = dict(kv.split("=", 1) for kv in (dsn or "").split() if "=" in kv)
+
+    # Resolve --for against the people the ledger actually knows. A typo
+    # here would build a kit that greets nobody and locks the dashboard
+    # to an identity with no cards -- an empty, confusing deliverable --
+    # so an ambiguous or unknown name stops the build and lists what
+    # WOULD match, instead of shipping a guess.
+    kit_for = kit_for_name = None
+    if args.for_person:
+        if not dsn:
+            print("--for needs DB_DSN set: the name is checked against "
+                  "the ledger.")
+            return 2
+        want = args.for_person.strip().lower().replace(" ", "-")
+        try:
+            import psycopg2
+            conn = psycopg2.connect(dsn, connect_timeout=5)
+            with conn, conn.cursor() as cur:
+                cur.execute("""
+                    SELECT DISTINCT user_ref FROM signal_pool_events
+                    UNION SELECT DISTINCT user_ref FROM tasks_current""")
+                refs = sorted(r[0] for r in cur.fetchall())
+            conn.close()
+        except Exception as exc:                        # noqa: BLE001
+            print("could not read the ledger to check --for ({0})"
+                  .format(exc.__class__.__name__))
+            return 2
+        hits = [r for r in refs if r == want or r == "aad-" + want]
+        if not hits:
+            hits = [r for r in refs if want in r]
+        if len(hits) != 1:
+            print("--for '{0}' matches {1} people{2}".format(
+                args.for_person, len(hits),
+                ":" if hits else " in this ledger. It knows:"))
+            for r in (hits or refs):
+                print("   " + r)
+            print("Say which one, exactly.")
+            return 2
+        kit_for = hits[0]
+        kit_for_name = " ".join(
+            w.capitalize() for w in kit_for.replace("aad-", "").split("-"))
+        if args.out == os.path.join(os.path.expanduser("~"),
+                                    "task-ledger-kit"):
+            args.out = os.path.join(
+                os.path.expanduser("~"),
+                "task-ledger-kit-" + kit_for.replace("aad-", ""))
+
+    return_to = args.return_to
+    if kit_for and not return_to:
+        try:
+            gname = subprocess.check_output(
+                ["git", "config", "user.name"],
+                stderr=subprocess.DEVNULL).decode().strip()
+            gmail = subprocess.check_output(
+                ["git", "config", "user.email"],
+                stderr=subprocess.DEVNULL).decode().strip()
+            return_to = "{0} ({1})".format(gname, gmail) if gmail else gname
+        except Exception:                               # noqa: BLE001
+            return_to = None
     db = parts.get("dbname", "?")
     dump = find_tool("pg_dump")
 
@@ -246,6 +315,12 @@ def main():
         print("     shown BLIND: the two are Ledger A and Ledger B, "
               "assigned per person,")
         print("     and which is which is never shown to the reviewer.")
+    if kit_for:
+        print("  personal: greets {0} by name, fixes their identity, and "
+              "routes answers to {1}".format(
+                  kit_for_name, return_to or "(no --return-to and no git "
+                  "identity -- their screen will say 'whoever gave you "
+                  "this kit')"))
     print("  {0}. START-TASK-LEDGER.bat  the one file a teammate opens"
           .format(4 if bcontent else 3))
     # Bundling turns "install Python, install Postgres, then double-click"
@@ -370,6 +445,11 @@ def main():
     # not a directory that needs explaining. The written instructions
     # come second and exist for the person who wants them; the product
     # itself greets whoever just double-clicks.
+    if kit_for:
+        with open(os.path.join(args.out, "kit-config.json"), "w") as f:
+            json.dump({"for": kit_for, "for_name": kit_for_name,
+                       "return_to": return_to}, f, indent=1)
+
     launcher = os.path.join(ROOT, "deploy", "windows",
                             "START-TASK-LEDGER.bat")
     if os.path.exists(launcher):

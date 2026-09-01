@@ -187,6 +187,7 @@ set "DB_DSN=host=localhost port=%PGPORT% dbname=%DBNAME% user=%USERNAME%"
 set "TL_VIEWER_PICKER=1"
 set "TL_HANDS_ON=1"
 set "TL_SURVEY_DIR=%KITROOT%my-answers"
+if exist "%KITROOT%kit-config.json" set "TL_KIT_CONFIG=%KITROOT%kit-config.json"
 
 rem ---- the second ledger, if this kit carries one ----
 rem
