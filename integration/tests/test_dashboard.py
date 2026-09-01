@@ -941,21 +941,30 @@ def main():
             dashboard_api.PROFILES.pop("copilot", None)
 
         print("uncited claims")
-        uncited = [p for p in rev["proposals"]
+        # The fixture profile is an INSTRUMENT, where the rule does not
+        # apply; say otherwise explicitly for the assertions that are
+        # about the rule, rather than testing it on a profile exempt
+        # from it.
+        dashboard_api.PROFILES["synthetic"]["system_of_record"] = True
+        code, rev_rec0 = as_viewer(client, "/api/review?profile=synthetic",
+                                   OWNER)
+        uncited = [p for p in rev_rec0["proposals"]
                    if p["proposal_id"] == UNCITED_PROP]
+        anchored = [p for p in rev_rec0["proposals"]
+                    if p["proposal_id"] == ATTRIB_PROP]
         ok(len(uncited) == 1 and uncited[0]["traceable"] is False,
            "a card whose only evidence is an assistant's word is marked "
            "untraceable, so 'yes' can be dead before it is clicked "
            "rather than after")
-        ok(attrib[0]["traceable"] is True,
+        ok(anchored and anchored[0]["traceable"] is True,
            "and an anchored card beside it is not -- the distinction is "
            "per card, because an anchored ledger is a MIXED one")
         code, body = post("/api/decide", {"proposal_id": UNCITED_PROP,
                                           "decision": "accept"})
         ok(code == 403 and "trace" in json.dumps(body),
-           "accepting it is refused with the reason: putting work on a "
-           "board on the strength of a claim nobody can check is the one "
-           "thing that must not happen")
+           "on a system of record, accepting it is refused with the "
+           "reason: a board carrying items that trace to nothing is the "
+           "failure this whole design is against")
         check3 = psycopg2.connect(dsn)
         with check3.cursor() as c4:
             c4.execute("SELECT count(*) FROM decisions WHERE proposal_id = %s",
@@ -964,15 +973,27 @@ def main():
                "and nothing was recorded: a refused accept leaves no trace "
                "of a decision nobody was allowed to make")
         check3.close()
+        dashboard_api.PROFILES["synthetic"]["system_of_record"] = False
+        code, rev_inst = as_viewer(client, "/api/review?profile=synthetic",
+                                   OWNER)
+        flagged = [p for p in rev_inst["proposals"]
+                   if p["proposal_id"] == UNCITED_PROP]
+        ok(flagged and flagged[0]["traceable"] is True,
+           "on an INSTRUMENT the same card is answerable both ways -- its "
+           "board is disposable and its whole purpose is to record what a "
+           "person thought, so blocking accept protects nothing and "
+           "destroys the measurement")
+        dashboard_api.PROFILES["synthetic"]["system_of_record"] = True
         code, body = post("/api/decide", {"proposal_id": UNCITED_PROP,
                                           "decision": "reject",
                                           "reject_reason": "not_a_task"})
         ok(code == 200,
-           "but REJECTING it is allowed, and the first version of this "
-           "was wrong to stop it -- declining an unverifiable claim is "
-           "safe, it is the most informative thing a reviewer can say "
-           "about one, and forbidding it made every such card a dead end "
-           "for somebody whose whole job was to have an opinion")
+           "and even on a system of record, REJECTING it is allowed -- "
+           "declining an unverifiable claim is safe, it is the most "
+           "informative thing a reviewer can say about one, and "
+           "forbidding it made every such card a dead end for somebody "
+           "whose whole job was to have an opinion")
+        dashboard_api.PROFILES["synthetic"]["system_of_record"] = False
         check4 = psycopg2.connect(dsn)
         with check4.cursor() as c5:
             c5.execute("SELECT decision, reject_reason FROM decisions "

@@ -95,7 +95,13 @@ COPILOT_DSN = os.environ.get("TL_COPILOT_DSN", "").strip()
 # is writable here -- every ledger holding real colleague material keeps the
 # read-only session that is the reason a browser cannot reach it.
 PROFILES = {
+    # system_of_record: this board is the answer to "what am I working
+    # on". The other two are instruments -- one invented, one built to be
+    # compared against this. The distinction decides which rules protect
+    # a board from bad evidence and which rules would only prevent a
+    # measurement. See _unacceptable().
     "real": {"dsn": DSN, "synthetic": False, "writable": False,
+             "system_of_record": True,
              "label": os.environ.get("TL_REAL_LABEL", "Real ledger"),
              "blurb": "Extracted from your own conversations.",
              "banner": None},
@@ -103,6 +109,7 @@ PROFILES = {
 if SYNTH_DSN:
     PROFILES["synthetic"] = {
         "dsn": SYNTH_DSN, "synthetic": True, "writable": True,
+        "system_of_record": False,
         "label": os.environ.get("TL_SYNTH_LABEL", "Synthetic demo"),
         "blurb": "Generated meetings: invented work, planted owner labels.",
         "banner": {
@@ -117,6 +124,7 @@ if SYNTH_DSN:
 if COPILOT_DSN:
     PROFILES["copilot"] = {
         "dsn": COPILOT_DSN, "synthetic": False, "writable": False,
+        "system_of_record": False,
         "label": os.environ.get("TL_COPILOT_LABEL", "Copilot claims"),
         "blurb": "Claims Copilot exported, traceable only where the quote "
                  "was found in a transcript we hold.",
@@ -1218,10 +1226,11 @@ def review_queue():
                    p.rationale, p.conflict_type, p.target_task_id,
                    t.title AS target_title, t.status AS target_status,
                    count(ev.resource_id) AS sources,
-                   count(*) FILTER (
+                   (count(*) FILTER (
                      WHERE ev.source_type = ANY(ARRAY['teams_message',
                        'email_message','transcript_utterance',
-                       'document_span'])) > 0 AS traceable
+                       'document_span'])) > 0
+                    OR NOT %s) AS traceable
             FROM proposals p
             LEFT JOIN decisions d ON d.proposal_id = p.proposal_id
             LEFT JOIN tasks_current t ON t.task_id = p.target_task_id
@@ -1232,7 +1241,8 @@ def review_queue():
                      p.rationale, p.conflict_type, p.target_task_id,
                      t.title, t.status
             ORDER BY (p.conflict_type IS NULL), p.confidence DESC""",
-            (packets[0]["packet_id"],))
+            (bool(PROFILES.get(profile_name(), {}).get("system_of_record")),
+             packets[0]["packet_id"]))
         _attach_owner_options(proposals, v)
     # Quiet: open, mine, and nothing has happened to it in a week. Same
     # definition the board's "Gone quiet" filter uses, so the popup and the
@@ -1495,20 +1505,35 @@ def _unacceptable(cur, proposal_id):
     profile, because the answer should not depend on which ledger the
     claim happens to be sitting in.
 
-    REVISED, and the first version was wrong in a way that mattered.
-    It gated rejection too, reasoning that "no" is a judgement which
-    trains the eval and therefore needs something real to be about. That
-    argument does not survive contact with the two decisions being
-    different: accepting puts work on a board on the strength of a claim
-    nobody can check, and rejecting declines to. Declining an
-    unverifiable claim is safe, and it is the single most informative
-    thing a reviewer can tell us about one.
+    REVISED TWICE, and both revisions narrowed it.
 
-    Gating it made every untraceable card a dead end -- no yes, no no,
-    nothing to say -- which is a strange thing to hand somebody whose
-    whole job in the session is to have an opinion. Accept is gated.
-    Reject and defer are not.
+    First it gated rejection too, reasoning that "no" is a judgement
+    which trains the eval and therefore needs something real to be
+    about. That does not survive the two decisions being different:
+    accepting puts work on a board on the strength of a claim nobody can
+    check, and rejecting declines to. Declining an unverifiable claim is
+    safe, and it is the most informative thing a reviewer can say about
+    one.
+
+    Then it applied to every ledger, on the reasoning that the answer
+    should not depend on which ledger a claim sits in. But the LEDGERS
+    are not alike, and pretending otherwise cost the thing the second
+    ledger exists for. A system of record is the answer to "what am I
+    working on", and a board carrying items that trace to nothing is
+    exactly the failure this whole design is against. A comparison
+    ledger is an instrument: its board is disposable, and its entire
+    purpose is to record what a person thought of each card. Blocking
+    accept there protects nothing and destroys the measurement -- worse,
+    it makes one arm of a blind comparison structurally unable to accept
+    anything, so the arms differ by rule rather than by merit and the
+    result means nothing.
+
+    So: gated on a system of record, open on an instrument. The evidence
+    type is written down either way, so a task created from an
+    uncitable claim can always be identified as one afterwards.
     """
+    if not PROFILES.get(profile_name(), {}).get("system_of_record"):
+        return None
     cur.execute("""
         SELECT count(*) FILTER (WHERE ev.source_type = ANY(%s)) AS citable,
                count(*) AS total
