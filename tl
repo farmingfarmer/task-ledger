@@ -103,7 +103,7 @@ usage() {
   echo "  digest          the week, addressed to a person"
   echo "  ask <question>  answers over confirmed state, with receipts"
   echo "  share <args>    grant / revoke / list access"
-  echo "  dashboard       serve http://127.0.0.1:8090"
+  echo "  dashboard       serve http://127.0.0.1:8090 (--blind for A/B)"
   echo "  extract <file>  one transcript -> typed signals (writes)"
   echo "  ingest <file>   a Copilot paste -> the inbox"
   echo "  transcripts <f> a Teams transcript (Word .txt) -> the inbox"
@@ -173,6 +173,15 @@ case "$CMD" in
     ;;
 
   dashboard)
+    # --blind, because the alternative was an environment variable that
+    # had to be set in THIS shell, before this command, every time -- and
+    # forgetting it produces a session that runs perfectly and answers
+    # nothing, since the arms were labelled all along. A setting that
+    # decides whether an afternoon of five people's time is usable does
+    # not belong in invisible shell state.
+    for a in "$@"; do
+      [ "$a" = "--blind" ] && export TL_BLIND=1
+    done
     banner; preflight dashboard
     echo "tl: http://127.0.0.1:8090  (ctrl-c to stop)"
     python3 integration/dashboard/dashboard_api.py "$@"
