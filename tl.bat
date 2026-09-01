@@ -332,7 +332,14 @@ if defined TL_SCRATCH_DSN (
 ) else (
   set "DB_DSN=host=localhost port=%TL_PORT% dbname=taskintel_scratch user=%USERNAME%"
 )
-echo %DB_DSN% | findstr /r "dbname=taskintel " >nul && (
+rem /C: makes the trailing space part of ONE literal pattern. Without it
+rem findstr treats the space as OR between two patterns, so the guard
+rem matched "dbname=taskintel" as a substring -- which includes
+rem taskintel_scratch, the very database this branch just selected. The
+rem guard refused everything, including the safe thing it existed to
+rem allow. It failed safe, but a protection that always fires is no
+rem protection: it teaches people to work around it.
+echo %DB_DSN% | findstr /C:"dbname=taskintel " >nul && (
   echo tl: refusing to run the suites against taskintel. 1>&2
   exit /b 1
 )
