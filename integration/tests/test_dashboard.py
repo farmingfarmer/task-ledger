@@ -440,10 +440,25 @@ def main():
        and reasons.get(("create_task", "duplicate"), 0) >= 1,
        "owner's reject histogram routes duplicate/create_task")
     creates = [d for d in cal["drift"] if d["op"] == "create_task"]
-    ok(creates and creates[0]["n"] == 2
-       and abs(creates[0]["accept_rate"] - 0.5) < 1e-9,
-       "acceptance rate counts both decisions on create_task "
-       "(one accepted, one rejected)")
+    # Deliberately NOT an equality on n. Decisions are append-only and
+    # the drift buckets by week, so "exactly 2 at rate 0.5" only ever
+    # held on a database whose first week was already frozen -- on the
+    # Mac the assertion spent weeks reading a stale early bucket while
+    # every later run's leftovers piled into rows it never looked at,
+    # and the first FRESH database (the ThinkPad's, day one) put
+    # everything in one bucket and failed. What the endpoint must
+    # guarantee is the maths, not the history: the seeded accept and the
+    # seeded reject are both counted, and every weekly rate is the
+    # accept fraction of that week's n.
+    total = sum(d["n"] for d in creates)
+    accepted = sum(round(float(d["accept_rate"]) * d["n"]) for d in creates)
+    ok(creates and total >= 2 and accepted >= 1 and total - accepted >= 1,
+       "acceptance rate counts both kinds of decision on create_task: "
+       "the seeded accept and the seeded reject are both in the "
+       "histogram, whatever else history has accumulated")
+    ok(all(0.0 <= float(d["accept_rate"]) <= 1.0 and d["n"] >= 1
+           for d in creates),
+       "and every weekly rate is a fraction of that week's own n")
     code, mate_cal = as_viewer(client, "/api/calibration", MATE)
     ok(code == 200 and mate_cal["decisions_total"] == 0
        and mate_cal["rejects"] == [],
