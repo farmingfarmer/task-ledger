@@ -1480,8 +1480,8 @@ CITABLE_SOURCES = ("teams_message", "email_message", "transcript_utterance",
                    "document_span")
 
 
-def _untraceable(cur, proposal_id):
-    """Reason this proposal cannot be answered from a browser, or None.
+def _unacceptable(cur, proposal_id):
+    """Reason this proposal cannot be ACCEPTED from a browser, or None.
 
     Anchoring made the copilot ledger a MIXED one: some claims quoted a
     sentence we found and now cite it by id and hash, others quoted
@@ -1494,6 +1494,20 @@ def _untraceable(cur, proposal_id):
     is there evidence here a person could go and read? Applies to every
     profile, because the answer should not depend on which ledger the
     claim happens to be sitting in.
+
+    REVISED, and the first version was wrong in a way that mattered.
+    It gated rejection too, reasoning that "no" is a judgement which
+    trains the eval and therefore needs something real to be about. That
+    argument does not survive contact with the two decisions being
+    different: accepting puts work on a board on the strength of a claim
+    nobody can check, and rejecting declines to. Declining an
+    unverifiable claim is safe, and it is the single most informative
+    thing a reviewer can tell us about one.
+
+    Gating it made every untraceable card a dead end -- no yes, no no,
+    nothing to say -- which is a strange thing to hand somebody whose
+    whole job in the session is to have an opinion. Accept is gated.
+    Reject and defer are not.
     """
     cur.execute("""
         SELECT count(*) FILTER (WHERE ev.source_type = ANY(%s)) AS citable,
@@ -1507,9 +1521,9 @@ def _untraceable(cur, proposal_id):
         return None
     return ("Nothing on this card can be traced to a sentence. An "
             "assistant asserted it and released no utterance to check it "
-            "against, so it cannot be accepted or rejected here -- "
-            "rejecting it would be recorded as a judgement too. Find the "
-            "quote in the meeting and it becomes answerable.")
+            "against, so it cannot be put on a board from here. You can "
+            "still say no to it -- declining a claim nobody can check is "
+            "exactly what should happen to one.")
 
 
 @app.route("/api/decide", methods=["POST"])
@@ -1555,15 +1569,15 @@ def decide():
                 return jsonify({"error": "that packet is not yours"}), 403
             # After the request has been checked and before anything is
             # recorded: a malformed request is wrong whatever card it
-            # names, and this refusal is about the card. Rejection is
-            # gated too, not only acceptance -- "no" is a judgement, and
-            # it feeds the eval set, so it needs something real to be a
-            # judgement about.
-            why = _untraceable(cur, proposal_id)
-            if why:
-                return jsonify({"error": "this card cannot be answered "
-                                         "from the browser",
-                                "detail": why}), 403
+            # names, and this refusal is about the card. ACCEPT only --
+            # see _unacceptable(). Saying no to a claim nobody can check
+            # is not a thing to prevent, it is the thing to want.
+            if choice == "accept":
+                why = _unacceptable(cur, proposal_id)
+                if why:
+                    return jsonify({"error": "this card cannot be "
+                                             "accepted from the browser",
+                                    "detail": why}), 403
 
             if choice == "defer":
                 review_cli.defer_signals(cur, v, prop)
@@ -2362,8 +2376,41 @@ def grants_given():
         ORDER BY subject_type, subject_id, grantee_ref""", (v,)))
 
 
-if __name__ == "__main__":
+def _startup_banner():
+    """Say what mode this is, before anyone squints at the header to work
+    it out.
+
+    Every one of these is an environment variable set in some other
+    window, and each has been discovered the slow way -- by looking at
+    the running app and noticing something absent. A blind comparison
+    that quietly is not blind is the worst of them, because the session
+    still runs, the answers still come back, and nothing about them is
+    usable.
+    """
+    ledgers = [n for n in ("real", "synthetic", "copilot") if n in PROFILES]
+    print("ledgers:  " + ", ".join(ledgers))
+    if BLIND and len([n for n in BLIND_ARMS if n in PROFILES]) >= 2:
+        print("blind:    ON -- shown as Ledger A / Ledger B, assigned per "
+              "person (salt: {0})".format(BLIND_SALT))
+    elif BLIND:
+        print("blind:    asked for, but OFF -- it needs both ledgers and "
+              "only {0} is configured. Set TL_COPILOT_DSN."
+              .format(" and ".join(n for n in BLIND_ARMS if n in PROFILES)
+                      or "neither"))
+    elif "copilot" in PROFILES:
+        print("blind:    off -- both ledgers are shown by NAME, which "
+              "tells a reviewer which one to trust before they read a "
+              "card. Set TL_BLIND=1 for a comparison.")
+    print("writable: " + ("real ledger + copilot (TL_HANDS_ON=1)"
+                          if HANDS_ON else
+                          "synthetic only -- set TL_HANDS_ON=1 to let "
+                          "people answer their own cards"))
+    print("feedback: " + SURVEY_DIR)
     if os.environ.get("TL_VIEWER_PICKER") != "1":
-        print("viewer picker off (it enumerates everyone with a task); "
+        print("viewers:  picker off (it enumerates everyone with a task); "
               "type an identity in the header, or set TL_VIEWER_PICKER=1")
+
+
+if __name__ == "__main__":
+    _startup_banner()
     app.run(host="127.0.0.1", port=8090)

@@ -945,30 +945,43 @@ def main():
                    if p["proposal_id"] == UNCITED_PROP]
         ok(len(uncited) == 1 and uncited[0]["traceable"] is False,
            "a card whose only evidence is an assistant's word is marked "
-           "untraceable, so the buttons can be dead before they are "
-           "clicked rather than after")
+           "untraceable, so 'yes' can be dead before it is clicked "
+           "rather than after")
         ok(attrib[0]["traceable"] is True,
            "and an anchored card beside it is not -- the distinction is "
            "per card, because an anchored ledger is a MIXED one")
         code, body = post("/api/decide", {"proposal_id": UNCITED_PROP,
                                           "decision": "accept"})
         ok(code == 403 and "trace" in json.dumps(body),
-           "accepting it is refused with the reason, not silently allowed "
-           "because the profile happened to be writable")
-        code, body = post("/api/decide", {"proposal_id": UNCITED_PROP,
-                                          "decision": "reject",
-                                          "reject_reason": "not_a_task"})
-        ok(code == 403,
-           "and so is rejecting it -- 'no' is a judgement too, and it "
-           "trains the eval, so it needs something real to be about")
+           "accepting it is refused with the reason: putting work on a "
+           "board on the strength of a claim nobody can check is the one "
+           "thing that must not happen")
         check3 = psycopg2.connect(dsn)
         with check3.cursor() as c4:
             c4.execute("SELECT count(*) FROM decisions WHERE proposal_id = %s",
                        (UNCITED_PROP,))
             ok(c4.fetchone()[0] == 0,
-               "and nothing was recorded either way: a refused card leaves "
-               "no trace of a decision nobody was allowed to make")
+               "and nothing was recorded: a refused accept leaves no trace "
+               "of a decision nobody was allowed to make")
         check3.close()
+        code, body = post("/api/decide", {"proposal_id": UNCITED_PROP,
+                                          "decision": "reject",
+                                          "reject_reason": "not_a_task"})
+        ok(code == 200,
+           "but REJECTING it is allowed, and the first version of this "
+           "was wrong to stop it -- declining an unverifiable claim is "
+           "safe, it is the most informative thing a reviewer can say "
+           "about one, and forbidding it made every such card a dead end "
+           "for somebody whose whole job was to have an opinion")
+        check4 = psycopg2.connect(dsn)
+        with check4.cursor() as c5:
+            c5.execute("SELECT decision, reject_reason FROM decisions "
+                       "WHERE proposal_id = %s", (UNCITED_PROP,))
+            row = c5.fetchone()
+            ok(row and row[0] == "reject" and row[1] == "not_a_task",
+               "and it is recorded with its reason, which is the row the "
+               "eval set is built from")
+        check4.close()
         code, _ = post("/api/decide", {"proposal_id": ATTRIB_PROP,
                                        "decision": "reject",
                                        "reject_reason": "wrong_owner",
