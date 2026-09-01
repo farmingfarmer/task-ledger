@@ -186,6 +186,38 @@ if "%SIGCOUNT%"=="0" (
 set "DB_DSN=host=localhost port=%PGPORT% dbname=%DBNAME% user=%USERNAME%"
 set "TL_VIEWER_PICKER=1"
 set "TL_HANDS_ON=1"
+set "TL_SURVEY_DIR=%KITROOT%my-answers"
+
+rem ---- the second ledger, if this kit carries one ----
+rem
+rem Same meetings, different extractor. Prepared exactly like the first
+rem and by the same rules: never restored on top of an existing database,
+rem proven with the query the app asks before it is offered.
+rem
+rem If it is not here, or will not build, the app runs single-ledger and
+rem nothing about the session changes. A comparison that half-works is
+rem worse than no comparison, because the person doing it cannot tell
+rem which half they are looking at.
+if exist "%KITROOT%ledger-b.sql" (
+  set "DB_B_OK=1"
+  "%PGBIN%\psql.exe" -p %PGPORT% -d %DBNAME%_b -tAc "SELECT author_ref FROM signals LIMIT 1" >nul 2>&1 || set "DB_B_OK="
+  if defined DB_B_OK for /f "usebackq delims=" %%N in (`"%PGBIN%\psql.exe" -p %PGPORT% -d %DBNAME%_b -tAc "SELECT count(*) FROM signals" 2^>nul`) do if "%%N"=="0" set "DB_B_OK="
+  if not defined DB_B_OK (
+    echo   preparing the second ledger...
+    "%PGBIN%\dropdb.exe" -p %PGPORT% --if-exists %DBNAME%_b >>"%SETUPLOG%" 2>&1
+    "%PGBIN%\createdb.exe" -p %PGPORT% %DBNAME%_b >>"%SETUPLOG%" 2>&1
+    "%PGBIN%\psql.exe" -q -v ON_ERROR_STOP=1 -p %PGPORT% -d %DBNAME%_b -f "%KITROOT%ledger-b.sql" >>"%SETUPLOG%" 2>&1
+    set "DB_B_OK=1"
+    "%PGBIN%\psql.exe" -p %PGPORT% -d %DBNAME%_b -tAc "SELECT author_ref FROM signals LIMIT 1" >nul 2>&1 || set "DB_B_OK="
+  )
+  if defined DB_B_OK (
+    set "TL_COPILOT_DSN=host=localhost port=%PGPORT% dbname=%DBNAME%_b user=%USERNAME%"
+    set "TL_BLIND=1"
+  ) else (
+    echo   [!] The second ledger would not prepare; running with one.
+    echo       Details: %SETUPLOG%
+  )
+)
 
 echo.
 echo   Ready. Opening http://127.0.0.1:8090 in your browser.

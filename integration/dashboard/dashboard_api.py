@@ -61,6 +61,7 @@ never through this API. Python 3.8 compatible.
 
 import datetime
 import decimal
+import hashlib
 import json
 import os
 import sys
@@ -170,12 +171,54 @@ if DEFAULT_PROFILE not in PROFILES:
 REDACTED = "[shared at progress level - detail hidden]"
 
 
+# BLIND MODE. Two ledgers built from the same meetings by different
+# extractors is a comparison, and a comparison whose arms are labelled
+# "Real ledger" and "Copilot claims" is not one -- the names carry an
+# answer, and so did the banners, which explained at length what was
+# wrong with one arm before anyone had read a card.
+#
+# What is blinded is the LABELLING, never the data. If one arm's cards
+# cannot be traced to a sentence, the reviewer should meet that and rate
+# it: that is the thing being measured, not a leak. Removing it would be
+# rigging the comparison in the other direction.
+#
+# Which arm is which is randomised PER PERSON and stable for them, so
+# order effects do not all land the same way and nobody can compare
+# notes at lunch and decode it. The mapping is never sent to the browser;
+# it is written into the survey file, which is for the person collecting
+# the answers.
+BLIND = os.environ.get("TL_BLIND", "").strip() in ("1", "true", "yes")
+BLIND_SALT = os.environ.get("TL_BLIND_SALT", "task-ledger-blind-v1")
+BLIND_ARMS = ("real", "copilot")
+ARM_NAMES = ("arm-a", "arm-b")
+
+
+def blind_map(v):
+    """viewer -> {'arm-a': profile, 'arm-b': profile}, or {} if not blind."""
+    arms = [n for n in BLIND_ARMS if n in PROFILES]
+    if not BLIND or len(arms) < 2:
+        return {}
+    digest = hashlib.sha256(
+        (BLIND_SALT + "\x1f" + (v or "")).encode("utf-8")).hexdigest()
+    if int(digest[:8], 16) % 2:
+        arms = list(reversed(arms))
+    return dict(zip(ARM_NAMES, arms))
+
+
 def profile_name():
     """The requested profile, or the default. Never the client's string."""
     try:
         asked = (request.args.get("profile") or "").strip()
     except RuntimeError:                      # outside a request context
         return DEFAULT_PROFILE
+    mapping = blind_map(viewer())
+    if mapping:
+        # Under blinding the real names are not addressable, including by
+        # someone typing one into the URL bar. Anything unrecognised
+        # resolves to that person's OWN arm A -- falling back to
+        # DEFAULT_PROFILE would quietly mean "real" and hand the answer
+        # to whoever guessed.
+        return mapping.get(asked, mapping[ARM_NAMES[0]])
     return asked if asked in PROFILES else DEFAULT_PROFILE
 
 
@@ -239,6 +282,35 @@ def profiles():
     ask for and labels it may print.
     """
     active = profile_name()
+    mapping = blind_map(viewer())
+    if mapping:
+        # Two arms, identically described. The synthetic ledger is left
+        # out entirely: it is a demo, not an arm, and a third option that
+        # obviously differs from the other two is a hint about what the
+        # other two are.
+        out = []
+        for arm in ARM_NAMES:
+            out.append({
+                "name": arm,
+                "label": "Ledger " + arm[-1].upper(),
+                "blurb": "One of two ledgers built from the same meetings. "
+                         "Which is which is not shown, on purpose.",
+                "synthetic": False,
+                "writable": PROFILES[mapping[arm]].get("writable", False),
+                "banner": {
+                    "tag": "Blind comparison",
+                    "text": "Both ledgers were built from the same "
+                            "meetings by different means, and which you "
+                            "are looking at is deliberately not shown -- "
+                            "the point is to judge the cards, not the "
+                            "method. Answer them as you would your own. "
+                            "Nothing moves without you."},
+                "active": mapping[arm] == active,
+            })
+        return jsonify({"profiles": out, "active": _active_arm(mapping,
+                                                               active),
+                        "default": ARM_NAMES[0], "switchable": True,
+                        "blind": True})
     out = []
     for name in ("real", "synthetic", "copilot"):
         if name in PROFILES:
@@ -250,7 +322,212 @@ def profiles():
                         "active": name == active})
     return jsonify({"profiles": out, "active": active,
                     "default": DEFAULT_PROFILE,
-                    "switchable": len(out) > 1})
+                    "switchable": len(out) > 1, "blind": False})
+
+
+def _active_arm(mapping, active):
+    for arm, real in mapping.items():
+        if real == active:
+            return arm
+    return ARM_NAMES[0]
+
+
+# ---------------------------------------------------------------- survey
+#
+# The point of handing this to five colleagues is not that they use it.
+# It is to find out what it gets WRONG, from people who were in the
+# meetings and can tell. That answer has a short half-life: it is worth
+# most in the ten seconds after someone has just ruled on a card, and it
+# is gone by the time anyone opens their email to write it up. So the
+# form arrives there, and writes a file they can send on without having
+# to describe anything twice.
+SURVEY_DIR = os.path.expanduser(
+    os.environ.get("TL_SURVEY_DIR", "~/task-ledger-surveys"))
+
+SURVEY_QUESTIONS = [
+    {"id": "recognised", "kind": "scale",
+     "text": "Did the cards describe work you actually recognise?",
+     "low": "not at all", "high": "yes, all of it"},
+    {"id": "attribution", "kind": "scale",
+     "text": "When a card said whose work it was, was it right?",
+     "low": "usually wrong", "high": "usually right"},
+    {"id": "junk", "kind": "choice",
+     "text": "How many were things that should never have been a card at all?",
+     "options": ["none", "one or two", "several", "most of them"]},
+    {"id": "missed", "kind": "text",
+     "text": "What did it MISS that mattered? Something you know was agreed "
+             "in those meetings and never appeared."},
+    {"id": "worst", "kind": "text",
+     "text": "What was the single worst card you saw, and what was wrong "
+             "with it?"},
+    {"id": "keep", "kind": "choice",
+     "text": "Would you rather have this than nothing?",
+     "options": ["yes", "not yet", "no"]},
+    {"id": "anything", "kind": "text",
+     "text": "Anything else. Blunt is useful."},
+]
+
+COMPARE_QUESTIONS = [
+    {"id": "which_better", "kind": "choice",
+     "text": "You have now reviewed both ledgers. Which asked better "
+             "questions?",
+     "options": ["Ledger A", "Ledger B", "no real difference"]},
+    {"id": "which_why", "kind": "text",
+     "text": "What made the difference? (If there wasn't one, say that.)"},
+]
+
+
+def _survey_path(v, arm):
+    stamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    safe = "".join(c if (c.isalnum() or c in "-_") else "-" for c in (v or "x"))
+    return os.path.join(SURVEY_DIR,
+                        "survey-{0}-{1}-{2}".format(safe, arm, stamp))
+
+
+def _submitted_arms(v):
+    """Arms this person has already answered for, from the files on disk.
+
+    Deliberately not stored in either ledger. A survey answer is about the
+    ledger; putting it inside one would mean the thing being judged also
+    holds the judgement, and it would land in whichever arm happened to be
+    open at the time.
+    """
+    out = set()
+    try:
+        for name in sorted(os.listdir(SURVEY_DIR)):
+            if not name.endswith(".json") or not name.startswith("survey-"):
+                continue
+            try:
+                with open(os.path.join(SURVEY_DIR, name)) as f:
+                    doc = json.load(f)
+            except Exception:                           # noqa: BLE001
+                continue
+            if doc.get("viewer") == v and doc.get("arm"):
+                out.add(doc["arm"])
+    except OSError:
+        pass
+    return out
+
+
+def _decision_counts(dsn, v):
+    """What this person actually DID, beside what they say about it.
+
+    Self-report and behaviour disagree often enough that collecting one
+    without the other wastes the session, and this half needs nobody to
+    type anything.
+    """
+    conn = psycopg2.connect(dsn)
+    try:
+        conn.set_session(readonly=True, autocommit=True)
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as c:
+            c.execute("""
+                SELECT d.decision, d.reject_reason, count(*) AS n
+                FROM decisions d
+                WHERE d.decided_by = %s
+                GROUP BY d.decision, d.reject_reason""", (v,))
+            rows = [dict(r) for r in c.fetchall()]
+    finally:
+        conn.close()
+    out = {"accept": 0, "accept_edited": 0, "reject": 0, "defer": 0,
+           "reject_reasons": {}}
+    for r in rows:
+        out[r["decision"]] = out.get(r["decision"], 0) + int(r["n"])
+        if r["decision"] == "reject" and r["reject_reason"]:
+            out["reject_reasons"][r["reject_reason"]] = (
+                out["reject_reasons"].get(r["reject_reason"], 0) + int(r["n"]))
+    return out
+
+
+@app.route("/api/survey")
+def survey_form():
+    """The questions to ask, and whether the comparison pair is due yet."""
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    mapping = blind_map(v)
+    arm = _active_arm(mapping, profile_name()) if mapping else profile_name()
+    done = _submitted_arms(v)
+    questions = list(SURVEY_QUESTIONS)
+    # The comparison question is only answerable by someone who has seen
+    # both, and asking it earlier would collect a guess.
+    if mapping and done and arm not in done:
+        questions = questions + COMPARE_QUESTIONS
+    return jsonify({"arm": arm, "questions": questions,
+                    "already_done": sorted(done),
+                    "submitted": arm in done,
+                    "remaining": sorted(a for a in (mapping or {})
+                                        if a != arm and a not in done)})
+
+
+@app.route("/api/survey", methods=["POST"])
+def survey_submit():
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    body = request.get_json(silent=True) or {}
+    answers = body.get("answers")
+    if not isinstance(answers, dict) or not answers:
+        return jsonify({"error": "no answers"}), 400
+    mapping = blind_map(v)
+    arm = _active_arm(mapping, profile_name()) if mapping else profile_name()
+
+    doc = {
+        "viewer": v,
+        "arm": arm,
+        # What the arm actually WAS. The participant stays blind; the file
+        # is for whoever reads the answers, and an answer nobody can
+        # attribute to a ledger is worth nothing.
+        "ledger": (mapping.get(arm) if mapping else profile_name()),
+        "blind": bool(mapping),
+        "submitted_at": datetime.datetime.now().replace(
+            microsecond=0).isoformat(),
+        "answers": {k: a for k, a in answers.items() if isinstance(k, str)},
+        "questions": {q["id"]: q["text"]
+                      for q in SURVEY_QUESTIONS + COMPARE_QUESTIONS},
+    }
+    try:
+        doc["decisions"] = _decision_counts(profile_dsn(), v)
+    except Exception as exc:                            # noqa: BLE001
+        doc["decisions"] = {"error": repr(exc)}   # never lose a typed answer
+
+    try:
+        os.makedirs(SURVEY_DIR, exist_ok=True)
+        stem = _survey_path(v, arm)
+        with open(stem + ".json", "w") as f:
+            json.dump(doc, f, indent=1)
+        # A readable twin, because "send me the file" goes better when the
+        # person sending it can see what they are sending.
+        lines = ["Task ledger -- review feedback",
+                 "person: " + v,
+                 "ledger: " + str(doc["arm"]),
+                 "when:   " + doc["submitted_at"], ""]
+        for q in SURVEY_QUESTIONS + COMPARE_QUESTIONS:
+            if q["id"] in doc["answers"]:
+                lines.append(q["text"])
+                lines.append("    " + str(doc["answers"][q["id"]]))
+                lines.append("")
+        counts = doc["decisions"]
+        if isinstance(counts, dict) and "error" not in counts:
+            lines.append("what they did: {0} accepted, {1} rejected, "
+                         "{2} deferred".format(
+                             counts.get("accept", 0)
+                             + counts.get("accept_edited", 0),
+                             counts.get("reject", 0), counts.get("defer", 0)))
+            if counts.get("reject_reasons"):
+                lines.append("rejections: " + ", ".join(
+                    "{0} x{1}".format(k, n)
+                    for k, n in sorted(counts["reject_reasons"].items())))
+        with open(stem + ".txt", "w") as f:
+            f.write("\n".join(lines) + "\n")
+    except OSError as exc:
+        return jsonify({"error": "could not write the answers",
+                        "detail": "{0}. Set TL_SURVEY_DIR to a folder you "
+                                  "can write to.".format(exc)}), 500
+
+    return jsonify({"ok": True, "file": stem + ".txt", "folder": SURVEY_DIR,
+                    "remaining": sorted(a for a in (mapping or {})
+                                        if a != arm
+                                        and a not in _submitted_arms(v))})
 
 
 @app.route("/api/me")

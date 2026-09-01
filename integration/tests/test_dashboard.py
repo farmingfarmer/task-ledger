@@ -810,6 +810,105 @@ def main():
         ok(code == 400,
            "a reassignment is a wrong_owner rejection, not any rejection")
 
+        print("blind comparison")
+        saved_profiles = dict(dashboard_api.PROFILES)
+        saved_blind = dashboard_api.BLIND
+        dashboard_api.PROFILES["copilot"] = dict(
+            dashboard_api.PROFILES["real"], label="Copilot claims",
+            blurb="b", banner={"tag": "Unverified", "text": "cannot be traced"})
+        dashboard_api.BLIND = True
+        code, prof = as_viewer(client, "/api/profiles", OWNER)
+        names = [p["name"] for p in prof["profiles"]]
+        labels = [p["label"] for p in prof["profiles"]]
+        ok(code == 200 and names == ["arm-a", "arm-b"]
+           and labels == ["Ledger A", "Ledger B"],
+           "the ledgers are two identically-described arms -- 'Real ledger' "
+           "and 'Copilot claims' are answers, and a comparison whose arms "
+           "carry the answer is not one")
+        blob = json.dumps(prof)
+        ok("Copilot" not in blob and "cannot be traced" not in blob,
+           "and neither the names nor the banners leak: the banner that "
+           "explained what was wrong with one arm was the loudest tell of all")
+        ok(all(not p["synthetic"] for p in prof["profiles"])
+           and len(prof["profiles"]) == 2,
+           "the synthetic demo is not an arm and is dropped entirely -- a "
+           "third option that obviously differs is a hint about the other two")
+
+        mapping = dashboard_api.blind_map(OWNER)
+        ok(sorted(mapping.keys()) == ["arm-a", "arm-b"]
+           and sorted(mapping.values()) == ["copilot", "real"],
+           "each arm resolves to exactly one real ledger")
+        ok(dashboard_api.blind_map(OWNER) == mapping,
+           "stable for one person across requests, or the ledger would change "
+           "under them mid-review")
+        flips = set()
+        for who in ("a", "b", "c", "d", "e", "f", "g", "h"):
+            flips.add(dashboard_api.blind_map(who)["arm-a"])
+        ok(flips == {"real", "copilot"},
+           "and it is not the same assignment for everybody, so order effects "
+           "do not all land on the same ledger")
+
+        with dashboard_api.app.test_request_context(
+                "/api/x?profile=copilot", headers={"X-Viewer": OWNER}):
+            ok(dashboard_api.profile_name() == mapping["arm-a"],
+               "asking for a ledger BY NAME while blinded does not get it -- "
+               "it resolves to that person's arm A, because falling back to "
+               "the default would quietly mean 'real' and hand the answer to "
+               "anyone who guessed")
+        with dashboard_api.app.test_request_context(
+                "/api/x?profile=arm-b", headers={"X-Viewer": OWNER}):
+            ok(dashboard_api.profile_name() == mapping["arm-b"],
+               "and the arm name resolves to the ledger behind it")
+
+        print("survey")
+        import tempfile
+        saved_dir = dashboard_api.SURVEY_DIR
+        dashboard_api.SURVEY_DIR = tempfile.mkdtemp()
+        code, spec = as_viewer(client, "/api/survey?profile=arm-a", OWNER)
+        ids = [q["id"] for q in spec["questions"]]
+        ok(code == 200 and "worst" in ids and "which_better" not in ids,
+           "the first arm is asked about itself; the comparison question is "
+           "not asked of somebody who has only seen one side")
+        def spost(path, payload):
+            r = client.post(path, json=payload, headers={"X-Viewer": OWNER})
+            return r.status_code, r.get_json()
+
+        code, body = spost("/api/survey?profile=arm-a", {"answers": {}})
+        ok(code == 400, "an empty form is not a submission")
+        code, body = spost("/api/survey?profile=arm-a",
+                           {"answers": {"recognised": "4",
+                                        "worst": "it thought sharing a screen "
+                                                 "was a task"}})
+        ok(code == 200 and body.get("file", "").endswith(".txt"),
+           "answers are written to a file the person can send on")
+        written = os.listdir(dashboard_api.SURVEY_DIR)
+        ok(any(f.endswith(".json") for f in written)
+           and any(f.endswith(".txt") for f in written),
+           "as JSON to read with a script and text to read with your eyes")
+        with open(os.path.join(dashboard_api.SURVEY_DIR,
+                               [f for f in written if f.endswith(".json")][0])) as f:
+            doc = json.load(f)
+        ok(doc["ledger"] == mapping["arm-a"] and doc["arm"] == "arm-a",
+           "and the file records WHICH ledger it was: the participant stays "
+           "blind, the person reading the answers must not be")
+        ok(isinstance(doc.get("decisions"), dict)
+           and "accept" in doc["decisions"],
+           "with what they actually did beside what they say about it -- "
+           "self-report and behaviour disagree often enough that collecting "
+           "one without the other wastes the session")
+        code, spec2 = as_viewer(client, "/api/survey?profile=arm-b", OWNER)
+        ok("which_better" in [q["id"] for q in spec2["questions"]],
+           "the second arm asks the comparison, which is the whole reason "
+           "for doing both")
+        code, spec3 = as_viewer(client, "/api/survey?profile=arm-a", OWNER)
+        ok(spec3["submitted"] is True,
+           "and the form does not re-ambush somebody who already answered it")
+
+        dashboard_api.SURVEY_DIR = saved_dir
+        dashboard_api.BLIND = saved_blind
+        dashboard_api.PROFILES.clear()
+        dashboard_api.PROFILES.update(saved_profiles)
+
         print("unreachable ledger")
         saved = dict(dashboard_api.PROFILES.get("copilot") or {})
         dashboard_api.PROFILES["copilot"] = {

@@ -135,6 +135,11 @@ def main():
     ap.add_argument("--out", default=os.path.join(
         os.path.expanduser("~"), "task-ledger-kit"))
     ap.add_argument("--apply", action="store_true")
+    ap.add_argument("--copilot-dsn", default=os.environ.get("TL_COPILOT_DSN"),
+                    help="a SECOND ledger built from the same meetings by "
+                         "another extractor. Shipped as ledger-b.sql and "
+                         "shown blind beside the first, so the comparison "
+                         "measures the cards and not the labels.")
     ap.add_argument("--no-ledger", action="store_true",
                     help="ship the code only -- for someone who was not in "
                          "the meetings")
@@ -281,6 +286,34 @@ def main():
         if subprocess.run(cmd).returncode != 0:
             print("pg_dump failed -- kit is incomplete, stopping.")
             return 1
+
+    # The second arm. Same meetings, other extractor -- and it is either
+    # in the kit and working or absent and unmentioned. A comparison that
+    # half-ships is worse than none: the person doing it cannot tell
+    # which half they are looking at, and every answer they give is
+    # about a ledger nobody can identify afterwards.
+    if not args.no_ledger and args.copilot_dsn and dump:
+        bparts = dict(kv.split("=", 1)
+                      for kv in args.copilot_dsn.split() if "=" in kv)
+        bdb = bparts.get("dbname")
+        if not bdb:
+            print("--copilot-dsn has no dbname -- stopping.")
+            return 1
+        if bdb == db:
+            print("--copilot-dsn names the same database as the first "
+                  "ledger; there would be nothing to compare. Stopping.")
+            return 1
+        target = os.path.join(args.out, "ledger-b.sql")
+        cmd = [dump, "-h", bparts.get("host", "localhost"),
+               "-p", bparts.get("port", "5432"), "-d", bdb, "-f", target]
+        if bparts.get("user"):
+            cmd += ["-U", bparts["user"]]
+        if subprocess.run(cmd).returncode != 0:
+            print("pg_dump of the second ledger failed -- kit would ship "
+                  "a comparison with one arm. Stopping.")
+            return 1
+        print("  second ledger: {0} -> ledger-b.sql (shown blind as "
+              "Ledger A / Ledger B)".format(bdb))
 
     # The launcher goes at the TOP of the kit, alone, because the first
     # thing a colleague sees should be one obviously-clickable file and

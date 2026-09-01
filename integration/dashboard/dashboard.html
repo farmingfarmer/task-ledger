@@ -532,6 +532,22 @@
     border-radius:var(--r1,6px)}
   .modal-foot{padding:12px 20px;border-top:1px solid var(--line);
          background:var(--panel-2);font-size:12px;color:var(--faint)}
+  .svq{margin-bottom:18px}
+  .svq .qt{font-size:13.5px;margin-bottom:7px}
+  .svopts{display:flex;flex-wrap:wrap;gap:6px}
+  .svopts button{font:inherit;font-size:12.5px;padding:6px 11px;
+         border:1px solid var(--line);border-radius:var(--r1);
+         background:var(--panel);cursor:pointer}
+  .svopts button[aria-pressed="true"]{background:var(--accent,#2f6fed);
+         color:#fff;border-color:var(--accent,#2f6fed)}
+  .svends{display:flex;justify-content:space-between;font-size:11.5px;
+         color:var(--faint);margin-top:4px;max-width:340px}
+  .svq textarea{font:inherit;font-size:13px;width:100%;min-height:64px;
+         padding:8px 9px;border:1px solid var(--line);
+         border-radius:var(--r1);background:var(--panel);resize:vertical}
+  .svpath{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;
+         word-break:break-all;background:var(--panel-2);padding:8px 10px;
+         border-radius:var(--r1);margin:8px 0}
   .revsec{margin-top:16px}
   .revsec h3{font-size:12px;text-transform:uppercase;letter-spacing:.07em;
          color:var(--muted);margin-bottom:2px}
@@ -652,6 +668,22 @@
         </div>
         <div class="modal-body" id="revbody"></div>
         <div class="modal-foot" id="revfoot"></div>
+      </div>
+    </div>
+
+    <!-- The feedback form, which arrives at the only moment it is worth
+         asking: straight after someone has ruled on their last card,
+         while they still remember which one annoyed them. -->
+    <div class="modal" id="surveymodal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true"
+           aria-labelledby="svtitle">
+        <div class="modal-head">
+          <h2 id="svtitle">How did that go?</h2>
+          <button type="button" class="modal-x" id="svclose"
+                  aria-label="Close">&times;</button>
+        </div>
+        <div class="modal-body" id="svbody"></div>
+        <div class="modal-foot" id="svfoot"></div>
       </div>
     </div>
 
@@ -1149,6 +1181,10 @@
   // since gone quiet. Production asks them in a Teams card; this asks them
   // here, through the same decision path.
   var REVIEW = {data: null, shown: false};
+  // answered: decisions made in THIS sitting. The form is for people who
+  // just did the work; someone who opened the page, changed nothing and
+  // closed it has nothing to report and should not be asked.
+  var SURVEY = {answers: {}, spec: null, answered: 0, offered: false};
 
   function post(path, body){
     return fetch(withProfile(path), {
@@ -1159,6 +1195,11 @@
     }).then(function(r){
       return r.json().then(function(b){
         if(!r.ok) throw new Error(b.detail || b.error || ("HTTP " + r.status));
+        // Every decision goes through here, so this is the one place that
+        // knows whether this person actually did any work -- and the form
+        // must only interrupt someone who did.
+        if(path.indexOf("/api/decide") === 0
+           || path.indexOf("/api/candidate") === 0) SURVEY.answered++;
         return b;
       });
     });
@@ -1179,6 +1220,15 @@
       btn.appendChild(document.createTextNode("Review"));
       if(n) btn.appendChild(el("span","cnt", String(n)));
       if(autoOpen && n && !REVIEW.shown){ REVIEW.shown = true; openReview(); }
+      // The queue just emptied and this person emptied it. Ask now: in
+      // an hour they will remember that it was "fine", and the specific
+      // card that was wrong -- the only part worth having -- is already
+      // gone.
+      if(n === 0 && SURVEY.answered > 0 && !SURVEY.offered){
+        SURVEY.offered = true;
+        closeReview();
+        openSurvey(false);
+      }
     })["catch"](function(){ /* endpoint absent: no popup, no noise */ });
   }
 
@@ -1297,6 +1347,119 @@
              resolve_blocker: "Blocker cleared", complete_task: "Complete",
              cancel_task: "Cancel", merge_tasks: "Merge"};
     return L[op] || op;
+  }
+
+  // ---- the form, at the end of the work ----
+  function closeSurvey(){
+    document.getElementById("surveymodal").hidden = true;
+  }
+
+  function svQuestion(q){
+    var wrap = el2("div","svq");
+    wrap.appendChild(el("div","qt", q.text));
+    if(q.kind === "text"){
+      var ta = document.createElement("textarea");
+      ta.placeholder = "\u2014";
+      ta.oninput = function(){
+        if(ta.value.trim()) SURVEY.answers[q.id] = ta.value.trim();
+        else delete SURVEY.answers[q.id];
+      };
+      wrap.appendChild(ta);
+      return wrap;
+    }
+    var opts = el2("div","svopts");
+    var values = q.kind === "scale" ? ["1","2","3","4","5"] : q.options;
+    values.forEach(function(v){
+      var b = el2("button", null); b.type = "button";
+      b.textContent = v;
+      b.setAttribute("aria-pressed","false");
+      b.onclick = function(){
+        SURVEY.answers[q.id] = v;
+        var sibs = opts.querySelectorAll("button");
+        for(var i = 0; i < sibs.length; i++)
+          sibs[i].setAttribute("aria-pressed", sibs[i] === b ? "true":"false");
+      };
+      opts.appendChild(b);
+    });
+    wrap.appendChild(opts);
+    if(q.kind === "scale"){
+      var ends = el2("div","svends");
+      ends.appendChild(el("span", null, q.low || ""));
+      ends.appendChild(el("span", null, q.high || ""));
+      wrap.appendChild(ends);
+    }
+    return wrap;
+  }
+
+  function paintSurvey(spec){
+    SURVEY.spec = spec; SURVEY.answers = {};
+    var body = document.getElementById("svbody");
+    var foot = document.getElementById("svfoot");
+    body.innerHTML = ""; foot.innerHTML = "";
+    document.getElementById("svtitle").textContent = "How did that go?";
+    body.appendChild(el("p","lede",
+      "You have just ruled on real cards. What you thought of them is "
+      + "worth more now than it will be tomorrow. Nothing here is "
+      + "compulsory \u2014 skip anything, send what you have."));
+    spec.questions.forEach(function(q){ body.appendChild(svQuestion(q)); });
+
+    var send = el2("button","yes"); send.type = "button";
+    send.textContent = "Save my answers";
+    var note = el("span","revnote", "");
+    send.onclick = function(){
+      if(!Object.keys(SURVEY.answers).length){
+        note.textContent = "Answer at least one thing first.";
+        return;
+      }
+      send.disabled = true;
+      note.textContent = "Saving\u2026";
+      post("/api/survey", {answers: SURVEY.answers})
+        .then(function(r){ surveyDone(r); })
+        ["catch"](function(e){
+          send.disabled = false;
+          note.textContent = e.message;
+        });
+    };
+    foot.appendChild(send); foot.appendChild(note);
+    document.getElementById("surveymodal").hidden = false;
+  }
+
+  function surveyDone(r){
+    var body = document.getElementById("svbody");
+    var foot = document.getElementById("svfoot");
+    body.innerHTML = ""; foot.innerHTML = "";
+    document.getElementById("svtitle").textContent = "Saved \u2014 thank you";
+    body.appendChild(el("p","lede",
+      "Your answers are in a file on this machine. Send it on; nothing "
+      + "left this laptop by itself."));
+    body.appendChild(el("div","svpath", r.file || r.folder || ""));
+    var copy = el2("button", null); copy.type = "button";
+    copy.textContent = "Copy the folder path";
+    copy.onclick = function(){
+      var t = r.folder || "";
+      if(navigator.clipboard) navigator.clipboard.writeText(t);
+      copy.textContent = "Copied";
+    };
+    body.appendChild(copy);
+    if(r.remaining && r.remaining.length){
+      // Said plainly, because the second half is the half that compares.
+      body.appendChild(el("p","lede",
+        "There is a second ledger to review, in the switch at the top. "
+        + "It was built from the same meetings a different way. When you "
+        + "have answered its cards too, this form will ask you which was "
+        + "better \u2014 that question is the whole point of doing both."));
+    }
+    var done = el2("button","yes"); done.type = "button";
+    done.textContent = "Close";
+    done.onclick = closeSurvey;
+    foot.appendChild(done);
+  }
+
+  function openSurvey(force){
+    return get("/api/survey").then(function(spec){
+      if(spec.submitted && !force){ return; }
+      paintSurvey(spec);
+    })["catch"](function(){ /* no survey configured: never in the way */ });
   }
 
   function paintReview(){
@@ -1422,6 +1585,14 @@
          + " \u00b7 board v" + d.packet.board_version
          + " \u00b7 nothing moves without a decision recorded against it")
       : "Nothing moves without a decision recorded against it.";
+    // Closing the form must not be the end of it. Someone who wants to
+    // say something after the fact should not have to redo their cards
+    // to be asked again.
+    var fb = el2("button", null); fb.type = "button";
+    fb.textContent = "Give feedback";
+    fb.onclick = function(){ closeReview(); openSurvey(true); };
+    foot.appendChild(document.createTextNode("  "));
+    foot.appendChild(fb);
   }
 
   // "ADA OKONKWO", not "aad-ada-okonkwo" -- the same shortening the
@@ -3198,6 +3369,7 @@
      wireAsk();
      document.getElementById("revbtn").onclick = openReview;
      document.getElementById("wclose").onclick = closeWelcome;
+     document.getElementById("svclose").onclick = closeSurvey;
      // Only where a person can actually choose who they are; on a
      // single-identity session there is nothing to ask and the greeting
      // would just be a door in front of the room.
