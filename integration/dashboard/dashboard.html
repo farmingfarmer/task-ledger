@@ -530,6 +530,8 @@
   .subnew{font:inherit;font-size:13px;padding:7px 9px;min-width:260px;
     flex:1;border:1px solid var(--line,#d9dee5);
     border-radius:var(--r1,6px)}
+  .build{font-size:11px;color:var(--faint);font-family:ui-monospace,
+         Menlo,Consolas,monospace;margin-left:10px}
   .modal-foot{padding:12px 20px;border-top:1px solid var(--line);
          background:var(--panel-2);font-size:12px;color:var(--faint)}
   .svq{margin-bottom:18px}
@@ -594,6 +596,7 @@
       <h1>Task ledger</h1>
       <p class="mission">Your work, as the conversations recorded it &mdash;
         every fact traceable to the sentence that produced it.</p>
+      <span class="build" id="build" title="the code this page is running"></span>
       <details class="deal">
         <summary>Runs on this machine only &middot; suggests, never decides
           &middot; keeps score on itself, not on you &mdash; the deal</summary>
@@ -3356,6 +3359,18 @@
     paintProfiles();
     loadViewers().then(boot);
   }
+
+  // Say which build this is, on the page. "I pulled and nothing changed"
+  // has three causes that look identical from outside -- the pull did
+  // not land, the server was not restarted, the browser served a cached
+  // page -- and this tells them apart at a glance.
+  fetch("/api/version").then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(v){
+      if(!v) return;
+      var n = document.getElementById("build");
+      if(n) n.textContent = "build " + v.build
+                            + (v.blind ? " \u00b7 blind" : "");
+    })["catch"](function(){ /* never worth a broken page */ });
 
   fetch("/api/profiles").then(function(r){
     return r.ok ? r.json() : null;

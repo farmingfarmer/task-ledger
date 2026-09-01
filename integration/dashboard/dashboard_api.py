@@ -281,6 +281,57 @@ def assets(filename):
     return send_from_directory(base, filename)
 
 
+def _build_id():
+    """Which code is actually running, from git if it is there.
+
+    "I pulled and nothing changed" has three causes -- the pull did not
+    land, the server was not restarted, or the browser served a cached
+    page -- and from the outside they look identical. A build stamp on
+    the page and in the startup banner tells the three apart in one
+    glance instead of an exchange of guesses.
+    """
+    try:
+        import subprocess
+        root = os.path.normpath(os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+        out = subprocess.check_output(
+            ["git", "-C", root, "log", "-1", "--format=%h %cd",
+             "--date=format:%Y-%m-%d %H:%M"],
+            stderr=subprocess.DEVNULL).decode("utf-8").strip()
+        return out or "unknown"
+    except Exception:                                   # noqa: BLE001
+        return "unknown"
+
+
+BUILD_ID = _build_id()
+
+
+@app.after_request
+def _no_stale_page(resp):
+    """Never let a browser answer with yesterday's dashboard.
+
+    This is one HTML file carrying its own JavaScript, so a cached copy
+    is a cached APPLICATION -- every fix shipped since the page was
+    first loaded is simply absent, and the person looking at it has no
+    way to tell. The API answers are per-request and per-viewer and
+    should not be stored either.
+    """
+    ctype = (resp.headers.get("Content-Type") or "")
+    if ctype.startswith("text/html") or ctype.startswith("application/json"):
+        resp.headers["Cache-Control"] = "no-store, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+    resp.headers["X-TL-Build"] = BUILD_ID
+    return resp
+
+
+@app.route("/api/version")
+def version():
+    return jsonify({"build": BUILD_ID, "blind": bool(blind_map(viewer())),
+                    "hands_on": HANDS_ON,
+                    "ledgers": [n for n in ("real", "synthetic", "copilot")
+                                if n in PROFILES]})
+
+
 @app.route("/api/profiles")
 def profiles():
     """Which ledgers this dashboard can show, and which one is active.
@@ -2431,6 +2482,7 @@ def _startup_banner():
                           "synthetic only -- set TL_HANDS_ON=1 to let "
                           "people answer their own cards"))
     print("feedback: " + SURVEY_DIR)
+    print("code:     " + BUILD_ID)
     if os.environ.get("TL_VIEWER_PICKER") != "1":
         print("viewers:  picker off (it enumerates everyone with a task); "
               "type an identity in the header, or set TL_VIEWER_PICKER=1")
