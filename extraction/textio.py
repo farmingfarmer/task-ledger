@@ -56,10 +56,21 @@ def detect_encoding(raw):
 
 
 def read_text(path, verbose=False):
-    """A transcript's text, from any of the encodings exporters produce."""
+    """A transcript's text, from any of the encodings exporters produce.
+
+    Newlines come back as \n whatever the file used. This function reads
+    BYTES (it must -- encoding detection needs them), which sidesteps
+    Python's universal-newline translation, so a Windows file would
+    otherwise hand every caller lines ending in \r. Most parsers split
+    with splitlines() and never notice; anything that splits on \n
+    inherits an invisible carriage return glued to every utterance --
+    and a quote or a content hash then differs between two machines by
+    a byte nobody can see. Caught the first time the suite ever ran on
+    Windows, which was also the first day the kits were built there.
+    """
     with open(path, "rb") as f:
         raw = f.read()
     enc, why = detect_encoding(raw)
     if verbose and enc not in ("utf-8", "utf-8-sig"):
         print("  ({0} read as {1}: {2})".format(path, enc, why))
-    return raw.decode(enc)
+    return raw.decode(enc).replace("\r\n", "\n").replace("\r", "\n")

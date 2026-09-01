@@ -127,8 +127,14 @@ def test_transcript_encodings():
         with open(path, "w", encoding=enc) as f:
             f.write(body)
         got = textio.read_text(path)
+        # Written with the platform's own newline convention on purpose:
+        # on Windows that file really contains \r\n, exactly like a real
+        # exporter's, and read_text must hand back \n regardless. This
+        # assertion failed the first time the suite ever ran on Windows
+        # -- the old read_text preserved the \r, gluing an invisible
+        # byte to every utterance a parser split on \n.
         ok(got.replace("\ufeff", "") == body,
-           "{0} reads back byte-identical, accents and dashes "
+           "{0} reads back with accents, dashes and newlines "
            "intact".format(enc))
     # No BOM and not valid UTF-8: cp1252 is Windows' default and cannot
     # fail, so this degrades to readable text rather than an exception.
@@ -137,6 +143,13 @@ def test_transcript_encodings():
         f.write("caf\u00e9 notes".encode("cp1252"))
     ok(textio.read_text(path) == "caf\u00e9 notes",
        "a BOM-less cp1252 file is read as cp1252, not thrown away")
+    path = os.path.join(tmp, "t-crlf.txt")
+    with open(path, "wb") as f:
+        f.write(b"line one\r\nline two\rline three\n")
+    ok(textio.read_text(path) == "line one\nline two\nline three\n",
+       "\\r\\n and bare \\r both come back as \\n on every platform, "
+       "so a hash or a quote computed from a transcript is the same "
+       "hash on the machine that wrote it and the machine that reads it")
     enc, why = textio.detect_encoding(b"\xff\xfe\x00\x00hi")
     ok(enc == "utf-32",
        "UTF-32 LE is not mistaken for UTF-16 LE: it shares its first two "
