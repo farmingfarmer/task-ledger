@@ -12,3 +12,19 @@ task-ledger-eval/
 transcript*.txt
 *transcript*raw*.txt
 *_raw.txt
+
+# A Copilot claims export is real meeting speech too, and increasingly so:
+# the prompt now demands a VERBATIM quote per claim, because a quote we can
+# find in the transcript is what lifts the confidence cap. So the export is
+# not a summary of what was said, it is a file of sentences colleagues
+# actually spoke, with their names against them.
+#
+# Only 'copilot_claims_raw.txt' was covered, by the generic *_raw.txt rule
+# above -- one character off that name and the file was committable. Named
+# by extension so the tracked .py, .md and .sql keep their names.
+copilot*claims*.txt
+copilot*claims*.json
+claims*.txt
+claims*.json
+*_claims.txt
+*_claims.json
