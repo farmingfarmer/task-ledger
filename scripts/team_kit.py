@@ -140,6 +140,13 @@ def main():
                          "another extractor. Shipped as ledger-b.sql and "
                          "shown blind beside the first, so the comparison "
                          "measures the cards and not the labels.")
+    ap.add_argument("--blind-salt", default=os.environ.get("TL_BLIND_SALT"),
+                    help="the salt that decides who sees which ledger "
+                         "first. Pick one with 'tl blind <people> "
+                         "--balance' and pass it here so every kit agrees "
+                         "-- kits with different salts would show the same "
+                         "person different arms, and the survey files "
+                         "would disagree about which ledger 'A' was.")
     ap.add_argument("--no-ledger", action="store_true",
                     help="ship the code only -- for someone who was not in "
                          "the meetings")
@@ -346,6 +353,17 @@ def main():
             return 1
         print("  second ledger: {0} -> ledger-b.sql (shown blind as "
               "Ledger A / Ledger B)".format(bdb))
+        # The salt travels WITH the kit, or the blind falls apart quietly:
+        # every machine would default to the same shipped constant --
+        # which is consistent but unbalanced -- and any operator who
+        # re-salted locally would produce survey files that disagree with
+        # everyone else's about which ledger "A" was.
+        with open(os.path.join(args.out, "blind-salt.txt"), "w") as f:
+            f.write((args.blind_salt or "task-ledger-blind-v1") + "\n")
+        if not args.blind_salt:
+            print("  NOTE: no --blind-salt given, shipping the default. "
+                  "Check the split first:")
+            print("     tl blind <the people getting kits> --balance")
 
     # The launcher goes at the TOP of the kit, alone, because the first
     # thing a colleague sees should be one obviously-clickable file and

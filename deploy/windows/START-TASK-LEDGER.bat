@@ -213,6 +213,13 @@ if exist "%KITROOT%ledger-b.sql" (
   if defined DB_B_OK (
     set "TL_COPILOT_DSN=host=localhost port=%PGPORT% dbname=%DBNAME%_b user=%USERNAME%"
     set "TL_BLIND=1"
+    rem The salt shipped with the kit, so every machine assigns the same
+    rem person the same arm and every survey file means the same thing
+    rem by "Ledger A". Without the file the shipped default applies,
+    rem which is still consistent across kits -- just unchecked.
+    if exist "%KITROOT%blind-salt.txt" (
+      set /p TL_BLIND_SALT=<"%KITROOT%blind-salt.txt"
+    )
   ) else (
     echo   [!] The second ledger would not prepare; running with one.
     echo       Details: %SETUPLOG%

@@ -3355,6 +3355,15 @@
     state.profile = name;
     state.user = null; state.task = null;
     REVIEW.shown = false;          // a different ledger asks its own questions
+    // ...and earns its own survey. Left un-reset, "offered" carried over
+    // from the first arm, so the SECOND arm's form -- the one holding
+    // the comparison questions, which are the entire point of reviewing
+    // both -- never appeared unless someone thought to click Give
+    // feedback by hand. The decision count is per-arm for the same
+    // reason: it gates the form on work done HERE, in this ledger.
+    SURVEY.offered = false;
+    SURVEY.answered = 0;
+    closeSurvey();
     closeReview();
     paintProfiles();
     loadViewers().then(boot);
