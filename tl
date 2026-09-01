@@ -119,6 +119,7 @@ usage() {
   echo "  demo            seed a reviewable state, no Ollama needed"
   echo "  demo-check      drive the real app and assert the demo holds up"
   echo "  test            every suite, forced onto a scratch database"
+  echo "  prompt          the Copilot prompt, ready to paste (--with <file>)"
   echo "  blind <people>  who sees which ledger under TL_BLIND=1 (--balance)"
   echo "  map             rebuild docs/system_map.html"
 }
@@ -312,6 +313,10 @@ case "$CMD" in
     export DB_DSN
     echo "tl: suites against $(dbname_of "$DB_DSN")"
     ./run_tests.sh "$@"
+    ;;
+
+  prompt)
+    python3 scripts/show_prompt.py "$@"
     ;;
 
   blind)

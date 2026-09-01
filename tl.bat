@@ -98,6 +98,7 @@ if /i "%CMD%"=="score" goto :score
 if /i "%CMD%"=="demo" goto :demo
 if /i "%CMD%"=="demo-check" goto :democheck
 if /i "%CMD%"=="test" goto :test
+if /i "%CMD%"=="prompt" goto :prompt
 if /i "%CMD%"=="blind" goto :blind
 if /i "%CMD%"=="map" goto :map
 echo tl: unknown subcommand "%CMD%" 1>&2
@@ -129,6 +130,7 @@ echo   score ^<dir^>     extraction vs golden labels, measured
 echo   demo            seed a reviewable state, no Ollama needed
 echo   demo-check      drive the real app and assert the demo holds up
 echo   test            every suite, forced onto a scratch database
+echo   prompt          the Copilot prompt, ready to paste ^(--with ^<file^>^)
 echo   blind ^<people^> who sees which ledger under TL_BLIND=1 ^(--balance^)
 echo   map             rebuild docs\system_map.html
 exit /b 2
@@ -329,6 +331,10 @@ echo %DB_DSN% | findstr /r "dbname=taskintel " >nul && (
 )
 echo tl: suites against a scratch database
 call run_tests.bat %ARGS%
+exit /b %errorlevel%
+
+:prompt
+python scripts\show_prompt.py %ARGS%
 exit /b %errorlevel%
 
 :blind
