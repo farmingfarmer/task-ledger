@@ -208,7 +208,39 @@ def main():
         print("  2. ledger.sql           a copy of '{0}' -- {1} signal(s), "
               "{2} task(s), REAL MEETING CONTENT".format(
                   db, content[0], content[1]))
-    print("  3. START-TASK-LEDGER.bat  the one file a teammate opens")
+    # The second arm, counted and named in the PLAN. Doing the dump but
+    # not saying so meant a dry run described a one-ledger kit and
+    # --apply built a two-ledger one, which is the one thing a dry run
+    # exists to prevent.
+    bcontent = None
+    if args.copilot_dsn and not args.no_ledger:
+        bparts = dict(kv.split("=", 1)
+                      for kv in args.copilot_dsn.split() if "=" in kv)
+        bdb = bparts.get("dbname", "?")
+        try:
+            import psycopg2
+            conn = psycopg2.connect(args.copilot_dsn, connect_timeout=5)
+            with conn, conn.cursor() as cur:
+                cur.execute("SELECT (SELECT count(*) FROM signals), "
+                            "(SELECT count(*) FROM tasks_current)")
+                bcontent = cur.fetchone()
+            conn.close()
+        except Exception as exc:                        # noqa: BLE001
+            print("  3. BLOCKED: cannot read the second ledger '{0}' ({1}). "
+                  "Fix TL_COPILOT_DSN, or drop --copilot-dsn to ship one "
+                  "ledger.".format(bdb, exc.__class__.__name__))
+            return 2
+        if bcontent == (0, 0):
+            print("  3. BLOCKED: the second ledger '{0}' holds 0 signals. "
+                  "Half a comparison is worse than none.".format(bdb))
+            return 2
+        print("  3. ledger-b.sql         a copy of '{0}' -- {1} signal(s), "
+              "{2} task(s)".format(bdb, bcontent[0], bcontent[1]))
+        print("     shown BLIND: the two are Ledger A and Ledger B, "
+              "assigned per person,")
+        print("     and which is which is never shown to the reviewer.")
+    print("  {0}. START-TASK-LEDGER.bat  the one file a teammate opens"
+          .format(4 if bcontent else 3))
     # Bundling turns "install Python, install Postgres, then double-click"
     # into "double-click". The size is the entire cost, and it is paid
     # once by whoever builds the kit rather than repeatedly by every
