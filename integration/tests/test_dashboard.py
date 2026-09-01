@@ -810,6 +810,37 @@ def main():
         ok(code == 400,
            "a reassignment is a wrong_owner rejection, not any rejection")
 
+        print("unreachable ledger")
+        saved = dict(dashboard_api.PROFILES.get("copilot") or {})
+        dashboard_api.PROFILES["copilot"] = {
+            "dsn": "host=localhost port=5432 dbname=tl_no_such_db_xyz "
+                   "user=tl_no_such_role_xyz",
+            "synthetic": False, "writable": False, "label": "Copilot claims",
+            "blurb": "b", "banner": {"tag": "t", "text": "t"}}
+        code, body = as_viewer(client, "/api/review?profile=copilot", OWNER)
+        ok(code == 503,
+           "a ledger the server cannot reach is 503, not 500 -- the request "
+           "was fine, the database is not there")
+        ok("not reachable" in json.dumps(body)
+           and "TL_COPILOT_DSN" in json.dumps(body),
+           "and it names the variable to fix, because every panel carries the "
+           "profile so one bad DSN fails all of them at once -- fourteen "
+           "boxes reading '-> 500' say nothing fourteen times")
+        ok("tl_no_such_db_xyz" in json.dumps(body)
+           and "tl_no_such_role_xyz" in json.dumps(body),
+           "and it quotes the database and role it actually tried, which is "
+           "the pair that is usually wrong")
+        ok("password" not in json.dumps(body).lower(),
+           "without echoing a password back into a browser")
+        code, _ = as_viewer(client, "/api/review", OWNER)
+        ok(code == 200,
+           "and the other ledger is untouched: one unreachable profile must "
+           "not take the working one down with it")
+        if saved:
+            dashboard_api.PROFILES["copilot"] = saved
+        else:
+            dashboard_api.PROFILES.pop("copilot", None)
+
         print("uncited claims")
         uncited = [p for p in rev["proposals"]
                    if p["proposal_id"] == UNCITED_PROP]

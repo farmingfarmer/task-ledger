@@ -767,6 +767,18 @@
         var e = new Error(b.error || "not shared with you");
         e.forbidden = true; throw e;
       });
+      // A server that took the trouble to explain itself should be
+      // quoted, not replaced by a status code. "-> 500" fourteen times
+      // tells you nothing; "the copilot ledger is not reachable" tells
+      // you what to fix.
+      if(r.status === 503) return r.json().then(function(b){
+        var e = new Error((b.error || "unavailable")
+                          + (b.detail ? " \u2014 " + b.detail : ""));
+        e.explained = true; throw e;
+      })["catch"](function(e){
+        if(e.explained) throw e;
+        throw new Error(path + " -> 503");
+      });
       if(!r.ok) throw new Error(path + " -> " + r.status);
       return r.json();
     });
@@ -797,7 +809,7 @@
   }
   function fail(node, e, retry){
     node.innerHTML = "";
-    var box = el("div","err", e.forbidden ? e.message
+    var box = el("div","err", (e.forbidden || e.explained) ? e.message
       : "Could not load this panel: " + e.message);
     node.appendChild(box);
     if(retry && !e.forbidden){

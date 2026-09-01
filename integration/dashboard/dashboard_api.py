@@ -1150,6 +1150,43 @@ def _write_conn():
     return psycopg2.connect(profile_dsn())
 
 
+@app.errorhandler(psycopg2.OperationalError)
+def _unreachable_ledger(exc):
+    """A ledger the server cannot reach is a SENTENCE, not a stack trace.
+
+    Every panel carries the profile, so one bad DSN fails every panel at
+    once: fourteen tracebacks in the console and fourteen boxes on the
+    page reading "-> 500", none of which say the one thing that is
+    wrong. The cause is nearly always a hand-typed TL_COPILOT_DSN --
+    wrong role, wrong port, or a database that was never built -- and it
+    is knowable here, from the exception Postgres already wrote.
+
+    503, not 500: the request was fine, the ledger is not there.
+    """
+    parts = dict(kv.split("=", 1) for kv in profile_dsn().split()
+                 if "=" in kv)
+    where = "{0} on {1}:{2} as {3}".format(
+        parts.get("dbname", "?"), parts.get("host", "?"),
+        parts.get("port", "?"), parts.get("user", "?"))
+    msg = " ".join(str(exc).split())
+    if "does not exist" in msg and "role" in msg:
+        why = ("that Postgres has no role by that name -- on Windows the "
+               "role is your own username, not 'postgres'")
+    elif "does not exist" in msg and "database" in msg:
+        why = ("that database does not exist yet -- build it with "
+               "\"tl copilot <claims file> --apply\"")
+    elif "Connection refused" in msg or "could not connect" in msg:
+        why = "nothing is listening there -- is Postgres running?"
+    else:
+        why = msg
+    env = {"copilot": "TL_COPILOT_DSN", "synthetic": "TL_SYNTH_DSN"}.get(
+        profile_name(), "DB_DSN")
+    return jsonify({
+        "error": "the '{0}' ledger is not reachable".format(profile_name()),
+        "detail": "Tried {0}: {1}. Fix {2} and reload.".format(
+            where, why, env)}), 503
+
+
 def _refuse_write():
     return jsonify({
         "error": "this ledger is read-only from the browser",
