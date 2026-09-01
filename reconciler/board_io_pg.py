@@ -48,6 +48,17 @@ def load_signals(dsn, user_ref):
             for r in rows:
                 raw = r.pop("raw") or {}
                 r["evidence"] = raw.get("evidence") or []
+                # Read out of `raw` rather than off a column of its own,
+                # and that is the point: `signals` is append-only, so a
+                # new column can never be filled for a row already
+                # written -- the author_ref migration cost a day proving
+                # it. Every signal ever stored keeps its full emitted
+                # shape here, so a field added to the contract is
+                # readable on old rows the moment an extractor starts
+                # emitting it, and simply absent on the ones that never
+                # carried it. No migration, and nothing to run on a
+                # second machine.
+                r["parent_hint"] = raw.get("parent_hint") or None
                 pooled = r.pop("pooled_at", None)
                 r["pooled_days"] = (
                     None if pooled is None
@@ -270,6 +281,12 @@ def load_candidates(dsn, user_ref, window_days=None):
                                              if isinstance(oc, str)
                                              else oc) or [],
                         "evidence": raw.get("evidence") or [],
+                        # Same source as load_signals: the emitted shape,
+                        # not a column. A candidate promoted out of the
+                        # register should be filed under the same work its
+                        # sighting named, and the register itself has no
+                        # opinion about parents.
+                        "parent_hint": raw.get("parent_hint") or None,
                     }
                 else:
                     for k in ("lead_type", "lead_status_signal",

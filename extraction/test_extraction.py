@@ -197,6 +197,50 @@ def test_copilot_paste_shapes():
        "reaches it")
 
 
+def test_parent_hint_contract():
+    print("parent hint contract")
+    import jsonschema
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "contracts",
+                           "extraction_schema.json")) as f:
+        schema = json.load(f)
+
+    def batch(sig_extra):
+        s = {"signal_id": "s1", "type": "assignment",
+             "title": "Count events per day", "confidence": 0.8,
+             "evidence": [{"source_type": "transcript_utterance",
+                           "resource_id": "u1", "span": None,
+                           "content_hash": "h"}]}
+        s.update(sig_extra)
+        return {"batch_id": "b1", "extracted_at": "2026-08-31T10:00:00Z",
+                "extractor": {"model": "m", "prompt_version": "v1"},
+                "window": {"source_type": "meeting_transcript",
+                           "source_ref": "r",
+                           "time_start": "2026-08-31T10:00:00Z",
+                           "time_end": "2026-08-31T10:30:00Z"},
+                "signals": [s]}
+
+    jsonschema.validate(batch({"parent_hint": "Stroke prediction work"}),
+                        schema)
+    ok(True, "a signal may name the work it belongs under")
+    jsonschema.validate(batch({}), schema)
+    ok(True, "and an extractor that cannot tell simply omits it -- every "
+             "signal ever written stays valid, which is why this went in "
+             "the emitted shape and not a column")
+    try:
+        jsonschema.validate(batch({"parent_hint": "x" * 121}), schema)
+        ok(False, "an over-long hint is refused")
+    except jsonschema.ValidationError:
+        ok(True, "an over-long hint is refused: it is a task title, and "
+                 "the column it will become one in is capped at 120")
+    try:
+        jsonschema.validate(batch({"project": "Stroke prediction"}), schema)
+        ok(False, "a field nobody declared is refused")
+    except jsonschema.ValidationError:
+        ok(True, "and the field is parent_hint, not project -- the "
+                 "contract still refuses anything it did not declare")
+
+
 def test_quote_anchoring():
     print("quote anchoring")
     import tempfile
@@ -693,6 +737,7 @@ if __name__ == "__main__":
     test_transcript_encodings()
     test_copilot_paste_shapes()
     test_quote_anchoring()
+    test_parent_hint_contract()
     test_prompt_build()
     test_golden()
     test_determinism()

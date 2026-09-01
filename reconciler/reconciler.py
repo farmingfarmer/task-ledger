@@ -878,6 +878,7 @@ class Reconciler(object):
                 "owner_ref": _best_owner(lead),
                 "deadline": None,
                 "parent_task_id": None,
+                "parent_hint": lead.get("parent_hint") or None,
                 "match_note": "promoted from {0} mention(s) by {1} "
                               "speaker(s); on no board".format(
                                   sightings, n_speakers),
@@ -915,6 +916,15 @@ class Reconciler(object):
             "deadline": (str(sig["deadline_date"])
                          if sig.get("deadline_date") else None),
             "parent_task_id": None,
+            # The name of the bigger thing, unresolved. Reconciliation is
+            # board-aware but this deliberately is not resolved here: the
+            # hint names work that may not exist on any board yet, and
+            # inventing a parent task at proposal time would put a card on
+            # someone's screen for work nobody claimed. The reviewer sees
+            # the name, and accepting is what files it -- the same
+            # keystroke the "Part of something bigger" button already is,
+            # arriving pre-filled instead of blank.
+            "parent_hint": sig.get("parent_hint") or None,
             "match_note": match.get("note"),
         }
         op = "create_task"

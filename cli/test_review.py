@@ -296,6 +296,108 @@ def test_accept_teaches_the_wording(dsn):
         conn.close()
 
 
+def test_parent_hint(dsn):
+    print("parent hint")
+    import psycopg2
+    import psycopg2.extras
+    import review
+    conn = psycopg2.connect(dsn)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    try:
+        pid, created = review.resolve_parent_hint(
+            cur, "aad-dev", "Intake Platform")
+        ok(pid and created,
+           "a project nobody tracks yet becomes the parent it needs to be "
+           "-- two tasks from one accept, which is the shape of the thought")
+        cur.execute("SELECT title, status, owner_ref FROM tasks_current "
+                    "WHERE task_id = %s", (pid,))
+        parent = cur.fetchone()
+        ok(parent["title"] == "Intake Platform"
+           and parent["status"] == "proposed"
+           and parent["owner_ref"] == "aad-dev",
+           "and it is proposed and owned by the person who accepted, not "
+           "asserted as work already under way")
+
+        again, created2 = review.resolve_parent_hint(
+            cur, "aad-dev", "intake platform")
+        ok(again == pid and not created2,
+           "the SAME project named again lands on the same parent, "
+           "whatever the casing -- one project is not four parents, which "
+           "is the entire value of the field")
+
+        other, _ = review.resolve_parent_hint(cur, "aad-priya",
+                                              "Intake Platform")
+        ok(other != pid,
+           "and it is per person: filing my work under your task would "
+           "move a board nobody asked to move")
+
+        cur.execute("SELECT apply_task_event(%s,'aad-dev','alias_added',"
+                    "'system',NULL,%s::jsonb)",
+                    (pid, json.dumps({"alias": "the intake work",
+                                      "source_signal_id": None})))
+        by_alias, created3 = review.resolve_parent_hint(
+            cur, "aad-dev", "the intake work")
+        ok(by_alias == pid and not created3,
+           "a wording the board has already been taught resolves too, so "
+           "the second meeting's phrasing does not fork the project")
+
+        none_id, _ = review.resolve_parent_hint(cur, "aad-dev", "  ")
+        ok(none_id is None, "an empty hint files nothing")
+        self_id, _ = review.resolve_parent_hint(
+            cur, "aad-dev", "Intake Platform", own_title="intake platform")
+        ok(self_id is None,
+           "and a hint naming the card itself is dropped rather than "
+           "making a task its own parent by copy")
+
+        # The whole point, end to end: accepting the card is what files it.
+        p = {"proposal_id": "hintA-001", "op": "create_task",
+             "target_task_id": None, "target_merged": None,
+             "target_title": None, "target_status": None}
+        cur.execute("""
+            INSERT INTO review_packets (packet_id, user_ref, generated_at,
+              board_version, cadence_run_id)
+            VALUES ('pk-hint','aad-dev',now(),1,'t')
+            ON CONFLICT DO NOTHING""")
+        cur.execute("""
+            INSERT INTO proposals (proposal_id, packet_id, op, rationale,
+              confidence, payload)
+            VALUES ('hintA-001','pk-hint','create_task','r',0.8,'{}')
+            ON CONFLICT DO NOTHING""")
+        cur.execute("""
+            INSERT INTO decisions (proposal_id, packet_id, decision,
+              decided_by, decided_at)
+            VALUES ('hintA-001','pk-hint','accept','aad-dev',now())
+            ON CONFLICT DO NOTHING""")
+        tid = review.apply_accept(cur, "aad-dev", p, {
+            "kind": "create_task", "title": "Count events per day",
+            "description": None, "status": "proposed",
+            "owner_ref": "aad-dev", "deadline": None,
+            "parent_task_id": None, "parent_hint": "Intake Platform"})
+        cur.execute("SELECT parent_task_id FROM tasks_current "
+                    "WHERE task_id = %s", (tid,))
+        ok(cur.fetchone()["parent_task_id"] == pid,
+           "accepting a card that named a project files the task under it "
+           "-- a fragment that reads as noise on its own is exactly right "
+           "under the work it belongs to")
+
+        tid2 = review.apply_accept(
+            cur, "aad-dev",
+            dict(p, proposal_id="hintB-002"),
+            {"kind": "create_task", "title": "Explicit wins",
+             "description": None, "status": "proposed",
+             "owner_ref": "aad-dev", "deadline": None,
+             "parent_task_id": "task-tw", "parent_hint": "Intake Platform"})
+        cur.execute("SELECT parent_task_id FROM tasks_current "
+                    "WHERE task_id = %s", (tid2,))
+        ok(cur.fetchone()["parent_task_id"] == "task-tw",
+           "and an explicit parent beats the hint: a name an assistant "
+           "supplied never overrides a link a person chose")
+        conn.rollback()
+    finally:
+        cur.close()
+        conn.close()
+
+
 def main():
     test_owner_guard()
     test_deadline_is_a_date()
@@ -315,6 +417,7 @@ def main():
     test_reject_dismisses_candidate(dsn)
     test_accept_carries_register_wordings(dsn)
     test_accept_teaches_the_wording(dsn)
+    test_parent_hint(dsn)
 
     conn = psycopg2.connect(dsn)
     cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)

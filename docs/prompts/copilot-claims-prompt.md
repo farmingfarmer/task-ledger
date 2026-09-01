@@ -108,13 +108,22 @@ export is mostly progress and blockers on work already under way, and
 those need a target task to attach to. Without the flag they are
 consumed with nothing to land on and twenty claims yield one proposal.
 
-**`project` and `quote` are captured but not yet wired.** `project` is
-the parent attribution — the thing the "Part of something bigger" button
-does by hand. `quote` is what would let a Copilot claim be anchored back
-to the Teams transcript you already hold, turning an unverifiable
-`assistant_claim` into a real receipt with an utterance and a hash.
-Both are small builds, deliberately deferred until this comparison says
-whether Copilot's attribution is good enough to be worth wiring.
+**`quote` is what earns a claim its receipt.** When the sentence you
+quote is found in a transcript this system already holds, the claim
+stops being an `assistant_claim` and cites that utterance by id and
+content hash, carries the speaker the transcript records rather than the
+one you named, and is no longer confidence-capped — which is what lets a
+verified completion claim propose that work is finished. Quote verbatim
+or omit the claim: an invented sentence matches nothing and is refused,
+and it costs you the receipt, not just the wording.
+
+**`project` becomes the parent.** It rides to the review card as a name
+— "Files under *Intake Platform*" — and the person accepting is what
+files it, under their task of that name or a new one if they have none.
+So use the SAME string across claims that belong together: identical
+strings land under one parent, and two spellings make two. Null is
+better than a guess; work filed under the wrong parent stops appearing
+where anyone looks for it.
 
 ---
 

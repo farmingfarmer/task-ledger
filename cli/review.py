@@ -33,6 +33,7 @@ Python 3.8 compatible. Requires psycopg2.
 
 import argparse
 import datetime
+import hashlib
 import json
 import sys
 
@@ -161,6 +162,71 @@ def still_valid(prop):
     return True, None
 
 
+def resolve_parent_hint(cur, user, hint, own_title=None):
+    """A project NAME the extractor heard -> the task id to file under.
+
+    Returns (parent_task_id, created) or (None, False) when the hint is
+    unusable. Nothing here runs without a person having accepted a card
+    that displayed the name -- resolution is the last step of a decision,
+    not a step of extraction.
+
+    Matching is by title, then by alias, on the person's OWN open tasks.
+    Deliberately not by embedding: this is the one place a near-miss is
+    unrecoverable in practice, because work filed under the wrong parent
+    stops appearing where anyone looks for it, and nobody re-reads a
+    subtask list to check. An exact name or a wording the board has
+    already been taught, or a new parent -- no guessing in between.
+
+    A hint that names the task itself is dropped rather than creating a
+    task whose parent is a copy of itself: extractors do this when the
+    project and the first piece of work share a name.
+    """
+    hint = (hint or "").strip()
+    if not hint:
+        return None, False
+    if own_title and hint.lower() == own_title.strip().lower():
+        return None, False
+    cur.execute("""
+        SELECT task_id FROM tasks_current
+        WHERE user_ref = %s AND merged_into IS NULL
+          AND status NOT IN ('completed','cancelled')
+          AND lower(title) = lower(%s)
+        ORDER BY created_at LIMIT 1""", (user, hint))
+    row = cur.fetchone()
+    if row:
+        return (row[0] if not isinstance(row, dict) else row["task_id"]), False
+    cur.execute("""
+        SELECT t.task_id FROM task_aliases a
+        JOIN tasks_current t USING (task_id)
+        WHERE t.user_ref = %s AND t.merged_into IS NULL
+          AND t.status NOT IN ('completed','cancelled')
+          AND lower(a.alias) = lower(%s)
+        ORDER BY t.created_at LIMIT 1""", (user, hint))
+    row = cur.fetchone()
+    if row:
+        return (row[0] if not isinstance(row, dict) else row["task_id"]), False
+    # Nothing tracked under that name yet, so the parent is itself news.
+    # Created 'proposed' and owned by the person accepting -- the same two
+    # tasks from one keystroke the "Part of something bigger" button
+    # already produces, and the same reason: that is the shape of the
+    # thought. The id is derived from the name so that two claims naming
+    # the same project land under ONE parent even when accepted minutes
+    # apart, which is the entire value of the field.
+    parent_id = "task-h" + hashlib.sha256(
+        (user + "\x1f" + hint.lower()).encode("utf-8")).hexdigest()[:12]
+    cur.execute("SELECT 1 FROM tasks_current WHERE task_id = %s", (parent_id,))
+    if not cur.fetchone():
+        cur.execute(
+            "SELECT apply_task_event(%s,%s,'created','manual_edit',NULL,"
+            "%s::jsonb)",
+            (parent_id, user, json.dumps({
+                "title": hint[:120], "description": None,
+                "status": "proposed", "owner_ref": user,
+                "deadline": None, "parent_task_id": None})))
+        return parent_id, True
+    return parent_id, False
+
+
 def apply_accept(cur, user, prop, payload):
     """Map an accepted proposal to its board event via apply_task_event.
     Returns the task_id acted on (new id for creates)."""
@@ -178,6 +244,13 @@ def apply_accept(cur, user, prop, payload):
                                else prop["target_task_id"]
                                or payload.get("parent_task_id")),
         }
+        # An explicit parent always wins; the hint only fills a hole. A
+        # reviewer who retitled the card is honoured too -- own_title is
+        # what they are actually accepting, not what was proposed.
+        if not body["parent_task_id"]:
+            parent_id, _created = resolve_parent_hint(
+                cur, user, payload.get("parent_hint"), body["title"])
+            body["parent_task_id"] = parent_id
         cur.execute("SELECT apply_task_event(%s,%s,'created','user_decision',"
                     "currval(pg_get_serial_sequence('decisions',"
                     "'decision_id')), %s::jsonb)",
@@ -240,6 +313,14 @@ def render(prop, evidence, idx, total):
         lines.append(detail())
     if prop["conflict_type"]:
         lines.append("  conflict: {0}".format(prop["conflict_detail"]))
+    if p.get("parent_hint") and not p.get("parent_task_id"):
+        # Said out loud, because accepting this card may create a second
+        # task. Somebody who accepts "Run the fidelity tests" and silently
+        # gets a "Intake Platform" parent they never asked for has been
+        # surprised by their own board, and that is how people stop
+        # trusting a queue.
+        lines.append("  files under: \"{0}\"  (creating it if you have "
+                     "no such task)".format(p["parent_hint"]))
     if p.get("match_note"):
         lines.append("  duplicate check: {0}".format(p["match_note"]))
     for ev in evidence[:3]:

@@ -113,6 +113,11 @@
         "owner_ref": { "type": ["string", "null"] },
         "deadline": { "type": ["string", "null"], "format": "date" },
         "parent_task_id": { "type": ["string", "null"] },
+        "parent_hint": {
+          "type": ["string", "null"],
+          "maxLength": 120,
+          "description": "Name of the work this should be filed under, unresolved. Resolved at ACCEPT, not here: the reviewer sees the name on the card, and accepting files it under their task of that name or creates one. Ignored when parent_task_id is already set -- an explicit parent beats a hint."
+        },
         "match_note": {
           "type": ["string", "null"],
           "description": "Why reconciliation decided this is NOT an existing task, e.g. 'closest match task_8821 (0.61 similarity) below merge threshold'. Surfaced on drill-down; the top rejection reason for creates is duplication."

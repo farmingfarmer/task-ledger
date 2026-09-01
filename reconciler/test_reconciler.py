@@ -703,6 +703,35 @@ def test_cross_owner_guard():
     ok(seen["called"], "identical title but different owner forces the judge")
 
 
+def test_parent_hint_rides_to_the_card():
+    print("parent hint")
+    r = reconciler.Reconciler(embed=embedders.TokenEmbedder())
+    s = sig(title="Count events per day", signal_type="assignment",
+            parent_hint="Stroke prediction work",
+            owner_candidates=[{"person_ref": "aad-dev", "confidence": 0.9,
+                               "basis": "explicit_assignment"}])
+    packet, _ = r.reconcile("aad-dev", [s], [], 1, "run-ph")
+    creates = [p for p in packet["proposals"] if p["op"] == "create_task"]
+    ok(len(creates) == 1
+       and creates[0]["payload"]["parent_hint"] == "Stroke prediction work",
+       "the project a claim named reaches the reviewer on the card, "
+       "unresolved -- \"count events per day\" is noise alone and right "
+       "under the work it belongs to")
+    ok(creates[0]["payload"]["parent_task_id"] is None,
+       "and it is still only a NAME here: reconciliation files nothing, "
+       "because a parent chosen by a model is a task on somebody's board "
+       "that nobody agreed to")
+
+    s2 = sig(title="Some other work", signal_type="assignment",
+             owner_candidates=[{"person_ref": "aad-dev", "confidence": 0.9,
+                                "basis": "explicit_assignment"}])
+    packet2, _ = r.reconcile("aad-dev", [s2], [], 1, "run-ph2")
+    creates2 = [p for p in packet2["proposals"] if p["op"] == "create_task"]
+    ok(creates2 and creates2[0]["payload"]["parent_hint"] is None,
+       "a claim that named no project carries no hint, rather than "
+       "inheriting one from the last claim that did")
+
+
 def test_pg_live():
     print("postgres end-to-end (live)")
     dsn = os.environ.get(
@@ -1143,5 +1172,6 @@ if __name__ == "__main__":
     test_cross_owner_guard()
     test_ask_band_asks_a_person()
     test_uncitable_proposal_dropped()
+    test_parent_hint_rides_to_the_card()
     test_pg_live()
     print("\nall {0} reconciler checks passed".format(CHECKS[0]))

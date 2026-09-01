@@ -1435,6 +1435,16 @@
       + (p.sources || 0) + " source(s)"
       + (p.conflict_type ? " \u00b7 conflict: " + p.conflict_type : "")));
     if(p.rationale) row.appendChild(el("div","why", p.rationale));
+    // Accepting this may create a SECOND task -- the parent it gets filed
+    // under. Saying so on the card is not a nicety: a board that grows a
+    // task nobody asked for is a board people stop trusting, and the
+    // whole design here is that the name is visible before the click.
+    var hint = (p.payload && p.payload.parent_hint) || null;
+    if(hint && !(p.payload && p.payload.parent_task_id)){
+      row.appendChild(el("div","why",
+        "Files under \u201c" + hint + "\u201d \u2014 your task of that "
+        + "name, or a new one if you have none."));
+    }
 
     var acts = el2("div","revacts");
     var yes = el2("button","yes"); yes.type = "button";

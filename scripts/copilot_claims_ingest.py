@@ -44,12 +44,16 @@ source type rather than a shortcut into the existing one:
    hash is over the exported record -- which makes a quietly edited export
    detectable, the one thing a hash can honestly do here.
 
-2. Confidence is CAPPED, at a level chosen against the op floors rather
-   than by feel. Copilot's "high" is its own uncalibrated word. The cap
-   sits above the floors for create/status/blocker -- those must reach a
-   human, that is the point -- and below the 0.80 and 0.85 floors for
-   complete, cancel and merge, so an unverifiable claim is structurally
-   incapable of proposing that work is finished or thrown away.
+2. Confidence is CAPPED unless the claim is ANCHORED, at levels chosen
+   against the op floors rather than by feel. Copilot's "high" is its own
+   uncalibrated word. The cap sits above the floors for create/status/
+   blocker -- those must reach a human, that is the point -- and below the
+   0.80 and 0.85 floors for complete, cancel and merge, so an unverifiable
+   claim is structurally incapable of proposing that work is finished or
+   thrown away. When the exported quote is FOUND in a transcript on disk
+   the cap lifts (ANCHORED_CONFIDENCE), because the thing it was
+   protecting against -- a claim nobody can check outranking one they can
+   -- no longer applies to that claim.
 
 3. Owner basis is always 'inferred'. explicit_assignment and
    self_reference mean somebody was heard saying something, and nothing
@@ -59,6 +63,12 @@ source type rather than a shortcut into the existing one:
    -- burying them in a raw blob would hide the unverifiability from the
    one person who needs it. They are simply not promoted to a certainty
    they have not got.
+
+"project" becomes the signal's parent_hint: a NAME, carried to the review
+card and resolved into a real parent only when a person accepts a card
+that shows it. Filing work under a parent an assistant picked would put a
+task on somebody's board that nobody agreed to, which is the one thing
+this system does not do.
 
 Deterministic ids: re-ingesting the same export is an upsert-shaped no-op.
 Python 3.8, stdlib only (jsonschema for validation, as everywhere else).
@@ -268,6 +278,17 @@ def claim_signal(rec, batch_id, idx, bootstrap=False, transcripts=None):
             "confidence": conf,
         }],
         "deadline": None,
+        # PROJECT -> parent hint. Copilot groups claims under a workstream
+        # name, and this is the field that makes a fragment legible:
+        # "count events per day" is noise on its own and exactly right
+        # under the stroke prediction work. It stays a NAME here on
+        # purpose -- resolving it to a task id at ingest would file work
+        # under a parent nobody chose, on the word of an assistant. The
+        # name rides to the card, the card says it, and accepting is what
+        # files it.
+        "parent_hint": ((rec.get("project") or "").strip() or None)
+        if (rec.get("project") or "").strip().lower() not in
+           ("", "null", "none", "n/a") else None,
         "blocker": ({"description": "; ".join(blockers)[:300],
                      "blocking_party_ref": None} if blockers else None),
         "evidence": [{
