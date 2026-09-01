@@ -16,6 +16,13 @@ if /i "%~1"=="--synth" ( set "PROFILE=synth" & shift )
 if /i "%~1"=="--synthetic" ( set "PROFILE=synth" & shift )
 if /i "%~1"=="--real" ( set "PROFILE=real" & shift )
 
+rem Python's default text encoding on Windows is cp1252, so every bare
+rem open() in the codebase -- written on a Mac, where the default is
+rem UTF-8 -- misreads the first accented or em-dashed file it touches.
+rem UTF-8 mode fixes the default itself, instead of chasing open() calls
+rem one traceback at a time.
+set "PYTHONUTF8=1"
+
 rem Portable Postgres in the Windows port listens on 5433, not 5432.
 if not defined TL_PORT set "TL_PORT=5433"
 if "%PROFILE%"=="synth" (

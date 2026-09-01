@@ -1,4 +1,5 @@
 @echo off
+set "PYTHONUTF8=1"
 rem ============================================================
 rem  Task ledger -- double-click to start.
 rem

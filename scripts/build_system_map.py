@@ -1437,7 +1437,11 @@ NARRATIVE = {
 def extract_symbol(path, dotted):
     """Return the source of `dotted` ('fn', 'Class', 'Class.method', or a
     module-level CONSTANT) from `path`, or None if absent."""
-    with open(path) as f:
+    # encoding stated because this runs on Windows too, where a bare
+    # open() means cp1252 and the first em-dash in a docstring is a
+    # UnicodeDecodeError with a traceback that names neither file nor
+    # cause. The sources ARE utf-8; say so.
+    with open(path, encoding="utf-8") as f:
         src = f.read()
     tree = ast.parse(src)
     parts = dotted.split(".")
@@ -1887,7 +1891,7 @@ def build():
                            ndom=len(ATLAS["domains"]), nmod=nmod,
                            ncomp=ncomp)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with open(OUT, "w") as f:
+    with open(OUT, "w", encoding="utf-8") as f:
         f.write(html)
     print("wrote {0} ({1:.0f} KB): {2} domains, {3} modules, "
           "{4} components".format(OUT, len(html) / 1024,

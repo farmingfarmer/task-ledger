@@ -1,4 +1,5 @@
 @echo off
+set "PYTHONUTF8=1"
 setlocal
 cd /d "%~dp0extraction" && python test_extraction.py || exit /b 1
 cd /d "%~dp0reconciler" && python test_reconciler.py || exit /b 1
