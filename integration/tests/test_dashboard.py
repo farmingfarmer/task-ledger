@@ -391,7 +391,20 @@ def main():
             e.__class__.__name__))
         return
     os.environ["DB_DSN"] = dsn
-    os.environ.pop("TL_VIEWER_PICKER", None)
+    # The suite asserts DEFAULTS -- picker off, real ledger read-only, no
+    # blind, no kit, no second ledger -- and dashboard_api reads all of
+    # those from the environment at import. An operator's shell is the
+    # wrong place for a test's assumptions to come from: the first
+    # Windows run inherited TL_HANDS_ON=1 from the session that had just
+    # been driving the dashboard, and the read-only assertion failed on a
+    # machine where the code was fine. Every mode flag is cleared here,
+    # not in the launcher, so a direct `python test_dashboard.py` is
+    # deterministic too. Tests that want a mode set module state
+    # explicitly and restore it.
+    for flag in ("TL_VIEWER_PICKER", "TL_HANDS_ON", "TL_BLIND",
+                 "TL_BLIND_SALT", "TL_KIT_CONFIG", "TL_COPILOT_DSN",
+                 "TL_SYNTH_DSN", "TL_SURVEY_DIR"):
+        os.environ.pop(flag, None)
     import dashboard_api
     dashboard_api.DSN = dsn
     client = dashboard_api.app.test_client()
