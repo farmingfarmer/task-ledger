@@ -46,6 +46,11 @@ echo   but closing it stops the app.
 echo.
 
 rem ---- nested bundles: unpack once, locally --------------------
+rem KITROOT ends with a backslash, so -C "%KITROOT%" ended in \" --
+rem which Windows argument parsing reads as an ESCAPED quote, handing
+rem tar a mangled directory ("could not chdir", folder name doubled).
+rem The appended dot is the standard defusal: dir\. is the same
+rem directory, and the backslash no longer touches the quote.
 rem The Python and Postgres bundles are ~30,000 small files. Shipped
 rem loose inside the kit ZIP, Windows Explorer extracts them one at a
 rem time while Defender scans each -- no progress bar, up to an hour,
@@ -56,7 +61,7 @@ rem this launcher unpacks them here, once, with bsdtar -- built into
 rem Windows 10+, immune to both slow paths.
 if not exist "%KITROOT%python-runtime\python.exe" if exist "%KITROOT%python-runtime.zip" (
   echo   one-time setup: unpacking Python ^(about a minute^)...
-  tar -xf "%KITROOT%python-runtime.zip" -C "%KITROOT%" || (
+  tar -xf "%KITROOT%python-runtime.zip" -C "%KITROOT%." || (
     echo   [X] Could not unpack python-runtime.zip. Details above.
     pause
     exit /b 1
@@ -64,7 +69,7 @@ if not exist "%KITROOT%python-runtime\python.exe" if exist "%KITROOT%python-runt
 )
 if not exist "%KITROOT%postgresin\pg_ctl.exe" if exist "%KITROOT%postgres.zip" (
   echo   one-time setup: unpacking the database ^(about a minute^)...
-  tar -xf "%KITROOT%postgres.zip" -C "%KITROOT%" || (
+  tar -xf "%KITROOT%postgres.zip" -C "%KITROOT%." || (
     echo   [X] Could not unpack postgres.zip. Details above.
     pause
     exit /b 1
