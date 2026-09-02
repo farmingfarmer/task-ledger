@@ -1245,6 +1245,9 @@
       if(autoOpen && n && !REVIEW.shown && !kitHold){
         REVIEW.shown = true; openReview();
       }
+      // If the modal is already up -- opened in its loading state, or
+      // just sitting open -- the fresh data replaces what is shown.
+      if(!document.getElementById("reviewmodal").hidden) paintReview();
       // The queue just emptied and this person emptied it. Ask now: in
       // an hour they will remember that it was "fine", and the specific
       // card that was wrong -- the only part worth having -- is already
@@ -1280,10 +1283,23 @@
     document.getElementById("welcomemodal").hidden = true;
     markWelcomed();
     // Kit flow: the greeting told them step 1 is the Review button, so
-    // closing it walks them straight there rather than leaving them to
-    // find the button themselves. loadReview re-checks the counts, so
-    // this is a no-op when everything is already answered.
-    if(state.kit && state.kit["for"]) loadReview(true);
+    // closing it walks them straight there. The modal opens THIS
+    // instant -- in a loading state if the first query is still running
+    // on a cold database -- because a click that visibly does nothing
+    // for several seconds reads as broken, and this click is the first
+    // thing a brand-new user does. Skipped when there is truly nothing
+    // pending (later launches land on the ticked checklist instead).
+    if(state.kit && state.kit["for"]){
+      var counted = REVIEW.data
+        ? (REVIEW.data.proposals || []).length
+          + (REVIEW.data.quiet || []).length
+          + (REVIEW.data.candidates || []).length
+        : null;
+      if(counted === 0) return;
+      REVIEW.shown = true;
+      openReview();
+      if(counted === null) loadReview(false);
+    }
   }
   function openEmptyLedger(){
     var body = document.getElementById("wbody");
@@ -1604,8 +1620,21 @@
   }
 
   function paintReview(){
-    var d = REVIEW.data || {};
     var body = document.getElementById("revbody");
+    // Data not here yet is NOT the same as nothing to review. Painting
+    // the empty shape ("Nothing new since your last review") while the
+    // first query is still running told a brand-new user they were
+    // done before they had started -- and painting nothing at all told
+    // them it was broken. Say what is true: it is loading.
+    if(REVIEW.data === null){
+      body.innerHTML = "";
+      body.appendChild(el("p","lede",
+        "Fetching your cards\u2026 the first look at a fresh ledger "
+        + "takes a few seconds."));
+      document.getElementById("revfoot").textContent = "";
+      return;
+    }
+    var d = REVIEW.data || {};
     body.innerHTML = "";
 
     var props = d.proposals || [];
