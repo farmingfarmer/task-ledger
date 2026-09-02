@@ -483,15 +483,31 @@ def main():
             dest = os.path.join(args.out, name)
             if os.path.isdir(dest):
                 shutil.rmtree(dest)     # superseded by the zip
-            print("  packing {0} ({1} MB)...".format(name, _dir_mb(path)))
-            import zipfile
-            with zipfile.ZipFile(dest + ".zip", "w",
-                                 zipfile.ZIP_DEFLATED) as zf:
-                for droot, _dirs, files in os.walk(path):
-                    for fn in files:
-                        full = os.path.join(droot, fn)
-                        rel = os.path.relpath(full, path)
-                        zf.write(full, os.path.join(name, rel))
+            # Compressing 858 MB single-threaded takes minutes and the
+            # bundles are byte-identical across every kit in a batch --
+            # so the zip is built ONCE, cached beside the bundle it was
+            # made from, and copied into each kit. Five kits: one pack,
+            # four file copies. The cache is invalidated by deleting it,
+            # which is also how a bundle update ships: rebuild the
+            # bundle, delete the .kitcache.zip beside it.
+            cache = path.rstrip("\\/") + ".kitcache.zip"
+            if not os.path.exists(cache):
+                print("  packing {0} ({1} MB -- a few minutes, ONCE; "
+                      "later kits reuse it)...".format(name, _dir_mb(path)),
+                      flush=True)
+                import zipfile
+                tmp = cache + ".part"
+                with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
+                    for droot, _dirs, files in os.walk(path):
+                        for fn in files:
+                            full = os.path.join(droot, fn)
+                            rel = os.path.relpath(full, path)
+                            zf.write(full, os.path.join(name, rel))
+                os.replace(tmp, cache)   # never leave a half-written cache
+            else:
+                print("  {0}: reusing the packed copy from the last "
+                      "build".format(name))
+            shutil.copy(cache, dest + ".zip")
 
     with open(os.path.join(args.out, "if-something-goes-wrong.md"), "w",
               encoding="utf-8") as f:
