@@ -490,7 +490,28 @@ def main():
             # four file copies. The cache is invalidated by deleting it,
             # which is also how a bundle update ships: rebuild the
             # bundle, delete the .kitcache.zip beside it.
-            cache = path.rstrip("\\/") + ".kitcache.zip"
+            # Root the archive at the directory that actually CONTAINS
+            # bin/. The portable Postgres unpacks as pgsql-portable\pgsql\
+            # bin, and zipping from the outer folder shipped
+            # postgres\pgsql\bin -- one level deeper than the launcher
+            # looks. Invisible on the build machine, where the launcher
+            # silently falls back to the local install, and fatal on a
+            # teammate's, which has no local install to fall back to.
+            src_root = path
+            if name == "postgres" and not os.path.isdir(
+                    os.path.join(src_root, "bin")):
+                for sub in sorted(os.listdir(src_root)):
+                    cand = os.path.join(src_root, sub)
+                    if os.path.isdir(os.path.join(cand, "bin")):
+                        src_root = cand
+                        break
+                else:
+                    print("  !  {0}: no bin/ found under {1} -- not a "
+                          "usable bundle. Stopping.".format(name, path))
+                    return 2
+            # v2: the layout fix above changes the arcnames, so caches
+            # packed before it must not be reused.
+            cache = path.rstrip("\\/") + ".kitcache-v2.zip"
             if not os.path.exists(cache):
                 print("  packing {0} ({1} MB -- a few minutes, ONCE; "
                       "later kits reuse it)...".format(name, _dir_mb(path)),
@@ -498,10 +519,10 @@ def main():
                 import zipfile
                 tmp = cache + ".part"
                 with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
-                    for droot, _dirs, files in os.walk(path):
+                    for droot, _dirs, files in os.walk(src_root):
                         for fn in files:
                             full = os.path.join(droot, fn)
-                            rel = os.path.relpath(full, path)
+                            rel = os.path.relpath(full, src_root)
                             zf.write(full, os.path.join(name, rel))
                 os.replace(tmp, cache)   # never leave a half-written cache
             else:

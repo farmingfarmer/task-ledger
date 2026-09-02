@@ -107,6 +107,9 @@ if not defined PY (
 rem ---- Postgres: prefer the portable copy, else anything on PATH
 if exist "%KITROOT%postgres\bin\pg_ctl.exe" (
   set "PGBIN=%KITROOT%postgres\bin"
+) else if exist "%KITROOT%postgres\pgsql\bin\pg_ctl.exe" (
+  rem kits packed before the layout fix nested one level deeper
+  set "PGBIN=%KITROOT%postgres\pgsql\bin"
 ) else if exist "%PGDIR%\bin\pg_ctl.exe" (
   set "PGBIN=%PGDIR%\bin"
 ) else (
