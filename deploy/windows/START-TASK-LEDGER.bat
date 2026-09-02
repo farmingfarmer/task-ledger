@@ -45,6 +45,32 @@ echo   Task ledger -- starting up. This window can be minimised,
 echo   but closing it stops the app.
 echo.
 
+rem ---- nested bundles: unpack once, locally --------------------
+rem The Python and Postgres bundles are ~30,000 small files. Shipped
+rem loose inside the kit ZIP, Windows Explorer extracts them one at a
+rem time while Defender scans each -- no progress bar, up to an hour,
+rem and it reads as a frozen laptop; the first teammate to receive a
+rem kit reported exactly that. So the kit carries them as INNER zips
+rem (the outer ZIP is then a dozen files and extracts instantly), and
+rem this launcher unpacks them here, once, with bsdtar -- built into
+rem Windows 10+, immune to both slow paths.
+if not exist "%KITROOT%python-runtime\python.exe" if exist "%KITROOT%python-runtime.zip" (
+  echo   one-time setup: unpacking Python ^(about a minute^)...
+  tar -xf "%KITROOT%python-runtime.zip" -C "%KITROOT%" || (
+    echo   [X] Could not unpack python-runtime.zip. Details above.
+    pause
+    exit /b 1
+  )
+)
+if not exist "%KITROOT%postgresin\pg_ctl.exe" if exist "%KITROOT%postgres.zip" (
+  echo   one-time setup: unpacking the database ^(about a minute^)...
+  tar -xf "%KITROOT%postgres.zip" -C "%KITROOT%" || (
+    echo   [X] Could not unpack postgres.zip. Details above.
+    pause
+    exit /b 1
+  )
+)
+
 rem ---- Python: the bundled runtime first ----------------------
 rem A kit built with --with-runtime carries its own Python, so nothing
 rem needs installing and nothing already on the machine is disturbed.

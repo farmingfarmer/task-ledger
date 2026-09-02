@@ -472,11 +472,26 @@ def main():
             (args.with_runtime, args.runtime, "python-runtime"),
             (args.with_postgres, args.postgres, "postgres")):
         if want and os.path.isdir(path):
+            # As ONE inner zip, not ~30,000 loose files. Loose, they get
+            # zipped into the outer archive anyway -- and then Windows
+            # Explorer on the receiving end extracts them one at a time
+            # while Defender scans each: no progress bar, up to an hour,
+            # and the first teammate to receive a kit reported a frozen
+            # laptop. Nested, the outer ZIP is a dozen entries and
+            # extracts instantly; the launcher unpacks the inner zips
+            # locally with bsdtar on first run, past both slow paths.
             dest = os.path.join(args.out, name)
             if os.path.isdir(dest):
-                shutil.rmtree(dest)
-            print("  copying {0} ({1} MB)...".format(name, _dir_mb(path)))
-            shutil.copytree(path, dest)
+                shutil.rmtree(dest)     # superseded by the zip
+            print("  packing {0} ({1} MB)...".format(name, _dir_mb(path)))
+            import zipfile
+            with zipfile.ZipFile(dest + ".zip", "w",
+                                 zipfile.ZIP_DEFLATED) as zf:
+                for droot, _dirs, files in os.walk(path):
+                    for fn in files:
+                        full = os.path.join(droot, fn)
+                        rel = os.path.relpath(full, path)
+                        zf.write(full, os.path.join(name, rel))
 
     with open(os.path.join(args.out, "if-something-goes-wrong.md"), "w",
               encoding="utf-8") as f:
