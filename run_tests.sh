@@ -19,5 +19,5 @@ cd "$(dirname "$0")"
 command -v node >/dev/null && node integration/dashboard/check_js.js \
   integration/dashboard/dashboard.html || \
   echo "skipped: node not installed (dashboard JS check)"
-python3 scripts/build_system_map.py
+TL_MAP_OUT="${TMPDIR:-/tmp}/tl-system-map.html" python3 scripts/build_system_map.py
 echo "ALL SUITES COMPLETE"

@@ -21,7 +21,14 @@ import sys
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(
     os.path.abspath(__file__)), ".."))
-OUT = os.path.join(ROOT, "docs", "system_map.html")
+# TL_MAP_OUT: where to write. The suites set it to a scratch path,
+# because this file is TRACKED -- the stamp embeds the build date, so a
+# test run on any new day rewrote a committed file (and on Windows
+# re-wrote every line ending), which then blocked the next `git pull`
+# with "commit your changes or stash them". A test must be able to run
+# without dirtying the tree it is testing.
+OUT = os.environ.get("TL_MAP_OUT") or os.path.join(
+    ROOT, "docs", "system_map.html")
 MAX_LINES = 90
 
 # ---------------------------------------------------------------- the atlas
@@ -1891,7 +1898,9 @@ def build():
                            ndom=len(ATLAS["domains"]), nmod=nmod,
                            ncomp=ncomp)
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with open(OUT, "w", encoding="utf-8") as f:
+    # newline="\n": without it, Windows text mode writes CRLF and the
+    # deliberate `tl map` rebuild produces a 4000-line diff of nothing.
+    with open(OUT, "w", encoding="utf-8", newline="\n") as f:
         f.write(html)
     print("wrote {0} ({1:.0f} KB): {2} domains, {3} modules, "
           "{4} components".format(OUT, len(html) / 1024,
