@@ -1235,7 +1235,16 @@
       btn.innerHTML = "";
       btn.appendChild(document.createTextNode("Review"));
       if(n) btn.appendChild(el("span","cnt", String(n)));
-      if(autoOpen && n && !REVIEW.shown){ REVIEW.shown = true; openReview(); }
+      // In a kit, the greeting owns the screen until the person closes
+      // it -- it IS the instructions, and the review popping over it
+      // buried the one thing a first-time user was supposed to read.
+      // Closing the greeting is what opens the review (closeWelcome),
+      // so "done reading" and "start step 1" are the same gesture.
+      var kitHold = state.kit && state.kit["for"]
+                    && !document.getElementById("welcomemodal").hidden;
+      if(autoOpen && n && !REVIEW.shown && !kitHold){
+        REVIEW.shown = true; openReview();
+      }
       // The queue just emptied and this person emptied it. Ask now: in
       // an hour they will remember that it was "fine", and the specific
       // card that was wrong -- the only part worth having -- is already
@@ -1270,6 +1279,11 @@
   function closeWelcome(){
     document.getElementById("welcomemodal").hidden = true;
     markWelcomed();
+    // Kit flow: the greeting told them step 1 is the Review button, so
+    // closing it walks them straight there rather than leaving them to
+    // find the button themselves. loadReview re-checks the counts, so
+    // this is a no-op when everything is already answered.
+    if(state.kit && state.kit["for"]) loadReview(true);
   }
   function openEmptyLedger(){
     var body = document.getElementById("wbody");
