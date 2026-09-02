@@ -60,16 +60,20 @@ rem (the outer ZIP is then a dozen files and extracts instantly), and
 rem this launcher unpacks them here, once, with bsdtar -- built into
 rem Windows 10+, immune to both slow paths.
 if not exist "%KITROOT%python-runtime\python.exe" if exist "%KITROOT%python-runtime.zip" (
-  echo   one-time setup: unpacking Python ^(about a minute^)...
-  tar -xf "%KITROOT%python-runtime.zip" -C "%KITROOT%." || (
+  echo   one-time setup: unpacking Python. File names will scroll
+  echo   past -- that is the proof it is alive. On a corporate laptop
+  echo   the virus scanner checks every file, so this can take a while.
+  tar -xvf "%KITROOT%python-runtime.zip" -C "%KITROOT%." || (
     echo   [X] Could not unpack python-runtime.zip. Details above.
     pause
     exit /b 1
   )
 )
 if not exist "%KITROOT%postgresin\pg_ctl.exe" if exist "%KITROOT%postgres.zip" (
-  echo   one-time setup: unpacking the database ^(about a minute^)...
-  tar -xf "%KITROOT%postgres.zip" -C "%KITROOT%." || (
+  echo   one-time setup: unpacking the database. File names scroll
+  echo   past while it works; expect several minutes on a corporate
+  echo   laptop whose virus scanner inspects each file.
+  tar -xvf "%KITROOT%postgres.zip" -C "%KITROOT%." || (
     echo   [X] Could not unpack postgres.zip. Details above.
     pause
     exit /b 1
