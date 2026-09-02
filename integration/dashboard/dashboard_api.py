@@ -1292,6 +1292,26 @@ def _attach_owner_options(proposals, viewer_ref):
         p["proposed_owner"] = (p["payload"] or {}).get("owner_ref")
 
 
+def _room_for_candidates(v):
+    rows = q("""
+        SELECT DISTINCT s2.author_ref, s2.owner_candidates
+        FROM task_candidate_events e
+        JOIN signals s ON s.signal_id = e.signal_id
+        JOIN signals s2 ON s2.batch_id = s.batch_id
+        JOIN v_task_candidates c
+          ON c.candidate_id = e.candidate_id AND c.user_ref = e.user_ref
+        WHERE e.user_ref = %s AND c.state = 'sighted'""", (v,))
+    room = []
+    for r in rows:
+        refs = [r["author_ref"]] + [
+            (cand or {}).get("person_ref")
+            for cand in (r["owner_candidates"] or [])]
+        for ref in refs:
+            if ref and ref != v and ref not in room:
+                room.append(ref)
+    return sorted(room)
+
+
 @app.route("/api/review")
 def review_queue():
     """SELF ONLY. Unreviewed claims about a person, plus their quiet work."""
@@ -1428,18 +1448,12 @@ def review_queue():
             WHERE user_ref = %s AND merged_into IS NULL
               AND status NOT IN ('completed', 'cancelled')
             ORDER BY title""", (v,)),
-        # Who could own a fragment instead of the viewer: only people who
-        # spoke in the meetings these candidates came from.
-        "room": [r["author_ref"] for r in q("""
-            SELECT DISTINCT s2.author_ref
-            FROM task_candidate_events e
-            JOIN signals s ON s.signal_id = e.signal_id
-            JOIN signals s2 ON s2.batch_id = s.batch_id
-            JOIN v_task_candidates c
-              ON c.candidate_id = e.candidate_id AND c.user_ref = e.user_ref
-            WHERE e.user_ref = %s AND c.state = 'sighted'
-              AND s2.author_ref IS NOT NULL AND s2.author_ref <> %s
-            ORDER BY 1""", (v, v))],
+        # Who could own a fragment instead of the viewer: the same room
+        # definition owner_options uses -- people who SPOKE in those
+        # windows plus people the same batches ATTRIBUTED work to.
+        # Speaker-only left this list at one person on an assistant
+        # ledger, where only anchored claims carry a speaker.
+        "room": _room_for_candidates(v),
         "no_blockers": _no_blocker_claims(v),
         "auto_applied": [a for a in auto if not a["undone"]],
         "writable": _writable(),
@@ -1891,19 +1905,30 @@ def candidate_rule():
                 if not to or to == v:
                     return jsonify({"error": "name whose it is, and not "
                                              "yourself"}), 400
+                # Same room the dropdown was built from: speakers AND
+                # people the batch attributed work to. A validator
+                # stricter than the list it validates rejects choices
+                # the UI itself offered.
                 cur.execute("""
-                    SELECT DISTINCT s2.author_ref
+                    SELECT DISTINCT s2.author_ref, s2.owner_candidates
                     FROM task_candidate_events e
                     JOIN signals s ON s.signal_id = e.signal_id
                     JOIN signals s2 ON s2.batch_id = s.batch_id
-                    WHERE e.candidate_id = %s AND e.user_ref = %s
-                      AND s2.author_ref IS NOT NULL""", (cid, v))
-                inroom = {r["author_ref"] for r in cur.fetchall()}
+                    WHERE e.candidate_id = %s AND e.user_ref = %s""",
+                    (cid, v))
+                inroom = set()
+                for r in cur.fetchall():
+                    if r["author_ref"]:
+                        inroom.add(r["author_ref"])
+                    for cand in (r["owner_candidates"] or []):
+                        if (cand or {}).get("person_ref"):
+                            inroom.add(cand["person_ref"])
                 if to not in inroom:
                     # Correcting attribution must not double as a way to
                     # put work on any colleague you can name.
-                    return jsonify({"error": "that person did not speak in "
-                                             "the meeting this came from"}), 400
+                    return jsonify({"error": "that person was not part of "
+                                             "the conversation this came "
+                                             "from"}), 400
                 cur.execute("""
                     SELECT DISTINCT signal_id FROM task_candidate_events
                     WHERE candidate_id = %s AND user_ref = %s
