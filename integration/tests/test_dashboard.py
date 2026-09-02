@@ -831,6 +831,18 @@ def main():
         ok(STRANGER not in attrib[0]["owner_options"],
            "and nobody outside the conversation is -- a review control is "
            "not a directory of colleagues")
+        # The uncited claim names OWNER only and carries no speaker --
+        # but it shares a batch with signals attributing work to MATE,
+        # and batch-mates are in the same conversation. On an assistant
+        # ledger only anchored claims carry speakers, so without this
+        # widening the one person whose quotes happened to match was the
+        # only correction offered on every card in the export.
+        uncited_probe = [p for p in rev["proposals"]
+                         if p["proposal_id"] == UNCITED_PROP]
+        ok(uncited_probe and MATE in uncited_probe[0]["owner_options"],
+           "a claim with no recorded speaker still offers the people its "
+           "own batch attributed work to -- the export's conversation, "
+           "not one lucky anchor")
         code, _ = post("/api/decide", {"proposal_id": ATTRIB_PROP,
                                        "decision": "reject",
                                        "reject_reason": "not_a_task",

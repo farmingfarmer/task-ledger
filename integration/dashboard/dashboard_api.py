@@ -1256,11 +1256,25 @@ def _attach_owner_options(proposals, viewer_ref):
     all_batches = sorted(set().union(*batches.values()) if batches else [])
     in_window = {}
     if all_batches:
+        # "The room" is everyone the window can vouch for: people who
+        # SPOKE (author_ref), and people the same batch ATTRIBUTED work
+        # to (owner_candidates). The second half matters on an assistant
+        # ledger: only anchored claims carry a speaker there, so a batch
+        # where one person's quotes happened to match left that one
+        # person as the sole correction offered on every card -- while
+        # the export itself named half the team as owners, all of them
+        # in those same meetings. Still conversation-scoped, never a
+        # directory: nobody enters this list except through the window.
         for r in q("""
-                SELECT DISTINCT batch_id, author_ref FROM signals
-                WHERE batch_id = ANY(%s) AND author_ref IS NOT NULL""",
-                (all_batches,)):
-            in_window.setdefault(r["batch_id"], []).append(r["author_ref"])
+                SELECT batch_id, author_ref, owner_candidates FROM signals
+                WHERE batch_id = ANY(%s)""", (all_batches,)):
+            room = in_window.setdefault(r["batch_id"], [])
+            if r["author_ref"] and r["author_ref"] not in room:
+                room.append(r["author_ref"])
+            for cand in (r["owner_candidates"] or []):
+                ref = (cand or {}).get("person_ref")
+                if ref and ref not in room:
+                    room.append(ref)
 
     for p in proposals:
         pid = p["proposal_id"]
