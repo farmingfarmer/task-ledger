@@ -52,6 +52,7 @@ ATTRIB_SIGNAL = "sig-dash-attrib-{0}".format(int(time.time() * 1000))
 # A claim an assistant asserted and produced no locator for. Fresh id per
 # run for the same reason as ATTRIB_PROP: this run rules on it.
 UNCITED_PROP = "prop-dash-uncited-{0}".format(int(time.time() * 1000))
+SERIES_PROP = "prop-dash-series-{0}".format(int(time.time() * 1000))
 UNCITED_SIGNAL = "sig-dash-uncited-{0}".format(int(time.time() * 1000))
 # Ruled on by this run, and candidate events are append-only, so a
 # fixed id would be "sighted" once and "dismissed" ever after.
@@ -91,11 +92,12 @@ def seed(conn):
                 FROM proposals p
                 LEFT JOIN decisions d ON d.proposal_id = p.proposal_id
                 WHERE (p.proposal_id LIKE 'prop-dash-attrib-%%'
-                       OR p.proposal_id LIKE 'prop-dash-uncited-%%')
-                  AND p.proposal_id NOT IN (%s, %s)
+                       OR p.proposal_id LIKE 'prop-dash-uncited-%%'
+                       OR p.proposal_id LIKE 'prop-dash-series-%%')
+                  AND p.proposal_id NOT IN (%s, %s, %s)
                   AND d.decision_id IS NULL
                 ON CONFLICT (proposal_id, decided_by) DO NOTHING""",
-                (OWNER, ATTRIB_PROP, UNCITED_PROP))
+                (OWNER, ATTRIB_PROP, UNCITED_PROP, SERIES_PROP))
             cur.execute("SELECT 1 FROM tasks_current WHERE task_id = %s",
                         (TASK,))
             if cur.fetchone() is None:
@@ -872,20 +874,20 @@ def main():
             cs.execute("""
                 INSERT INTO proposals (proposal_id, packet_id, op,
                   rationale, confidence, payload)
-                VALUES ('prop-dash-series', %s, 'create_task', 'r', 0.7,
+                VALUES (%s, %s, 'create_task', 'r', 0.7,
                         '{"kind":"create_task",
                           "title":"Series room fixture",
                           "status":"proposed"}')
-                ON CONFLICT DO NOTHING""", (PACKET,))
+                ON CONFLICT DO NOTHING""", (SERIES_PROP, PACKET,))
             cs.execute("""
                 INSERT INTO proposal_signals (proposal_id, signal_id)
-                VALUES ('prop-dash-series', 'sig-ser-1')
-                ON CONFLICT DO NOTHING""")
+                VALUES (%s, 'sig-ser-1')
+                ON CONFLICT DO NOTHING""", (SERIES_PROP,))
         conn_s.close()
         code, rev_s = as_viewer(client, "/api/review?profile=synthetic",
                                 OWNER)
         series_probe = [p for p in rev_s["proposals"]
-                        if p["proposal_id"] == "prop-dash-series"]
+                        if p["proposal_id"] == SERIES_PROP]
         ok(series_probe and "aad-other-slice-speaker"
            in series_probe[0]["owner_options"],
            "someone who spoke only in ANOTHER sub-window of the same "
@@ -898,10 +900,9 @@ def main():
             cs.execute("""
                 INSERT INTO decisions (proposal_id, packet_id, decision,
                   reject_reason, decided_by, decided_at)
-                VALUES ('prop-dash-series', %s, 'reject', 'stale', %s,
-                        now())
+                VALUES (%s, %s, 'reject', 'stale', %s, now())
                 ON CONFLICT (proposal_id, decided_by) DO NOTHING""",
-                (PACKET, OWNER))
+                (SERIES_PROP, PACKET, OWNER))
         conn_s.close()
         code, _ = post("/api/decide", {"proposal_id": ATTRIB_PROP,
                                        "decision": "reject",
