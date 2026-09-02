@@ -228,9 +228,24 @@ if exist "%KITROOT%ledger-b.sql" (
   )
 )
 
+rem Only one Task Ledger can serve this computer at a time. If another
+rem is already listening, starting this one FAILS -- but the browser
+rem window would have opened first and been answered by the OLD server,
+rem so five different kits opened in a row all show the first kit's
+rem greeting, and the only clue is a bind error scrolling past in a
+rem console nobody reads. Check first, refuse in words, open nothing.
+netstat -ano | findstr /C:":8090 " | findstr "LISTENING" >nul && (
+  echo.
+  echo   [!] A Task Ledger is already open on this computer.
+  echo       Close its black window ^(the one from the kit you opened
+  echo       first^), then double-click this file again.
+  echo.
+  pause
+  exit /b 1
+)
+
 echo.
 echo   Ready. Opening http://127.0.0.1:8090 in your browser.
-echo   Pick your name when it asks.
 echo.
 start "" http://127.0.0.1:8090
 "%PY%" integration\dashboard\dashboard_api.py
