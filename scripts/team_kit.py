@@ -390,6 +390,19 @@ def main():
     with tarfile.open(tar) as tf:
         tf.extractall(app)
     os.remove(tar)
+    # The stamp the dashboard header shows. In the repo it comes from
+    # git; a kit is a git-archive export with no .git, which left the
+    # header reading "build unknown" on exactly the machines where the
+    # build matters most -- a teammate's, mid bug report.
+    try:
+        stamp = subprocess.check_output(
+            ["git", "log", "-1", "--format=%h %cd",
+             "--date=format:%Y-%m-%d %H:%M"],
+            stderr=subprocess.DEVNULL).decode().strip()
+        with open(os.path.join(app, "BUILD_ID"), "w") as f:
+            f.write(stamp + "\n")
+    except Exception:                                   # noqa: BLE001
+        pass
 
     if not args.no_ledger and dsn and dump:
         target = os.path.join(args.out, "ledger.sql")

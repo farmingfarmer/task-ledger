@@ -843,6 +843,66 @@ def main():
            "a claim with no recorded speaker still offers the people its "
            "own batch attributed work to -- the export's conversation, "
            "not one lucky anchor")
+        # The room is the MEETING, not the batch. Extraction splits a
+        # meeting into 8-utterance sub-windows (…-p1, …-p2) for model
+        # quality, and that split silently became the room boundary: a
+        # correction dropdown answered "who was in this conversation"
+        # from a three-minute slice. Someone who spoke only in another
+        # slice of the same meeting must still be offered.
+        conn_s = psycopg2.connect(dsn)
+        with conn_s, conn_s.cursor() as cs:
+            cs.execute("""
+                INSERT INTO extraction_batches (batch_id, extracted_at,
+                  extractor_model, prompt_version, source_type, source_ref,
+                  window_start, window_end)
+                VALUES ('b-ser-p1', now(), 't', 'v1', 'meeting_transcript',
+                        'teams-2026-09-02-series-mtg-p1', now(), now()),
+                       ('b-ser-p2', now(), 't', 'v1', 'meeting_transcript',
+                        'teams-2026-09-02-series-mtg-p2', now(), now())
+                ON CONFLICT DO NOTHING""")
+            cs.execute("""
+                INSERT INTO signals (signal_id, batch_id, signal_type,
+                  title, confidence, author_ref, owner_candidates, raw)
+                VALUES ('sig-ser-1', 'b-ser-p1', 'assignment',
+                        'Series room fixture', 0.7, %s, '[]', '{}'),
+                       ('sig-ser-2', 'b-ser-p2', 'status_update',
+                        'Other slice of the meeting', 0.7,
+                        'aad-other-slice-speaker', '[]', '{}')
+                ON CONFLICT DO NOTHING""", (OWNER,))
+            cs.execute("""
+                INSERT INTO proposals (proposal_id, packet_id, op,
+                  rationale, confidence, payload)
+                VALUES ('prop-dash-series', %s, 'create_task', 'r', 0.7,
+                        '{"kind":"create_task",
+                          "title":"Series room fixture",
+                          "status":"proposed"}')
+                ON CONFLICT DO NOTHING""", (PACKET,))
+            cs.execute("""
+                INSERT INTO proposal_signals (proposal_id, signal_id)
+                VALUES ('prop-dash-series', 'sig-ser-1')
+                ON CONFLICT DO NOTHING""")
+        conn_s.close()
+        code, rev_s = as_viewer(client, "/api/review?profile=synthetic",
+                                OWNER)
+        series_probe = [p for p in rev_s["proposals"]
+                        if p["proposal_id"] == "prop-dash-series"]
+        ok(series_probe and "aad-other-slice-speaker"
+           in series_probe[0]["owner_options"],
+           "someone who spoke only in ANOTHER sub-window of the same "
+           "meeting is offered: the room is the meeting, not the "
+           "8-utterance slice the extractor happened to cut")
+        ok(STRANGER not in series_probe[0]["owner_options"],
+           "and the meeting boundary still holds against strangers")
+        conn_s = psycopg2.connect(dsn)
+        with conn_s, conn_s.cursor() as cs:
+            cs.execute("""
+                INSERT INTO decisions (proposal_id, packet_id, decision,
+                  reject_reason, decided_by, decided_at)
+                VALUES ('prop-dash-series', %s, 'reject', 'stale', %s,
+                        now())
+                ON CONFLICT (proposal_id, decided_by) DO NOTHING""",
+                (PACKET, OWNER))
+        conn_s.close()
         code, _ = post("/api/decide", {"proposal_id": ATTRIB_PROP,
                                        "decision": "reject",
                                        "reject_reason": "not_a_task",

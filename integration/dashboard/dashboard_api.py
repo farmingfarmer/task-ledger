@@ -298,7 +298,19 @@ def _build_id():
             ["git", "-C", root, "log", "-1", "--format=%h %cd",
              "--date=format:%Y-%m-%d %H:%M"],
             stderr=subprocess.DEVNULL).decode("utf-8").strip()
-        return out or "unknown"
+        if out:
+            return out
+    except Exception:                                   # noqa: BLE001
+        pass
+    # A kit has no .git -- it is a git-archive export -- so the header
+    # read "build unknown" on exactly the machines where knowing the
+    # build matters most: a teammate's, mid bug report. The kit builder
+    # stamps BUILD_ID at packaging time; read it back here.
+    try:
+        root = os.path.normpath(os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+        with open(os.path.join(root, "BUILD_ID")) as f:
+            return f.read().strip() or "unknown"
     except Exception:                                   # noqa: BLE001
         return "unknown"
 
@@ -1254,21 +1266,38 @@ def _attach_owner_options(proposals, viewer_ref):
             batches.setdefault(r["proposal_id"], set()).add(r["batch_id"])
 
     all_batches = sorted(set().union(*batches.values()) if batches else [])
-    in_window = {}
+    in_window, batch_series = {}, {}
     if all_batches:
-        # "The room" is everyone the window can vouch for: people who
-        # SPOKE (author_ref), and people the same batch ATTRIBUTED work
-        # to (owner_candidates). The second half matters on an assistant
-        # ledger: only anchored claims carry a speaker there, so a batch
-        # where one person's quotes happened to match left that one
-        # person as the sole correction offered on every card -- while
-        # the export itself named half the team as owners, all of them
-        # in those same meetings. Still conversation-scoped, never a
-        # directory: nobody enters this list except through the window.
+        # "The room" is everyone the MEETING can vouch for: people who
+        # SPOKE (author_ref) and people the meeting's claims ATTRIBUTED
+        # work to (owner_candidates) -- across every sub-window of the
+        # same meeting, not just this signal's batch. Two accidents had
+        # narrowed it to one person. On the assistant ledger only
+        # anchored claims carry a speaker, so one lucky anchor was the
+        # sole correction on every card. On the real ledger, meetings
+        # are split into 8-utterance batches for EXTRACTION quality
+        # (windowing.py), and that split silently became a room
+        # boundary: "who was in this conversation" was answered from a
+        # three-minute slice, offering whoever happened to speak inside
+        # it. Batches sharing a source_ref series (…-p1, …-p2) are one
+        # meeting, so the room joins across them. Still never a
+        # directory: nobody enters except through the meeting.
         for r in q("""
-                SELECT batch_id, author_ref, owner_candidates FROM signals
-                WHERE batch_id = ANY(%s)""", (all_batches,)):
-            room = in_window.setdefault(r["batch_id"], [])
+                SELECT batch_id,
+                       regexp_replace(source_ref, '-p\\d+$', '') AS series
+                FROM extraction_batches WHERE batch_id = ANY(%s)""",
+                (all_batches,)):
+            batch_series[r["batch_id"]] = r["series"]
+        series_list = sorted(set(batch_series.values()))
+        for r in q("""
+                SELECT regexp_replace(b.source_ref, '-p\\d+$', '')
+                         AS series,
+                       s.author_ref, s.owner_candidates
+                FROM extraction_batches b
+                JOIN signals s USING (batch_id)
+                WHERE regexp_replace(b.source_ref, '-p\\d+$', '')
+                        = ANY(%s)""", (series_list,)):
+            room = in_window.setdefault(r["series"], [])
             if r["author_ref"] and r["author_ref"] not in room:
                 room.append(r["author_ref"])
             for cand in (r["owner_candidates"] or []):
@@ -1283,7 +1312,7 @@ def _attach_owner_options(proposals, viewer_ref):
             if ref not in opts:
                 opts.append(ref)
         for b in sorted(batches.get(pid, [])):
-            for ref in sorted(in_window.get(b, [])):
+            for ref in in_window.get(batch_series.get(b), []):
                 if ref not in opts:
                     opts.append(ref)
         if viewer_ref not in opts:
@@ -1293,11 +1322,18 @@ def _attach_owner_options(proposals, viewer_ref):
 
 
 def _room_for_candidates(v):
+    # Same meeting-series scope as _attach_owner_options; see the room
+    # comment there. b2 joins every sub-window of the meetings these
+    # candidates were sighted in.
     rows = q("""
         SELECT DISTINCT s2.author_ref, s2.owner_candidates
         FROM task_candidate_events e
         JOIN signals s ON s.signal_id = e.signal_id
-        JOIN signals s2 ON s2.batch_id = s.batch_id
+        JOIN extraction_batches b ON b.batch_id = s.batch_id
+        JOIN extraction_batches b2
+          ON regexp_replace(b2.source_ref, '-p\\d+$', '')
+           = regexp_replace(b.source_ref, '-p\\d+$', '')
+        JOIN signals s2 ON s2.batch_id = b2.batch_id
         JOIN v_task_candidates c
           ON c.candidate_id = e.candidate_id AND c.user_ref = e.user_ref
         WHERE e.user_ref = %s AND c.state = 'sighted'""", (v,))
@@ -1913,7 +1949,11 @@ def candidate_rule():
                     SELECT DISTINCT s2.author_ref, s2.owner_candidates
                     FROM task_candidate_events e
                     JOIN signals s ON s.signal_id = e.signal_id
-                    JOIN signals s2 ON s2.batch_id = s.batch_id
+                    JOIN extraction_batches b ON b.batch_id = s.batch_id
+                    JOIN extraction_batches b2
+                      ON regexp_replace(b2.source_ref, '-p\\d+$', '')
+                       = regexp_replace(b.source_ref, '-p\\d+$', '')
+                    JOIN signals s2 ON s2.batch_id = b2.batch_id
                     WHERE e.candidate_id = %s AND e.user_ref = %s""",
                     (cid, v))
                 inroom = set()
