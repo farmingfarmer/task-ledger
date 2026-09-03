@@ -127,6 +127,14 @@ if not defined PGBIN (
   exit /b 1
 )
 
+rem Path variables echoed INSIDE parenthesized blocks use !delayed!
+rem expansion, never %parse-time%. A recipient's path can contain a
+rem parenthesis -- Windows names a second extract "folder (1)" -- and a
+rem %VAR% containing ')' detonates the enclosing block at parse time:
+rem the batch dies with "...was unexpected at this time" before any
+rem error branch can run. Found by the first teammate to run a kit,
+rem whose extract landed in exactly such a folder. Quoted uses
+rem (">"%VAR%"") are safe either way; bare echoes are not.
 rem ---- start the server if it is not already answering ---------
 "%PGBIN%\pg_isready.exe" -p %PGPORT% >nul 2>&1
 if errorlevel 1 (
@@ -142,7 +150,7 @@ if errorlevel 1 (
     ping -n 2 127.0.0.1 >nul
   )
   echo   [X] The database would not start. Details:
-  echo       %PGDATA%\pg.log
+  echo       !PGDATA!\pg.log
   pause
   exit /b 1
 )
@@ -189,7 +197,7 @@ if not defined DBOK (
     echo       show errors. Nothing here is your fault.
     echo.
     echo       What went wrong is written to:
-    echo         %SETUPLOG%
+    echo         !SETUPLOG!
     echo       Send that file to whoever gave you this kit.
     echo.
     pause
@@ -262,7 +270,7 @@ if exist "%KITROOT%ledger-b.sql" (
     )
   ) else (
     echo   [!] The second ledger would not prepare; running with one.
-    echo       Details: %SETUPLOG%
+    echo       Details: !SETUPLOG!
   )
 )
 
