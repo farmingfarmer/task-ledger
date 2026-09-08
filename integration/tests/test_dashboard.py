@@ -1030,6 +1030,84 @@ def main():
            "kit keeps the picker and the generic welcome")
         dashboard_api.KIT = saved_kit
 
+        print("workload sheet")
+        # The sheet the operator keeps by hand, generated: priority,
+        # cumulative hours, this week's plan, end-of-week projection.
+        # The rule under test: three kinds of number -- stated, measured,
+        # proposed -- never blended, and nothing becomes fact unsaved.
+        wconn = psycopg2.connect(dsn)
+        with wconn, wconn.cursor() as wc:
+            wc.execute("SELECT 1 FROM tasks_current WHERE task_id = "
+                       "'task-wk-blocked'")
+            if wc.fetchone() is None:
+                wc.execute("""
+                    SELECT apply_task_event('task-wk-blocked', %s,
+                      'created', 'manual_edit', NULL,
+                      '{"title":"Blocked project",
+                        "status":"in_progress",
+                        "owner_ref":"dash-owner"}')""", (OWNER,))
+            wc.execute("""
+                INSERT INTO task_blockers (task_id, description,
+                  opened_event_id)
+                SELECT 'task-wk-blocked', 'Waiting on business feedback',
+                       min(event_id) FROM task_events
+                WHERE task_id = 'task-wk-blocked'
+                HAVING min(event_id) IS NOT NULL
+                   AND NOT EXISTS (SELECT 1 FROM task_blockers
+                                   WHERE task_id = 'task-wk-blocked')""")
+        wconn.close()
+        code, sheet = as_viewer(client, "/api/workload?profile=synthetic",
+                                OWNER)
+        ok(code == 200 and sheet["rows"],
+           "the sheet exists, one row per project or parent")
+        blocked = [r for r in sheet["rows"]
+                   if r["subject"] == "task-wk-blocked"]
+        ok(blocked and blocked[0]["blocker"]
+           and blocked[0]["planned"]["value"] == 0.0
+           and blocked[0]["planned"]["source"] == "proposed",
+           "a blocked row is proposed ZERO hours -- planning time into "
+           "work that cannot move is how a sheet starts lying -- and the "
+           "zero is labeled a proposal, not a fact")
+        ok(all(r["planned"]["source"] in ("proposed", "stated")
+               for r in sheet["rows"]),
+           "every planned cell declares which kind of number it is")
+
+        sid = sheet["rows"][0]["subject"]
+        code, body = spost("/api/workload?profile=synthetic",
+                           {"week_start": sheet["week_start"],
+                            "capacity": 38,
+                            "rows": [{"subject": sid, "opening_total": 20,
+                                      "planned": 9.5, "priority": 1}]})
+        ok(code == 200 and body["saved"] == 4,
+           "stating capacity, an opening total, a plan and a priority "
+           "writes four events")
+        code, sheet2 = as_viewer(client,
+                                 "/api/workload?profile=synthetic", OWNER)
+        row = [r for r in sheet2["rows"] if r["subject"] == sid][0]
+        ok(row["opening_total"]["source"] == "stated"
+           and row["planned"]["source"] == "stated"
+           and row["priority"]["source"] == "stated"
+           and abs(row["eow_total"] - 29.5) < 1e-9,
+           "saved numbers come back as STATED and the projection is "
+           "arithmetic on them: 20 opening + 9.5 planned = 29.5 by "
+           "end of week, exactly the hand-kept sheet's math")
+        ok(sheet2["capacity"]["value"] == 38.0,
+           "and capacity is the person's own number")
+        untouched = [r for r in sheet2["rows"] if r["subject"] != sid
+                     and not r["blocker"]]
+        ok(all(r["planned"]["source"] == "proposed" for r in untouched),
+           "rows the person did not touch stay proposals -- saving one "
+           "row does not silently adopt the rest")
+        code, _ = spost("/api/workload?profile=synthetic",
+                        {"week_start": sheet["week_start"],
+                         "rows": [{"subject": "task-of-somebody-else",
+                                   "planned": 4}]})
+        ok(code == 400,
+           "a subject not on your sheet is refused -- the sheet is "
+           "self-only in both directions")
+        code, _ = as_viewer(client, "/api/workload?profile=synthetic")
+        ok(code == 401, "and anonymous gets nothing")
+
         print("unreachable ledger")
         saved = dict(dashboard_api.PROFILES.get("copilot") or {})
         dashboard_api.PROFILES["copilot"] = {

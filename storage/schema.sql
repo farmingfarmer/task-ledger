@@ -92,6 +92,51 @@ CREATE TABLE evidence_refs (
   CHECK (span_end IS NULL OR span_start IS NULL OR span_end >= span_start)
 );
 
+-- Workload sheet: hours and priority per person per week.
+-- Full rationale in migrate_workload.sql (which existing
+-- databases apply); the short version: three kinds of
+-- number -- stated, measured, proposed -- and only the
+-- first two are ever stored.
+
+
+CREATE TABLE IF NOT EXISTS workload_events (
+  event_id    bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_ref    text NOT NULL,
+  -- What the row is about: a project_id, a task_id (top-level parents
+  -- act as projects), '_capacity' for the person's whole week, or
+  -- '_other' for the unassigned remainder.
+  subject     text NOT NULL,
+  week_start  date NOT NULL,               -- always a Monday
+  kind        text NOT NULL CHECK (kind IN
+                ('capacity',        -- stated: hours available this week
+                 'opening_total',   -- stated: cumulative hours before this week
+                 'planned',         -- stated: hours the person will spend
+                 'priority',        -- stated: 1 = most important
+                 'meeting_time')),  -- measured: minutes, from transcripts
+  hours       numeric(6,2),
+  priority    smallint CHECK (priority BETWEEN 1 AND 99),
+  -- 'stated' rows come from the person; 'measured' rows carry the
+  -- source_refs they were computed from, so the number can be audited.
+  source      text NOT NULL CHECK (source IN ('stated','measured')),
+  basis       text,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  CHECK ((kind = 'priority') = (priority IS NOT NULL)),
+  CHECK ((kind <> 'priority') = (hours IS NOT NULL))
+);
+
+CREATE INDEX IF NOT EXISTS workload_latest_idx
+  ON workload_events (user_ref, subject, week_start, kind, event_id DESC);
+
+-- Latest row per (person, subject, week, kind): the current sheet.
+CREATE OR REPLACE VIEW v_workload_current AS
+SELECT DISTINCT ON (user_ref, subject, week_start, kind)
+       user_ref, subject, week_start, kind, hours, priority, source,
+       basis, created_at
+FROM workload_events
+ORDER BY user_ref, subject, week_start, kind, event_id DESC;
+-- (append-only trigger attached in the loop below,
+--  after forbid_mutation() exists)
+
 -- Signal pool: which signals are awaiting reconciliation for which user.
 -- Append-only events; current pool is the latest event per (signal, user).
 CREATE TABLE signal_pool_events (
@@ -315,7 +360,7 @@ BEGIN
   FOREACH t IN ARRAY ARRAY[
     'extraction_batches','signals','evidence_refs','signal_pool_events',
     'review_packets','packet_state_events','proposals','proposal_signals',
-    'decisions','task_events']
+    'decisions','task_events','workload_events']
   LOOP
     EXECUTE format(
       'CREATE TRIGGER %I_append_only BEFORE UPDATE OR DELETE ON %I

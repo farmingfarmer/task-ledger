@@ -2076,6 +2076,336 @@ def candidate_rule():
         conn.close()
 
 
+# ---------------------------------------------------------------- workload
+#
+# The sheet that answers "what is my week going to": per project, a
+# priority, cumulative hours, this week's plan, and the projected
+# end-of-week total. Modelled on the spreadsheet its first user already
+# keeps by hand -- the columns are that sheet's columns.
+#
+# THE RULE THAT SHAPES ALL OF IT: three kinds of number, never blended.
+#   stated    the person typed it (capacity, opening totals, priorities,
+#             an edited plan) -- persisted in workload_events
+#   measured  computed from evidence the system can show (meeting
+#             minutes summed from transcript window timestamps) --
+#             recomputed on read, carrying what it was measured from
+#   proposed  the system's suggestion -- NEVER persisted, recomputed on
+#             every read, dies on screen unless the person saves it,
+#             at which point it becomes stated because they said so
+# A cell always says which kind it is. An hours number of unknown
+# provenance is exactly as corrosive here as an unattributed task.
+
+def _monday(d=None):
+    d = d or datetime.date.today()
+    return d - datetime.timedelta(days=d.weekday())
+
+
+def _workload_subjects(v):
+    """The sheet's rows: this person's projects, their top-level parent
+    tasks (a parent with children IS a project in all but name), and
+    standalone open tasks. Each with the board facts the sheet shows:
+    active/blocked, start date, last movement."""
+    rows = q("""
+        WITH mine AS (
+          SELECT t.task_id, t.title, t.status, t.project_id,
+                 t.parent_task_id, t.created_at, t.updated_at
+          FROM tasks_current t
+          WHERE t.user_ref = %s AND t.merged_into IS NULL),
+        grouped AS (
+          SELECT COALESCE(p.project_id, par.task_id, m.task_id)
+                   AS subject,
+                 COALESCE(p.name, par.title, m.title) AS label,
+                 min(m.created_at) AS start_date,
+                 max(m.updated_at) AS last_moved,
+                 bool_and(m.status IN ('completed','cancelled')) AS closed
+          FROM mine m
+          LEFT JOIN projects p ON p.project_id = m.project_id
+          LEFT JOIN mine par ON par.task_id = m.parent_task_id
+          GROUP BY 1, 2)
+        SELECT g.*,
+               (SELECT b.description FROM task_blockers b
+                 JOIN mine mm ON mm.task_id = b.task_id
+                 WHERE b.resolved_event_id IS NULL
+                   AND COALESCE(mm.project_id, mm.parent_task_id,
+                                mm.task_id) = g.subject
+                 ORDER BY b.blocker_id LIMIT 1) AS blocker
+        FROM grouped g""", (v,))
+    out = [dict(r) for r in rows if not r["closed"]]
+    out.sort(key=lambda r: str(r["label"]).lower())
+    return out
+
+
+def _meeting_minutes(v, subjects, weeks_back=3):
+    """MEASURED: minutes of meeting per subject per week, from the
+    transcript windows' own timestamps.
+
+    A meeting is attributed to a subject when a signal extracted from it
+    is traceably attached to one of the subject's tasks -- through the
+    aliases the reviewer's accepts taught, or the proposals they ruled
+    on. A meeting attached to several subjects splits its minutes evenly
+    between them: crude, said openly in the basis, and honest -- the
+    alternative is inventing a weighting nobody measured. Meetings that
+    touch none of this person's work count toward their meeting load but
+    no project's."""
+    ids = [s["subject"] for s in subjects]
+    rows = q("""
+        WITH linked AS (
+          SELECT s.batch_id,
+                 COALESCE(t.project_id, t.parent_task_id, t.task_id)
+                   AS subject
+          FROM task_aliases a
+          JOIN tasks_current t USING (task_id)
+          JOIN signals s ON s.signal_id = a.source_signal_id
+          WHERE t.user_ref = %s
+          UNION
+          SELECT s.batch_id,
+                 COALESCE(t.project_id, t.parent_task_id, t.task_id)
+          FROM decisions d
+          JOIN proposals pr ON pr.proposal_id = d.proposal_id
+          JOIN proposal_signals ps ON ps.proposal_id = pr.proposal_id
+          JOIN signals s ON s.signal_id = ps.signal_id
+          JOIN task_events te ON te.decision_id = d.decision_id
+          JOIN tasks_current t ON t.task_id = te.task_id
+          WHERE t.user_ref = %s)
+        SELECT regexp_replace(b.source_ref, '-p\\d+$', '') AS series,
+               date_trunc('week', min(b.window_start))::date AS week_start,
+               GREATEST(1, EXTRACT(epoch FROM
+                 max(b.window_end) - min(b.window_start)) / 60)::int
+                 AS minutes,
+               array_agg(DISTINCT l.subject) FILTER
+                 (WHERE l.subject = ANY(%s)) AS subjects
+        FROM extraction_batches b
+        LEFT JOIN linked l ON l.batch_id = b.batch_id
+        WHERE b.source_type = 'meeting_transcript'
+          AND b.window_start > now() - make_interval(weeks => %s)
+        GROUP BY 1""", (v, v, ids, weeks_back))
+    per = {}          # (subject, week) -> [minutes, [series...]]
+    load = {}         # week -> total meeting minutes for the person
+    for r in rows:
+        wk = r["week_start"]
+        if isinstance(wk, str):
+            wk = datetime.date.fromisoformat(wk[:10])
+        load[wk] = load.get(wk, 0) + r["minutes"]
+        subs = r["subjects"] or []
+        for s in subs:
+            key = (s, wk)
+            slot = per.setdefault(key, [0.0, []])
+            slot[0] += r["minutes"] / len(subs)
+            slot[1].append(r["series"])
+    return per, load
+
+
+def _stated(v, week):
+    """Stated numbers for the week -- or None when this ledger predates
+    migrate_workload.sql. None, not {}: an empty week and a missing
+    table are different facts, and the sheet says which. A kit's demo
+    database is restored from a dump made before the migration, so this
+    is the normal state of every kit in the field, not an edge case."""
+    try:
+        rows = q("""
+            SELECT subject, kind, hours, priority, basis
+            FROM v_workload_current
+            WHERE user_ref = %s AND week_start = %s""", (v, week))
+    except psycopg2.errors.UndefinedTable:
+        return None
+    out = {}
+    for r in rows:
+        out[(r["subject"], r["kind"])] = r
+    return out
+
+
+def _propose_priorities(subjects, stated, deadlines, activity):
+    """PROPOSED priority where none is stated: blocked work last (their
+    sheet does exactly this), then nearest deadline, then most recent
+    movement. A guess, labeled as one, one click to overrule."""
+    def sort_key(s):
+        return (1 if s.get("blocker") else 0,
+                deadlines.get(s["subject"]) or datetime.date.max,
+                -(activity.get(s["subject"]) or 0))
+    ranked = sorted(subjects, key=sort_key)
+    out = {}
+    nxt = 1
+    for s in ranked:
+        st = stated.get((s["subject"], "priority"))
+        out[s["subject"]] = ({"value": int(st["priority"]),
+                              "source": "stated"} if st else
+                             {"value": nxt, "source": "proposed"})
+        nxt += 1
+    return out
+
+
+def _propose_plan(capacity, meeting_hours, subjects, priorities, stated):
+    """PROPOSED hours for a week: what remains of stated capacity after
+    the projected meeting load, split across unblocked subjects weighted
+    by priority (rank 1 heaviest). Blocked rows get 0 -- planning hours
+    into work that cannot move is how a sheet starts lying. All of it
+    dies unless saved."""
+    plan = {}
+    open_rows = [s for s in subjects if not s.get("blocker")]
+    weights = {s["subject"]: 1.0 / priorities[s["subject"]]["value"]
+               for s in open_rows}
+    wsum = sum(weights.values()) or 1.0
+    focus = max(0.0, (capacity or 0.0) - meeting_hours)
+    for s in subjects:
+        st = stated.get((s["subject"], "planned"))
+        if st is not None:
+            plan[s["subject"]] = {"value": float(st["hours"]),
+                                  "source": "stated"}
+        elif s.get("blocker"):
+            plan[s["subject"]] = {"value": 0.0, "source": "proposed"}
+        else:
+            share = focus * weights[s["subject"]] / wsum
+            plan[s["subject"]] = {"value": round(share * 2) / 2,
+                                  "source": "proposed"}
+    return plan
+
+
+@app.route("/api/workload")
+def workload():
+    """SELF ONLY: the sheet is a person's own week."""
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    try:
+        week = _monday(datetime.date.fromisoformat(
+            request.args.get("week", "")))
+    except ValueError:
+        week = _monday()
+    subjects = _workload_subjects(v)
+    per, load = _meeting_minutes(v, subjects)
+    stated = _stated(v, week)
+    savable = stated is not None
+    if stated is None:
+        stated = {}
+
+    deadlines = {r["subj"]: r["dl"] for r in q("""
+        SELECT COALESCE(project_id, parent_task_id, task_id) AS subj,
+               min(deadline) AS dl
+        FROM tasks_current WHERE user_ref = %s AND deadline IS NOT NULL
+          AND merged_into IS NULL
+          AND status NOT IN ('completed','cancelled')
+        GROUP BY 1""", (v,))}
+    for k, val in list(deadlines.items()):
+        if isinstance(val, str):
+            deadlines[k] = datetime.date.fromisoformat(val[:10])
+    activity = {r["subj"]: r["n"] for r in q("""
+        SELECT COALESCE(t.project_id, t.parent_task_id, t.task_id)
+                 AS subj, count(*) AS n
+        FROM task_events e JOIN tasks_current t USING (task_id)
+        WHERE t.user_ref = %s
+          AND e.occurred_at > now() - interval '14 days'
+        GROUP BY 1""", (v,))}
+
+    cap_row = stated.get(("_capacity", "capacity"))
+    capacity = (float(cap_row["hours"]) if cap_row else None)
+    # Projected meeting load for THIS week: the mean of the measured
+    # weeks -- recurring meetings recur; said in the label.
+    week_loads = [m for w, m in load.items() if w < week]
+    meeting_proj = (sum(week_loads) / len(week_loads) / 60.0
+                    if week_loads else 0.0)
+    priorities = _propose_priorities(subjects, stated, deadlines, activity)
+    plan = _propose_plan(capacity, meeting_proj, subjects, priorities,
+                         stated)
+
+    rows = []
+    for s in subjects:
+        sid = s["subject"]
+        opening = stated.get((sid, "opening_total"))
+        meet = [(w, m) for (subj, w), (m, ser) in per.items()
+                if subj == sid]
+        measured_h = round(sum(m for _w, m in meet) / 60.0, 1)
+        basis = sorted({ser for (subj, _w), (_m, sers) in per.items()
+                        if subj == sid for ser in sers})
+        opening_v = float(opening["hours"]) if opening else 0.0
+        rows.append({
+            "subject": sid, "label": s["label"],
+            "active": not s.get("blocker"),
+            "blocker": s.get("blocker"),
+            "start_date": str(s["start_date"])[:10],
+            "last_moved": str(s["last_moved"])[:10],
+            "priority": priorities[sid],
+            "opening_total": {"value": opening_v,
+                              "source": "stated" if opening else "unset"},
+            "meeting_hours_measured": {"value": measured_h,
+                                       "basis": basis,
+                                       "source": "measured"},
+            "planned": plan[sid],
+            "eow_total": round(opening_v + plan[sid]["value"], 1),
+        })
+    rows.sort(key=lambda r: r["priority"]["value"])
+    return jsonify({
+        "week_start": str(week),
+        "capacity": {"value": capacity,
+                     "source": "stated" if cap_row else "unset"},
+        "meeting_hours_projected": round(meeting_proj, 1),
+        "rows": rows,
+        "savable": savable,
+        "note": ("Numbers marked proposed are suggestions and are not "
+                 "stored; saving is what makes them yours."
+                 if savable else
+                 "This ledger predates the workload table, so the sheet "
+                 "is read-only: proposals show, nothing can be saved. "
+                 "Apply storage/migrate_workload.sql to turn saving on."),
+    })
+
+
+@app.route("/api/workload", methods=["POST"])
+def workload_save():
+    """SELF ONLY, writable profiles only: the person stating facts about
+    their own week. Everything saved here is 'stated' by definition --
+    the act of saving is the person agreeing."""
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    if not _writable():
+        return _refuse_write()
+    body = request.get_json(silent=True) or {}
+    try:
+        week = _monday(datetime.date.fromisoformat(
+            (body.get("week_start") or "")))
+    except ValueError:
+        return jsonify({"error": "week_start must be a date"}), 400
+    valid = {s["subject"] for s in _workload_subjects(v)}
+    events = []
+    if body.get("capacity") is not None:
+        events.append(("_capacity", "capacity",
+                       float(body["capacity"]), None))
+    for r in (body.get("rows") or []):
+        sid = (r.get("subject") or "").strip()
+        if sid not in valid:
+            return jsonify({"error": "not a row on your sheet: "
+                                     + sid[:60]}), 400
+        if r.get("planned") is not None:
+            events.append((sid, "planned", float(r["planned"]), None))
+        if r.get("opening_total") is not None:
+            events.append((sid, "opening_total",
+                           float(r["opening_total"]), None))
+        if r.get("priority") is not None:
+            events.append((sid, "priority", None, int(r["priority"])))
+    if not events:
+        return jsonify({"error": "nothing to save"}), 400
+    conn = _write_conn()
+    try:
+        with conn.cursor() as cur:
+            for subject, kind, hours, prio in events:
+                cur.execute("""
+                    INSERT INTO workload_events (user_ref, subject,
+                      week_start, kind, hours, priority, source)
+                    VALUES (%s,%s,%s,%s,%s,%s,'stated')""",
+                    (v, subject, week, kind, hours, prio))
+        conn.commit()
+    except psycopg2.errors.UndefinedTable:
+        return jsonify({"error": "this ledger predates the workload "
+                                 "table",
+                        "detail": "Apply storage/migrate_workload.sql "
+                                  "to this database, then save "
+                                  "again."}), 409
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "saved": len(events),
+                    "week_start": str(week)})
+
+
 @app.route("/api/nudge", methods=["POST"])
 def nudge():
     """Answer 'where did this get to?' on a task that has gone quiet.

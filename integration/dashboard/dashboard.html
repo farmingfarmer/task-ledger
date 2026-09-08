@@ -531,6 +531,27 @@
     flex:1;border:1px solid var(--line,#d9dee5);
     border-radius:var(--r1,6px)}
   .vfixed{font-weight:600;font-size:14px}
+  .wktable{width:100%;border-collapse:collapse;font-size:13px}
+  .wktable th{text-align:left;font-size:11px;text-transform:uppercase;
+         letter-spacing:.06em;color:var(--muted);padding:6px 8px;
+         border-bottom:1.5px solid var(--line)}
+  .wktable td{padding:7px 8px;border-bottom:1px solid var(--line);
+         vertical-align:top}
+  .wktable input{font:inherit;width:64px;padding:4px 6px;
+         border:1px solid var(--line);border-radius:var(--r1);
+         background:var(--panel)}
+  .wktable input.proposed{color:var(--faint);font-style:italic}
+  .wkprio{display:inline-block;min-width:20px;text-align:center;
+         border-radius:4px;padding:2px 6px;font-weight:700;color:#fff}
+  .wkp1{background:#c0392b}.wkp2{background:#e67e22}
+  .wkp3{background:#d4ac0d}.wkp4{background:#27ae60}
+  .wkblk{color:#c0392b;font-size:12px}
+  .wkmeta{font-size:11.5px;color:var(--faint)}
+  .wkcap{display:flex;gap:10px;align-items:center;margin:8px 0;
+         font-size:13px;flex-wrap:wrap}
+  .wkcap input{font:inherit;width:70px;padding:4px 6px;
+         border:1px solid var(--line);border-radius:var(--r1)}
+  .wkeow{font-weight:700}
   .ksteps{list-style:none;margin:14px 0;padding:0}
   .ksteps li{display:flex;gap:10px;align-items:flex-start;
          padding:9px 0;border-bottom:1px solid var(--line)}
@@ -726,6 +747,13 @@
       </div>
     </section>
 
+    <section class="sect" id="sect-week">
+      <h2>Your week
+        <span class="sub">priority, hours so far, and a proposed plan
+          &mdash; suggestions until you save them</span></h2>
+      <div id="weekpanel"></div>
+    </section>
+
     <section class="sect" id="sect-more">
       <h2>Everything else
         <span class="sub">four separate things, each closed until you want
@@ -890,6 +918,153 @@
     boot();
   });
 
+  // ---- the week sheet ----
+  //
+  // Three kinds of number and the UI keeps them apart: STATED cells are
+  // normal, PROPOSED cells are italic-grey until touched, MEASURED
+  // shows its receipts (which meetings it was summed from). Saving is
+  // what turns a proposal into a statement -- nothing here writes
+  // itself, same rule as every card.
+  var WEEK = {edits: {}, capacity: null, data: null};
+
+  function wkInput(row, field, value, source){
+    var inp = document.createElement("input");
+    inp.type = "number"; inp.step = field === "priority" ? "1" : "0.5";
+    inp.min = "0"; inp.value = value == null ? "" : String(value);
+    if(source === "proposed") inp.className = "proposed";
+    inp.oninput = function(){
+      inp.className = "";
+      var e = WEEK.edits[row.subject] = WEEK.edits[row.subject] || {};
+      e[field] = inp.value === "" ? null : Number(inp.value);
+      wkRecalc();
+    };
+    return inp;
+  }
+
+  function wkRecalc(){
+    (WEEK.data.rows || []).forEach(function(r){
+      var e = WEEK.edits[r.subject] || {};
+      var open_ = e.opening_total != null ? e.opening_total
+                  : r.opening_total.value;
+      var plan = e.planned != null ? e.planned : r.planned.value;
+      var cell = document.getElementById("wkeow-" + r.subject);
+      if(cell) cell.textContent = (Math.round((open_ + plan) * 10) / 10);
+    });
+  }
+
+  function paintWeek(d){
+    WEEK.data = d; WEEK.edits = {};
+    var box = document.getElementById("weekpanel");
+    box.innerHTML = "";
+    if(!d || !d.rows || !d.rows.length){
+      box.appendChild(emptyEl("Nothing on your board yet \u2014 the "
+        + "sheet appears once you have accepted work."));
+      return;
+    }
+    var cap = el2("div","wkcap");
+    cap.appendChild(el("span", null, "My hours this week:"));
+    var capin = document.createElement("input");
+    capin.type = "number"; capin.step = "0.5"; capin.min = "0";
+    capin.value = d.capacity.value == null ? "" : d.capacity.value;
+    capin.oninput = function(){
+      WEEK.capacity = capin.value === "" ? null : Number(capin.value);
+    };
+    cap.appendChild(capin);
+    cap.appendChild(el("span","wkmeta",
+      "meetings are projected to take " + d.meeting_hours_projected
+      + " h of it (measured from your transcripts); the proposed plan "
+      + "splits what remains by priority"));
+    box.appendChild(cap);
+
+    var t = el2("table","wktable");
+    var hr = el2("tr");
+    ["Priority","Project","Status","Started","Hours so far",
+     "+ This week","= End of week"].forEach(function(h){
+      hr.appendChild(el("th", null, h)); });
+    t.appendChild(hr);
+    d.rows.forEach(function(r){
+      var tr = el2("tr");
+      var pv = r.priority.value;
+      var td0 = el2("td");
+      var chip = el("span","wkprio wkp" + Math.min(pv, 4), String(pv));
+      chip.title = r.priority.source === "proposed"
+        ? "suggested order \u2014 edit to overrule" : "your ranking";
+      td0.appendChild(chip);
+      tr.appendChild(td0);
+      var td1 = el2("td");
+      td1.appendChild(el("div", null, r.label));
+      if(r.meeting_hours_measured.value > 0){
+        td1.appendChild(el("div","wkmeta",
+          r.meeting_hours_measured.value + " h in meetings \u00b7 "
+          + (r.meeting_hours_measured.basis || []).length
+          + " meeting(s), measured"));
+      }
+      tr.appendChild(td1);
+      var td2 = el2("td");
+      td2.appendChild(r.blocker
+        ? el("span","wkblk", "Blocked: " + r.blocker)
+        : el("span", null, "Active"));
+      tr.appendChild(td2);
+      tr.appendChild(el("td","wkmeta", r.start_date));
+      var td4 = el2("td");
+      td4.appendChild(wkInput(r, "opening_total",
+        r.opening_total.value,
+        r.opening_total.source === "stated" ? "stated" : "proposed"));
+      tr.appendChild(td4);
+      var td5 = el2("td");
+      td5.appendChild(wkInput(r, "planned", r.planned.value,
+                              r.planned.source));
+      tr.appendChild(td5);
+      var td6 = el2("td");
+      var eow = el("span","wkeow", String(r.eow_total));
+      eow.id = "wkeow-" + r.subject;
+      td6.appendChild(eow);
+      tr.appendChild(td6);
+      t.appendChild(tr);
+    });
+    box.appendChild(t);
+
+    var save = el2("button","yes"); save.type = "button";
+    save.textContent = "Save my week";
+    if(d.savable === false){
+      save.disabled = true;
+      box.appendChild(el("p","wkmeta", d.note));
+    }
+    var note = el("span","wkmeta",
+      "  italic numbers are suggestions; saving makes them yours");
+    save.onclick = function(){
+      var rows = [];
+      Object.keys(WEEK.edits).forEach(function(sid){
+        var e = WEEK.edits[sid]; e.subject = sid; rows.push(e);
+      });
+      // Saving with no edits adopts the proposal as shown -- that is
+      // the person agreeing to it, which is what makes it theirs.
+      if(!rows.length){
+        (d.rows || []).forEach(function(r){
+          rows.push({subject: r.subject, planned: r.planned.value,
+                     priority: r.priority.value});
+        });
+      }
+      var body = {week_start: d.week_start, rows: rows};
+      if(WEEK.capacity != null) body.capacity = WEEK.capacity;
+      else if(d.capacity.value == null && capin.value !== "")
+        body.capacity = Number(capin.value);
+      save.disabled = true; note.textContent = "  Saving\u2026";
+      post("/api/workload", body).then(function(){
+        note.textContent = "  Saved.";
+        loadWeek();
+      })["catch"](function(e){
+        save.disabled = false; note.textContent = "  " + e.message;
+      });
+    };
+    box.appendChild(save); box.appendChild(note);
+  }
+
+  function loadWeek(){
+    panel("weekpanel", "/api/workload",
+          function(_node, data){ paintWeek(data); });
+  }
+
   function boot(){
     document.getElementById("drill").innerHTML =
       '<div class="empty">Select a task to see its history.</div>';
@@ -899,6 +1074,7 @@
     loadTimeline();
     loadTeam(); loadShares(); loadCalibration();
     loadProjects(); loadRecent(); loadMeetings();
+    loadWeek();
     document.getElementById("askout").innerHTML = "";
     document.getElementById("askhint").textContent =
       "Answers come from confirmed board state, with their receipts. " +
