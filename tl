@@ -103,7 +103,7 @@ usage() {
   echo "  digest          the week, addressed to a person"
   echo "  ask <question>  answers over confirmed state, with receipts"
   echo "  share <args>    grant / revoke / list access"
-  echo "  dashboard       serve http://127.0.0.1:8090 (--blind for A/B)"
+  echo "  dashboard       serve http://127.0.0.1:8090 (--blind --hands-on --picker)"
   echo "  extract <file>  one transcript -> typed signals (writes)"
   echo "  ingest <file>   a Copilot paste -> the inbox"
   echo "  transcripts <f> a Teams transcript (Word .txt) -> the inbox"
@@ -181,6 +181,8 @@ case "$CMD" in
     # not belong in invisible shell state.
     for a in "$@"; do
       [ "$a" = "--blind" ] && export TL_BLIND=1
+      [ "$a" = "--hands-on" ] && export TL_HANDS_ON=1
+      [ "$a" = "--picker" ] && export TL_VIEWER_PICKER=1
     done
     banner; preflight dashboard
     echo "tl: http://127.0.0.1:8090  (ctrl-c to stop)"

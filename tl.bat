@@ -121,7 +121,7 @@ echo   review          accept / edit / reject / defer the packet
 echo   digest          the week, addressed to a person
 echo   ask "question"  answers over confirmed state, with receipts
 echo   share ^<args^>    grant / revoke / list access
-echo   dashboard       serve http://127.0.0.1:8090 ^(--blind for A/B^)
+echo   dashboard       serve http://127.0.0.1:8090 ^(--blind --hands-on --picker^)
 echo   extract ^<file^>  one transcript -^> typed signals (writes)
 echo   ingest ^<file^>   a Copilot paste -^> the inbox
 echo   transcripts ^<f^> a Teams transcript (Word .txt) -^> the inbox
@@ -215,6 +215,8 @@ rem nothing, since the arms were labelled all along. A setting that
 rem decides whether an afternoon of five people's time is usable does
 rem not belong in invisible shell state.
 echo %ARGS% | findstr /C:"--blind" >nul && set "TL_BLIND=1"
+echo %ARGS% | findstr /C:"--hands-on" >nul && set "TL_HANDS_ON=1"
+echo %ARGS% | findstr /C:"--picker" >nul && set "TL_VIEWER_PICKER=1"
 call :preflight || exit /b 1
 rem Browse the literal IP; bare hostnames get https-upgraded on Windows.
 echo tl: http://127.0.0.1:8090  (ctrl-c to stop)

@@ -121,6 +121,29 @@ if SYNTH_DSN:
                     "real task -- and every confirmation was seeded in one "
                     "sitting, so the said-to-tracked timings measure that "
                     "sitting, not the pipeline."}}
+# The comparison ledger's conventional name is taskintel_copilot -- it
+# is what `tl copilot --apply` creates, on the same server as the real
+# one. Requiring a hand-set TL_COPILOT_DSN to see it meant the profile
+# silently vanished every time the dashboard started from a fresh
+# window, and the operator read the missing button as a broken build --
+# three times. So when the variable is unset, probe for the database by
+# its conventional name and use it if it answers. The variable still
+# overrides; TL_DISABLE_COPILOT_PROBE=1 turns the probe off (the test
+# suite does, so its profile assumptions stay its own).
+if (not COPILOT_DSN and DSN
+        and os.environ.get("TL_DISABLE_COPILOT_PROBE") != "1"):
+    _parts = dict(kv.split("=", 1) for kv in DSN.split() if "=" in kv)
+    _parts["dbname"] = "taskintel_copilot"
+    _cand = " ".join("{0}={1}".format(k, v) for k, v in _parts.items())
+    try:
+        psycopg2.connect(_cand, connect_timeout=2).close()
+        COPILOT_DSN = _cand
+        print("copilot ledger: found taskintel_copilot on the same "
+              "server -- offering it (set TL_COPILOT_DSN to override, "
+              "TL_DISABLE_COPILOT_PROBE=1 to stop looking)")
+    except Exception:                                   # noqa: BLE001
+        pass
+
 if COPILOT_DSN:
     PROFILES["copilot"] = {
         "dsn": COPILOT_DSN, "synthetic": False, "writable": False,

@@ -407,6 +407,10 @@ def main():
                  "TL_BLIND_SALT", "TL_KIT_CONFIG", "TL_COPILOT_DSN",
                  "TL_SYNTH_DSN", "TL_SURVEY_DIR"):
         os.environ.pop(flag, None)
+    # ...and the copilot autodiscovery, which would otherwise adopt any
+    # taskintel_copilot living on the developer's server and quietly
+    # change which profiles these assertions run against.
+    os.environ["TL_DISABLE_COPILOT_PROBE"] = "1"
     import dashboard_api
     dashboard_api.DSN = dsn
     client = dashboard_api.app.test_client()
