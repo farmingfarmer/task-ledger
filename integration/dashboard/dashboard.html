@@ -552,6 +552,10 @@
   .wkcap input{font:inherit;width:70px;padding:4px 6px;
          border:1px solid var(--line);border-radius:var(--r1)}
   .wkeow{font-weight:700}
+  .busywait{color:var(--faint);font-style:italic;font-size:12.5px;
+         animation:busypulse 1s ease-in-out infinite}
+  button.busy{outline:2px solid var(--accent,#2f6fed)}
+  @keyframes busypulse{50%{opacity:.35}}
   .ksteps{list-style:none;margin:14px 0;padding:0}
   .ksteps li{display:flex;gap:10px;align-items:flex-start;
          padding:9px 0;border-bottom:1px solid var(--line)}
@@ -1372,7 +1376,7 @@
   // was heard that you have not ruled on, and what you took on that has
   // since gone quiet. Production asks them in a Teams card; this asks them
   // here, through the same decision path.
-  var REVIEW = {data: null, shown: false};
+  var REVIEW = {data: null, shown: false, dirty: false};
   // answered: decisions made in THIS sitting. The form is for people who
   // just did the work; someone who opened the page, changed nothing and
   // closed it has nothing to report and should not be asked.
@@ -1660,6 +1664,7 @@
   }
   function closeReview(){
     document.getElementById("reviewmodal").hidden = true;
+    if(REVIEW.dirty){ REVIEW.dirty = false; boot(); }
   }
 
   function opLabel(op){
@@ -1944,6 +1949,21 @@
   // "ADA OKONKWO", not "aad-ada-okonkwo" -- the same shortening the
   // timeline bands do, so the two never disagree about what a person is
   // called.
+  // Instant acknowledgement. Every answer is a real database write and
+  // can take seconds on a laptop; until the reply lands the UI used to
+  // change NOTHING, so a click looked dead, people clicked again, and
+  // the eventual repaint read as random. One rule now: the first click
+  // locks every control in the row and says "Recording..." in the same
+  // breath. The server reply then replaces it -- and duplicate posts
+  // from double-clicks stop existing, because the second click hits a
+  // disabled button.
+  function lockActs(acts, b){
+    var els = acts.querySelectorAll("button, select, input");
+    for(var i = 0; i < els.length; i++) els[i].disabled = true;
+    if(b) b.classList.add("busy");
+    acts.appendChild(el("span","busywait","Recording\u2026"));
+  }
+
   function personName(ref){
     return String(ref || "").replace(/^aad-/, "").replace(/-/g, " ");
   }
@@ -1994,10 +2014,15 @@
     function done(word){
       acts.innerHTML = "";
       acts.appendChild(el("span","revdone", word));
+      // Refresh the popup only. Rebooting the whole page here meant a
+      // dozen API calls per answer on a laptop database -- which is
+      // what made the NEXT click feel dead. The full board refresh
+      // happens once, when the popup closes.
+      REVIEW.dirty = true;
       loadReview(false);
-      boot();
     }
     yes.onclick = function(){
+      lockActs(acts, yes);
       post("/api/decide", {proposal_id: p.proposal_id, decision: "accept"})
         .then(function(r){ done(r.ok ? "Recorded \u2014 it is on your board"
                                      : "Board moved: " + r.invalidated); })
@@ -2005,12 +2030,14 @@
     };
     no.onclick = function(){
       if(!sel.value){ sel.focus(); return; }
+      lockActs(acts, no);
       post("/api/decide", {proposal_id: p.proposal_id, decision: "reject",
                            reject_reason: sel.value})
         .then(function(){ done("Rejected \u2014 the reason trains the eval"); })
         ["catch"](function(e){ done(e.message); });
     };
     later.onclick = function(){
+      lockActs(acts, later);
       post("/api/decide", {proposal_id: p.proposal_id, decision: "defer"})
         .then(function(){ done("Deferred \u2014 it returns to the pool"); })
         ["catch"](function(e){ done(e.message); });
@@ -2036,6 +2063,7 @@
       own.onchange = function(){
         if(!own.value) return;
         var to = own.value;
+        lockActs(acts, null);
         post("/api/decide", {proposal_id: p.proposal_id, decision: "reject",
                              reject_reason: "wrong_owner", reassign_to: to})
           .then(function(){
@@ -2114,10 +2142,15 @@
     function done(word){
       acts.innerHTML = "";
       acts.appendChild(el("span","revdone", word));
+      // Refresh the popup only. Rebooting the whole page here meant a
+      // dozen API calls per answer on a laptop database -- which is
+      // what made the NEXT click feel dead. The full board refresh
+      // happens once, when the popup closes.
+      REVIEW.dirty = true;
       loadReview(false);
-      boot();
     }
     yes.onclick = function(){
+      lockActs(acts, yes);
       post("/api/candidate", {candidate_id: c.candidate_id,
                               action: "track"})
         .then(function(){
@@ -2125,6 +2158,7 @@
         })["catch"](function(e){ done(e.message); });
     };
     no.onclick = function(){
+      lockActs(acts, no);
       post("/api/candidate", {candidate_id: c.candidate_id,
                               action: "dismiss"})
         .then(function(){ done("Dismissed \u2014 it will not be raised again"); })
@@ -2165,6 +2199,7 @@
       if(sel.value) body.parent_task_id = sel.value;
       else if(orNew.value.trim()) body.parent_title = orNew.value.trim();
       else { orNew.focus(); return; }   // say which parent, or nothing
+      lockActs(acts, go); lockActs(picker, null);
       post("/api/candidate", body).then(function(){
         done("Filed under " + (sel.value
              ? sel.options[sel.selectedIndex].text
@@ -2194,6 +2229,7 @@
     mine.onclick = function(){ whose.hidden = !whose.hidden; };
     send.onclick = function(){
       if(!wsel.value){ wsel.focus(); return; }
+      lockActs(acts, send); lockActs(whose, null);
       post("/api/candidate", {candidate_id: c.candidate_id,
                               action: "reassign", to: wsel.value})
         .then(function(){
@@ -2224,12 +2260,14 @@
       var b = el2("button", status === "completed" ? "yes" : null);
       b.type = "button"; b.textContent = label; b.disabled = !writable;
       b.onclick = function(){
+        lockActs(acts, b);
         post("/api/nudge", {task_id: t.task_id, status: status})
           .then(function(){
             acts.innerHTML = "";
             acts.appendChild(el("span","revdone",
               "Recorded \u2014 typed by you, not inferred"));
-            loadReview(false); boot();
+            REVIEW.dirty = true;
+            loadReview(false);
           })["catch"](function(e){
             acts.innerHTML = "";
             acts.appendChild(el("span","revdone", e.message));
