@@ -232,8 +232,24 @@ def acquire_tick_lock(dsn):
             "SELECT pg_try_advisory_lock(hashtext('task-ledger-tick'))")
         if cur.fetchone()[0]:
             return conn
+        # Losing the race used to be reported without saying WHO won it,
+        # which turns a correct guard into a guessing game: is the other
+        # tick real (wait) or a zombie session (kill it)? The database
+        # knows; ask it and hand the answer to the person.
+        cur.execute("""
+            SELECT a.pid, a.state,
+                   to_char(a.backend_start, 'YYYY-MM-DD HH24:MI')
+                     AS since,
+                   COALESCE(a.application_name, '') AS app
+            FROM pg_locks l
+            JOIN pg_stat_activity a ON a.pid = l.pid
+            WHERE l.locktype = 'advisory'
+              AND l.objid = hashtext('task-ledger-tick')::bigint
+                            & x'FFFFFFFF'::bigint
+              AND l.granted""")
+        holder = cur.fetchone()
     conn.close()
-    return None
+    return ("held", holder) if holder else None
 
 
 def _dsn_label(dsn):
@@ -530,10 +546,24 @@ def main():
             "and run again.".format(_dsn_label(dsn)))
         return 2
     lock = acquire_tick_lock(dsn)
-    if lock is None:
-        log("another tick already holds the lock (scheduled and manual "
-            "runs overlap sometimes) -- this one bows out; nothing was "
-            "started twice.")
+    if lock is None or isinstance(lock, tuple):
+        holder = lock[1] if isinstance(lock, tuple) else None
+        log("another tick already holds the lock -- this one bows out; "
+            "nothing was started twice.")
+        if holder:
+            pid, state, since, app = holder
+            log("  the holder: database session {0} ({1}), connected "
+                "since {2}{3}.".format(pid, state or "?", since,
+                                       " via " + app if app else ""))
+            log("  If a cadence_tick.py python process is running, it is "
+                "real -- wait for it or kill that process. If NO such "
+                "process exists, the session is a zombie; release it "
+                "with:")
+            log("    psql -c \"SELECT pg_terminate_backend({0})\""
+                .format(pid))
+        else:
+            log("  (could not identify the holder -- likely released "
+                "in the last instant; just run this again)")
         return 0
     # A configured model that is not installed does not fail fast on its
     # own: extraction calls time out per window, half an hour each, and
