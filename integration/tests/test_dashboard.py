@@ -1034,6 +1034,89 @@ def main():
            "kit keeps the picker and the generic welcome")
         dashboard_api.KIT = saved_kit
 
+        print("the blocker moved")
+        # The most connective fact the ledger holds: blocking_task_id
+        # can point at a task on somebody ELSE's board, and until now
+        # nothing watched the edge -- the other person finished, and
+        # the blocked person found out at standup, or never.
+        UB = str(int(time.time() * 1000))
+        # A dedicated colleague ref, not MATE: an invariant elsewhere
+        # asserts the review flow writes zero events to MATE's board,
+        # and this fixture legitimately seeds a board for the person
+        # who owns the blocking task.
+        UBMATE = "ub-partner"
+        bconn = psycopg2.connect(dsn)
+        with bconn, bconn.cursor() as bc:
+            bc.execute("""
+                SELECT apply_task_event(%s, %s, 'created', 'manual_edit',
+                  NULL, %s::jsonb)""",
+                ("task-ub-theirs-" + UB, UBMATE, json.dumps(
+                    {"title": "Provision the shared bucket",
+                     "status": "in_progress", "owner_ref": UBMATE})))
+            bc.execute("""
+                SELECT apply_task_event(%s, %s, 'created', 'manual_edit',
+                  NULL, %s::jsonb)""",
+                ("task-ub-mine-" + UB, OWNER, json.dumps(
+                    {"title": "Load the cohort into the bucket",
+                     "status": "in_progress", "owner_ref": OWNER})))
+            bc.execute("""
+                SELECT apply_task_event(%s, %s, 'blocker_added',
+                  'manual_edit', NULL, %s::jsonb)""",
+                ("task-ub-mine-" + UB, OWNER, json.dumps(
+                    {"description": "needs the bucket to exist",
+                     "blocking_task_id": "task-ub-theirs-" + UB})))
+        bconn.close()
+        code, rev_u = as_viewer(client, "/api/review?profile=synthetic",
+                                OWNER)
+        ok(not [u for u in rev_u.get("unblocked", [])
+                if u["task_id"] == "task-ub-mine-" + UB],
+           "while the other person's task is still open there is no "
+           "card: nothing has moved")
+        bconn = psycopg2.connect(dsn)
+        with bconn, bconn.cursor() as bc:
+            bc.execute("""
+                SELECT apply_task_event(%s, %s, 'completed',
+                  'manual_edit', NULL, '{}'::jsonb)""",
+                ("task-ub-theirs-" + UB, UBMATE))
+        bconn.close()
+        code, rev_u = as_viewer(client, "/api/review?profile=synthetic",
+                                OWNER)
+        card = [u for u in rev_u.get("unblocked", [])
+                if u["task_id"] == "task-ub-mine-" + UB]
+        ok(len(card) == 1
+           and card[0]["blocking_title"] == "Provision the shared bucket"
+           and card[0]["closed_by"] == UBMATE,
+           "the moment they finish, the blocked person gets a card "
+           "naming what finished, who finished it, and when")
+        code, body = spost("/api/unblocked?profile=synthetic",
+                           {"blocker_id": card[0]["blocker_id"],
+                            "answer": "moving"})
+        ok(code == 200,
+           "answering 'moving again' is accepted")
+        bconn = psycopg2.connect(dsn)
+        with bconn, bconn.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor) as bc:
+            bc.execute("SELECT status FROM tasks_current WHERE task_id=%s",
+                       ("task-ub-mine-" + UB,))
+            ok(bc.fetchone()["status"] == "in_progress",
+               "and it resolves through the same blocker_resolved event "
+               "as every other path, so status is recomputed rather "
+               "than hand-set")
+        bconn.close()
+        code, rev_u = as_viewer(client, "/api/review?profile=synthetic",
+                                OWNER)
+        ok(not [u for u in rev_u.get("unblocked", [])
+                if u["task_id"] == "task-ub-mine-" + UB],
+           "and the card retires itself once answered")
+        code, _ = spost("/api/unblocked?profile=synthetic",
+                        {"blocker_id": card[0]["blocker_id"],
+                         "answer": "moving"})
+        ok(code == 404,
+           "a resolved blocker cannot be answered twice")
+        code, _ = spost("/api/unblocked?profile=synthetic",
+                        {"blocker_id": 999999999, "answer": "still"})
+        ok(code == 404, "and an unknown blocker is a 404, not a write")
+
         print("workload sheet")
         # The sheet the operator keeps by hand, generated: priority,
         # cumulative hours, this week's plan, end-of-week projection.
@@ -1244,9 +1327,16 @@ def main():
             ok(pooled and pooled["event"] == "pooled",
                "and the signal is pooled FOR them, so it reaches them as a "
                "proposal in their own packet")
+            # task-ub-% excluded: one generation of the blocker-moved
+            # fixture seeded MATE's board directly before growing its
+            # own colleague ref, and this database is append-only, so
+            # those rows are permanent residue. The invariant under
+            # test is about the REVIEW flow, which never writes
+            # cross-board; scope the count to what it can produce.
             cur.execute("""
                 SELECT count(*) AS n FROM task_events
-                WHERE user_ref = %s""", (MATE,))
+                WHERE user_ref = %s
+                  AND task_id NOT LIKE 'task-ub-%%'""", (MATE,))
             ok(cur.fetchone()["n"] == 0,
                "while their board stays untouched -- one person's review "
                "never writes to another person's board")

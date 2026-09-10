@@ -1409,7 +1409,8 @@
       // a poke that stayed shut when only those were pending hid the
       // half of the system most worth showing.
       var n = (d.proposals || []).length + (d.quiet || []).length
-              + (d.candidates || []).length;
+              + (d.candidates || []).length
+              + (d.unblocked || []).length;
       var btn = document.getElementById("revbtn");
       btn.hidden = n === 0;
       btn.innerHTML = "";
@@ -1844,6 +1845,62 @@
         + "misdirected work to the right person, and the miss is recorded "
         + "against the system \u2014 not against you."));
     body.appendChild(sec);
+
+    // The blocker moved. Placed above the quiet list on purpose: this
+    // is NEWS -- somebody else finished the thing you were waiting on
+    // -- and news outranks silence. Answering either way retires the
+    // card; so does touching the task yourself.
+    var unb = d.unblocked || [];
+    if(unb.length){
+      var secu = el2("div","revsec");
+      secu.appendChild(el("h3", null, "The thing blocking you moved"));
+      secu.appendChild(el("p","lede",
+        "Work you were waiting on has been finished. Nothing on your "
+        + "board changes until you answer."));
+      unb.forEach(function(u){
+        var row = el2("div","revitem");
+        row.appendChild(el("div","ttl", u.title));
+        row.appendChild(el("div","meta",
+          "was waiting on \u201c" + u.blocking_title + "\u201d \u00b7 "
+          + (u.blocking_status === "completed" ? "completed"
+                                               : "cancelled")
+          + " by " + personName(u.closed_by || u.blocking_owner)
+          + " \u00b7 " + String(u.closed_at).slice(0, 10)));
+        if(u.description)
+          row.appendChild(el("div","why", "blocker: " + u.description));
+        var acts = el2("div","revacts");
+        var go = el2("button","yes"); go.type = "button";
+        go.textContent = "Moving again";
+        var still = el2("button", null); still.type = "button";
+        still.textContent = "Still blocked";
+        function answer(word, label){
+          lockActs(acts, word === "moving" ? go : still);
+          post("/api/unblocked", {blocker_id: u.blocker_id,
+                                  answer: word})
+            .then(function(){
+              acts.innerHTML = "";
+              acts.appendChild(el("span","revdone", label));
+              REVIEW.dirty = true;
+              loadReview(false);
+            })["catch"](function(e){
+              acts.innerHTML = "";
+              acts.appendChild(el("span","revdone", e.message));
+            });
+        }
+        go.onclick = function(){
+          answer("moving", "Unblocked \u2014 back to in progress "
+                 + "(unless another blocker is still open)");
+        };
+        still.onclick = function(){
+          answer("still", "Noted \u2014 recorded as typed by you");
+        };
+        [go, still].forEach(function(b){ b.disabled = !d.writable; });
+        acts.appendChild(go); acts.appendChild(still);
+        row.appendChild(acts);
+        secu.appendChild(row);
+      });
+      body.appendChild(secu);
+    }
 
     var quiet = d.quiet || [];
     var sec2 = el2("div","revsec");

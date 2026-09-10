@@ -1513,6 +1513,37 @@ def review_queue():
         # Speaker-only left this list at one person on an assistant
         # ledger, where only anchored claims carry a speaker.
         "room": _room_for_candidates(v),
+        # THE BLOCKER MOVED. The schema has always stored cross-person
+        # dependency edges -- blocking_task_id can point at a task on
+        # somebody else's board -- and nothing ever watched them: the
+        # other person finished, and the blocked person found out at the
+        # next standup, or never. This is the single most connective
+        # fact the ledger holds. Shown only while unanswered: any event
+        # the person puts on their task after the blocker closed counts
+        # as them knowing, so the card retires itself.
+        "unblocked": q("""
+            SELECT b.blocker_id, b.description,
+                   t.task_id, t.title,
+                   bt.title AS blocking_title,
+                   bt.user_ref AS blocking_owner,
+                   bt.status AS blocking_status,
+                   ce.occurred_at AS closed_at, ce.user_ref AS closed_by
+            FROM task_blockers b
+            JOIN tasks_current t ON t.task_id = b.task_id
+            JOIN tasks_current bt ON bt.task_id = b.blocking_task_id
+            JOIN LATERAL (
+              SELECT occurred_at, user_ref FROM task_events e
+              WHERE e.task_id = bt.task_id
+                AND e.event_type IN ('completed','cancelled')
+              ORDER BY e.event_id DESC LIMIT 1) ce ON true
+            WHERE t.user_ref = %s AND b.resolved_event_id IS NULL
+              AND t.merged_into IS NULL
+              AND t.status NOT IN ('completed','cancelled')
+              AND bt.status IN ('completed','cancelled')
+              AND NOT EXISTS (SELECT 1 FROM task_events e2
+                              WHERE e2.task_id = t.task_id
+                                AND e2.occurred_at > ce.occurred_at)
+            ORDER BY ce.occurred_at DESC""", (v,)),
         "no_blockers": _no_blocker_claims(v),
         "auto_applied": [a for a in auto if not a["undone"]],
         "writable": _writable(),
@@ -2427,6 +2458,64 @@ def workload_save():
         conn.close()
     return jsonify({"ok": True, "saved": len(events),
                     "week_start": str(week)})
+
+
+@app.route("/api/unblocked", methods=["POST"])
+def unblocked_answer():
+    """Answer 'your blocker moved': moving again, or still blocked.
+
+    SELF ONLY and human-typed, like every board write from a browser.
+    'moving' resolves the blocker through the same blocker_resolved
+    event every other path uses -- the projection recomputes status
+    itself, so a task with a second open blocker stays blocked, which a
+    hand-set status would have gotten wrong. 'still' records a
+    status_changed blocked->blocked: a real event, typed by the person,
+    which is both the honest answer and what retires the card.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    if not _writable():
+        return _refuse_write()
+    body = request.get_json(silent=True) or {}
+    answer = (body.get("answer") or "").strip()
+    if answer not in ("moving", "still"):
+        return jsonify({"error": "answer must be moving or still"}), 400
+    try:
+        blocker_id = int(body.get("blocker_id"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "blocker_id required"}), 400
+    conn = _write_conn()
+    try:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute("""
+                SELECT b.task_id, t.user_ref, t.status
+                FROM task_blockers b
+                JOIN tasks_current t ON t.task_id = b.task_id
+                WHERE b.blocker_id = %s
+                  AND b.resolved_event_id IS NULL""", (blocker_id,))
+            row = cur.fetchone()
+            if not row:
+                return jsonify({"error": "no such open blocker"}), 404
+            if row["user_ref"] != v:
+                return jsonify({"error": "that task is not yours"}), 403
+            if answer == "moving":
+                cur.execute(
+                    "SELECT apply_task_event(%s,%s,'blocker_resolved',"
+                    "'manual_edit',NULL,%s::jsonb)",
+                    (row["task_id"], v,
+                     json.dumps({"blocker_id": blocker_id})))
+            else:
+                cur.execute(
+                    "SELECT apply_task_event(%s,%s,'status_changed',"
+                    "'manual_edit',NULL,%s::jsonb)",
+                    (row["task_id"], v,
+                     json.dumps({"from_status": row["status"],
+                                 "to_status": "blocked"})))
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "answer": answer})
 
 
 @app.route("/api/nudge", methods=["POST"])
