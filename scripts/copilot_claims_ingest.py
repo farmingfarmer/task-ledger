@@ -250,7 +250,16 @@ def claim_signal(rec, batch_id, idx, bootstrap=False, transcripts=None):
                        rec.get("evidence_strength") or "unstated",
                        rec.get("confidence") or "unstated",
                        (", sources: " + "; ".join(sources)) if sources else "")
+    # The estimate rides IN the description, as spoken -- "Estimate: 3
+    # points" -- so the reviewer sees it on the card, it travels into
+    # the task's description on accept, and the ledger's deterministic
+    # parser can find it there and convert at the CURRENT policy rate.
+    # Deliberately not a converted number and not a hidden field: words
+    # a person said, kept where people read.
+    est = (rec.get("estimate") or "").strip()
     description = " ".join(x for x in [
+        ("Estimate: " + est + ".") if est and est.lower() not in
+            ("null", "none") else None,
         rec.get("progress"),
         ("Blocked on: " + "; ".join(blockers)) if blockers else None,
         ("Next: " + rec["next_action"]) if rec.get("next_action") else None,

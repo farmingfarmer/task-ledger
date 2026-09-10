@@ -341,6 +341,18 @@ not_work:
     - '^no\s+blocking\b'
     - '\bnothing\s+(is\s+)?block(ed|ing)\b'
 
+# ------------------------------------------------------------------
+# ESTIMATION. The team speaks in story points; the sheet speaks in
+# hours. The conversion lives HERE and only here -- never in an
+# extraction prompt -- because a rate baked into a model's output is
+# frozen at export time and unauditable afterward, while a rate in
+# config re-derives every number when it changes and every derived
+# hour can name the sentence it came from. One point is half a
+# working day: 3.5 h, not 4, because an 8-hour day owes meetings and
+# admin their cut before any task sees it.
+estimation:
+  story_point_hours: 3.5
+
 candidate_promotion:
   # Corroboration has two shapes, and requiring BOTH was the mistake. On
   # the first real corpus 92 candidates registered and 4 promoted, because

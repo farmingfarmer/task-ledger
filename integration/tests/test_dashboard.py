@@ -1376,6 +1376,46 @@ def main():
         ok("dup-partner" in (wk_after.get("shared_with") or []),
            "my own sheet says who I am sharing it with")
 
+        print("story points")
+        # "3 points" spoken in a meeting -> 10.5 h on the sheet, and
+        # the derived hour names the phrase it came from. The rate
+        # lives in policy, NOT in any prompt: a rate baked into a
+        # model's output is frozen at export time; a rate in config
+        # re-derives everything when the team changes it.
+        ok(abs(dashboard_api.parse_estimate(
+               "Estimate: 3 points. prototype tested")[0] - 10.5) < 1e-9
+           and dashboard_api.parse_estimate("about half a day")[0] == 3.5
+           and dashboard_api.parse_estimate("roughly 2sp")[0] == 7.0
+           and dashboard_api.parse_estimate("no numbers")[0] is None,
+           "the parser speaks the team's dialect -- points, sp, "
+           "half a day -- at the policy rate, and stays silent when "
+           "nothing was said")
+        spconn = psycopg2.connect(dsn)
+        with spconn, spconn.cursor() as spc:
+            spc.execute("SELECT 1 FROM tasks_current WHERE task_id = "
+                        "'task-sp-est'")
+            if spc.fetchone() is None:
+                spc.execute("""
+                    SELECT apply_task_event('task-sp-est', %s, 'created',
+                      'manual_edit', NULL, %s::jsonb)""",
+                    (OWNER, json.dumps(
+                        {"title": "Wire the exporter",
+                         "description": "Estimate: 2 points. Agreed in "
+                                        "sprint planning.",
+                         "status": "in_progress", "owner_ref": OWNER})))
+        spconn.close()
+        code, wsheet = as_viewer(client,
+                                 "/api/workload?profile=synthetic", OWNER)
+        est_row = [r for r in wsheet["rows"]
+                   if r["subject"] == "task-sp-est"]
+        ok(est_row and est_row[0]["estimate"]
+           and abs(est_row[0]["estimate"]["hours"] - 7.0) < 1e-9
+           and "2 points" in est_row[0]["estimate"]["phrases"],
+           "a task whose description carries a spoken estimate shows "
+           "the derived hours AND the phrase they came from")
+        ok(wsheet["story_point_hours"] == 3.5,
+           "and the sheet declares the rate it used, from policy")
+
         print("receipt pages")
         r = client.get("/receipt/" + "task-dup-a-" + DPX
                        + "?as=" + OWNER + "&profile=synthetic")

@@ -36,6 +36,7 @@ fields and exactly these vocabularies:
     "progress": "what was reported about how far along it is, or null",
     "blockers": ["what is in the way, if anything"],
     "next_action": "the stated next step, or null",
+    "estimate": "the effort estimate EXACTLY as spoken — '3 points', '2 SP', 'half a day' — or null",
     "confidence": "high | medium | low",
     "evidence_strength": "transcript_supported",
     "sources": ["<meeting title and date>"],
@@ -59,6 +60,9 @@ Rules that matter:
   belong together. Null if genuinely standalone.
 - **`confidence` is about the claim, not the work**: high if someone
   plainly said it, low if you are inferring.
+- **`estimate` is the words, never a conversion**: if someone said
+  "three points", write "3 points" — do not turn points into hours or
+  days. The ledger owns the conversion rate; your job is what was said.
 - Full names, spelled identically everywhere, matching the participants
   list.
 - **Do not emit claims for**: opinions, questions with no commitment,

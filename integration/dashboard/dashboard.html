@@ -1015,8 +1015,10 @@
     cap.appendChild(capin);
     cap.appendChild(el("span","wkmeta",
       "meetings are projected to take " + d.meeting_hours_projected
-      + " h of it (measured from your transcripts); the proposed plan "
-      + "splits what remains by priority"));
+      + " h of it (measured from your transcripts). Speaking in "
+      + "points? 1 point = " + d.story_point_hours + " h here \u2014 "
+      + "the rate lives in matching_policy.yaml. Spoken estimates on "
+      + "your tasks drive the proposal; priority splits the rest."));
     box.appendChild(cap);
 
     var t = el2("table","wktable");
@@ -1036,6 +1038,14 @@
       tr.appendChild(td0);
       var td1 = el2("td");
       td1.appendChild(el("div", null, r.label));
+      if(r.estimate){
+        // The derived hour names the phrase it came from -- the whole
+        // point of converting in the ledger instead of the prompt.
+        td1.appendChild(el("div","wkmeta",
+          "~" + r.estimate.hours + " h estimated \u00b7 \u201c"
+          + (r.estimate.phrases || []).join("\u201d, \u201c")
+          + "\u201d"));
+      }
       if(r.meeting_hours_measured.value > 0){
         td1.appendChild(el("div","wkmeta",
           r.meeting_hours_measured.value + " h in meetings \u00b7 "

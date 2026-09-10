@@ -64,6 +64,7 @@ import decimal
 import hashlib
 import json
 import os
+import re
 import sys
 
 import psycopg2
@@ -2165,6 +2166,44 @@ def _monday(d=None):
     return d - datetime.timedelta(days=d.weekday())
 
 
+# The estimate parser: the team's spoken conventions, converted at the
+# policy rate. Deterministic regex over text people typed or accepted
+# -- no model, so a derived hour can always name the phrase it came
+# from. One point = half a working day; the rate lives in
+# matching_policy.yaml (estimation.story_point_hours) and NOWHERE else.
+_EST_RE = re.compile(
+    r"(?:(\d+(?:\.\d+)?)\s*(?:story\s*)?(?:points?|pts?|sp)\b"
+    r"|\b(half\s+a\s+day|a\s+full\s+day|a\s+day)\b"
+    r"|(\d+(?:\.\d+)?)\s*(?:hours?|hrs?|h)\b)", re.IGNORECASE)
+
+
+def _sp_hours():
+    try:
+        import yaml as _y
+        root = os.path.normpath(os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+        with open(os.path.join(root, "policy",
+                               "matching_policy.yaml")) as f:
+            return float(((_y.safe_load(f) or {}).get("estimation")
+                          or {}).get("story_point_hours", 3.5))
+    except Exception:                                   # noqa: BLE001
+        return 3.5
+
+
+def parse_estimate(text):
+    """(hours, the phrase it came from) or (None, None)."""
+    m = _EST_RE.search(text or "")
+    if not m:
+        return None, None
+    rate = _sp_hours()
+    if m.group(1):                      # N points / sp / pts
+        return float(m.group(1)) * rate, m.group(0).strip()
+    if m.group(2):                      # half a day / a day
+        word = m.group(2).lower()
+        return (rate if "half" in word else rate * 2), m.group(0).strip()
+    return float(m.group(3)), m.group(0).strip()
+
+
 def _workload_subjects(v):
     """The sheet's rows: this person's projects, their top-level parent
     tasks (a parent with children IS a project in all but name), and
@@ -2299,29 +2338,47 @@ def _propose_priorities(subjects, stated, deadlines, activity):
     return out
 
 
-def _propose_plan(capacity, meeting_hours, subjects, priorities, stated):
-    """PROPOSED hours for a week: what remains of stated capacity after
-    the projected meeting load, split across unblocked subjects weighted
-    by priority (rank 1 heaviest). Blocked rows get 0 -- planning hours
-    into work that cannot move is how a sheet starts lying. All of it
-    dies unless saved."""
+def _propose_plan(capacity, meeting_hours, subjects, priorities, stated,
+                  estimates=None):
+    """PROPOSED hours for a week. Estimates outrank arithmetic: a
+    subject whose open tasks carry a spoken estimate ("3 points", at
+    the policy rate) is proposed those hours -- a number someone
+    actually said beats a share computed from nothing. If estimates
+    overcommit the focus that remains after meetings, they scale down
+    proportionally rather than silently fitting; what focus is left
+    after estimated subjects splits across the rest by priority weight.
+    Blocked rows get 0 regardless -- an estimate on work that cannot
+    move is still work that cannot move. All of it dies unless saved.
+    """
+    estimates = estimates or {}
     plan = {}
     open_rows = [s for s in subjects if not s.get("blocker")]
-    weights = {s["subject"]: 1.0 / priorities[s["subject"]]["value"]
-               for s in open_rows}
-    wsum = sum(weights.values()) or 1.0
     focus = max(0.0, (capacity or 0.0) - meeting_hours)
+    est_rows = [s for s in open_rows
+                if estimates.get(s["subject"], (None,))[0]]
+    est_total = sum(estimates[s["subject"]][0] for s in est_rows)
+    scale = (focus / est_total if est_total > focus and est_total
+             else 1.0)
+    rest = [s for s in open_rows if s not in est_rows]
+    weights = {s["subject"]: 1.0 / priorities[s["subject"]]["value"]
+               for s in rest}
+    wsum = sum(weights.values()) or 1.0
+    leftover = max(0.0, focus - min(est_total, focus))
     for s in subjects:
-        st = stated.get((s["subject"], "planned"))
+        sid = s["subject"]
+        st = stated.get((sid, "planned"))
         if st is not None:
-            plan[s["subject"]] = {"value": float(st["hours"]),
-                                  "source": "stated"}
+            plan[sid] = {"value": float(st["hours"]), "source": "stated"}
         elif s.get("blocker"):
-            plan[s["subject"]] = {"value": 0.0, "source": "proposed"}
+            plan[sid] = {"value": 0.0, "source": "proposed"}
+        elif sid in [x["subject"] for x in est_rows]:
+            v = estimates[sid][0] * scale
+            plan[sid] = {"value": round(v * 2) / 2, "source": "proposed",
+                         "basis": "estimate"}
         else:
-            share = focus * weights[s["subject"]] / wsum
-            plan[s["subject"]] = {"value": round(share * 2) / 2,
-                                  "source": "proposed"}
+            share = leftover * weights.get(sid, 0) / wsum
+            plan[sid] = {"value": round(share * 2) / 2,
+                         "source": "proposed"}
     return plan
 
 
@@ -2369,8 +2426,26 @@ def workload():
     meeting_proj = (sum(week_loads) / len(week_loads) / 60.0
                     if week_loads else 0.0)
     priorities = _propose_priorities(subjects, stated, deadlines, activity)
+    # Spoken estimates on this person's open tasks, found by the
+    # deterministic parser in title or description ("Estimate: 3
+    # points." travels there from a Copilot claim; a typed note or an
+    # accepted card carries its own words). Summed per subject; each
+    # derived hour keeps the phrase it came from.
+    estimates = {}
+    for r in q("""
+            SELECT COALESCE(project_id, parent_task_id, task_id) AS subj,
+                   title, description
+            FROM tasks_current
+            WHERE user_ref = %s AND merged_into IS NULL
+              AND status NOT IN ('completed','cancelled')""", (v,)):
+        hrs, phrase = parse_estimate(
+            (r["title"] or "") + " " + (r["description"] or ""))
+        if hrs:
+            cur = estimates.setdefault(r["subj"], [0.0, []])
+            cur[0] += hrs
+            cur[1].append(phrase)
     plan = _propose_plan(capacity, meeting_proj, subjects, priorities,
-                         stated)
+                         stated, estimates)
 
     rows = []
     for s in subjects:
@@ -2395,6 +2470,9 @@ def workload():
                                        "basis": basis,
                                        "source": "measured"},
             "planned": plan[sid],
+            "estimate": ({"hours": round(estimates[sid][0], 1),
+                          "phrases": estimates[sid][1]}
+                         if sid in estimates else None),
             "eow_total": round(opening_v + plan[sid]["value"], 1),
         })
     rows.sort(key=lambda r: r["priority"]["value"])
@@ -2403,6 +2481,7 @@ def workload():
         "capacity": {"value": capacity,
                      "source": "stated" if cap_row else "unset"},
         "meeting_hours_projected": round(meeting_proj, 1),
+        "story_point_hours": _sp_hours(),
         "rows": rows,
         "savable": savable,
         "shared_with": [r["grantee_ref"] for r in q("""
