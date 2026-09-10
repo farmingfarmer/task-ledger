@@ -1544,6 +1544,17 @@ def review_queue():
                               WHERE e2.task_id = t.task_id
                                 AND e2.occurred_at > ce.occurred_at)
             ORDER BY ce.occurred_at DESC""", (v,)),
+        # SAME WORK, TWO BOARDS? Two open tasks on different boards
+        # with the same normalized title (or a shared taught alias) are
+        # probably one piece of work -- the reconciler annotates these
+        # at proposal time, but an annotation nobody must answer is an
+        # annotation nobody reads. This is a card, to BOTH owners, and
+        # either owner's ruling settles it for both, permanently.
+        # Consent-scoped: a pair only shows when the other task is
+        # already visible to this viewer through the grants system --
+        # discovering a duplicate must not become a way to discover a
+        # board you were never shown.
+        "duplicates": _crossboard_duplicates(v),
         "no_blockers": _no_blocker_claims(v),
         "auto_applied": [a for a in auto if not a["undone"]],
         "writable": _writable(),
@@ -2394,6 +2405,10 @@ def workload():
         "meeting_hours_projected": round(meeting_proj, 1),
         "rows": rows,
         "savable": savable,
+        "shared_with": [r["grantee_ref"] for r in q("""
+            SELECT DISTINCT grantee_ref FROM v_current_grants
+            WHERE granted_by = %s AND subject_type = 'user'
+              AND subject_id = %s AND level = 'workload'""", (v, v))],
         "note": ("Numbers marked proposed are suggestions and are not "
                  "stored; saving is what makes them yours."
                  if savable else
@@ -2458,6 +2473,189 @@ def workload_save():
         conn.close()
     return jsonify({"ok": True, "saved": len(events),
                     "week_start": str(week)})
+
+
+def _crossboard_duplicates(v):
+    try:
+        return q("""
+            WITH mine AS (
+              SELECT task_id, title FROM tasks_current
+              WHERE user_ref = %s AND merged_into IS NULL
+                AND status NOT IN ('completed','cancelled')),
+            theirs AS (
+              SELECT t.task_id, t.title, t.user_ref, t.status,
+                     t.created_at
+              FROM visible_tasks(%s) vt
+              JOIN tasks_current t USING (task_id)
+              WHERE t.user_ref <> %s AND t.merged_into IS NULL
+                AND t.status NOT IN ('completed','cancelled'))
+            SELECT m.task_id, m.title,
+                   th.task_id AS other_task_id, th.title AS other_title,
+                   th.user_ref AS other_owner, th.status AS other_status,
+                   th.created_at AS other_since
+            FROM mine m
+            JOIN theirs th
+              ON lower(regexp_replace(m.title, '\\s+', ' ', 'g'))
+               = lower(regexp_replace(th.title, '\\s+', ' ', 'g'))
+              OR EXISTS (
+                SELECT 1 FROM task_aliases a1
+                JOIN task_aliases a2
+                  ON lower(regexp_replace(a1.alias, '\\s+', ' ', 'g'))
+                   = lower(regexp_replace(a2.alias, '\\s+', ' ', 'g'))
+                WHERE a1.task_id = m.task_id
+                  AND a2.task_id = th.task_id)
+            WHERE NOT EXISTS (
+              SELECT 1 FROM crossboard_rulings r
+              WHERE r.task_a = least(m.task_id, th.task_id)
+                AND r.task_b = greatest(m.task_id, th.task_id))
+            ORDER BY th.created_at""", (v, v, v))
+    except psycopg2.errors.UndefinedTable:
+        return []          # ledger predates migrate_team.sql
+
+
+@app.route("/api/duplicate", methods=["POST"])
+def duplicate_ruling():
+    """Rule on a cross-board pair: same work, or genuinely two.
+
+    Either owner may rule, and one ruling settles it for both -- the
+    question is symmetric and asking twice would collect a fight. The
+    ruling changes NEITHER board: 'same' does not merge across boards
+    (a merge erases one owner's history, which is theirs), it records
+    the agreed fact and retires the card. Coordination stays human;
+    the ledger just stops pretending not to notice.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    if not _writable():
+        return _refuse_write()
+    body = request.get_json(silent=True) or {}
+    ruling = (body.get("ruling") or "").strip()
+    if ruling not in ("same", "distinct"):
+        return jsonify({"error": "ruling must be same or distinct"}), 400
+    a = (body.get("task_id") or "").strip()
+    b = (body.get("other_task_id") or "").strip()
+    if not a or not b or a == b:
+        return jsonify({"error": "two distinct task ids required"}), 400
+    rows = q("SELECT task_id, user_ref FROM tasks_current "
+             "WHERE task_id = ANY(%s)", ([a, b],))
+    owners = {r["task_id"]: r["user_ref"] for r in rows}
+    if len(owners) != 2:
+        return jsonify({"error": "no such pair"}), 404
+    if v not in owners.values():
+        return jsonify({"error": "neither task is yours"}), 403
+    conn = _write_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO crossboard_rulings (task_a, task_b, ruling,
+                  ruled_by)
+                VALUES (least(%s,%s), greatest(%s,%s), %s, %s)""",
+                (a, b, a, b, ruling, v))
+        conn.commit()
+    except psycopg2.errors.UndefinedTable:
+        return jsonify({"error": "this ledger predates the team "
+                                 "migration",
+                        "detail": "Apply storage/migrate_team.sql."}), 409
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "ruling": ruling})
+
+
+@app.route("/api/teamweek")
+def teamweek():
+    """The consented team view: dependency edges the viewer can see
+    both ends of, and the week sheets colleagues chose to share.
+
+    Nothing here is discoverable that was not either granted (workload
+    sheets, board visibility) or already a cross-board fact (an edge
+    both sides can see). No hours appear without a 'workload' grant --
+    a shared board must not quietly imply shared hours, because hours
+    are the most scorecard-shaped data this system holds.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    deps = q("""
+        SELECT wt.user_ref AS waiting_owner, wt.title AS waiting_title,
+               bt.user_ref AS on_owner, bt.title AS on_title,
+               b.description
+        FROM task_blockers b
+        JOIN tasks_current wt ON wt.task_id = b.task_id
+        JOIN tasks_current bt ON bt.task_id = b.blocking_task_id
+        WHERE b.resolved_event_id IS NULL
+          AND wt.user_ref <> bt.user_ref
+          AND wt.merged_into IS NULL
+          AND wt.status NOT IN ('completed','cancelled')
+          AND wt.task_id IN (SELECT task_id FROM visible_tasks(%s))
+          AND bt.task_id IN (SELECT task_id FROM visible_tasks(%s))
+        ORDER BY wt.user_ref""", (v, v))
+    shared = []
+    try:
+        grantors = q("""
+            SELECT DISTINCT subject_id FROM v_current_grants
+            WHERE grantee_ref = %s AND subject_type = 'user'
+              AND level = 'workload'""", (v,))
+    except psycopg2.errors.UndefinedTable:
+        grantors = []
+    week = _monday()
+    for g in grantors:
+        person = g["subject_id"]
+        subs = _workload_subjects(person)
+        stated = _stated(person, week) or {}
+        rows = []
+        for s in subs:
+            planned = stated.get((s["subject"], "planned"))
+            prio = stated.get((s["subject"], "priority"))
+            rows.append({
+                "label": s["label"],
+                "blocker": s.get("blocker"),
+                "planned": (float(planned["hours"]) if planned else None),
+                "priority": (int(prio["priority"]) if prio else None),
+            })
+        cap = (stated.get(("_capacity", "capacity")) or {}).get("hours")
+        shared.append({"person": person,
+                       "capacity": float(cap) if cap is not None else None,
+                       "week_start": str(week), "rows": rows})
+    return jsonify({"dependencies": deps, "shared": shared,
+                    "note": "Only what was granted: sheets appear here "
+                            "because their owners shared them "
+                            "(level=workload), and hours never ride "
+                            "along with a board grant."})
+
+
+@app.route("/api/workload/share", methods=["POST"])
+def workload_share():
+    """Share MY week sheet with a colleague. grant_access enforces that
+    only I may share my own; the level is 'workload' and nothing else,
+    so this button cannot be talked into sharing a board."""
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    if not _writable():
+        return _refuse_write()
+    body = request.get_json(silent=True) or {}
+    to = (body.get("to") or "").strip()
+    if not to or to == v:
+        return jsonify({"error": "say who, and not yourself"}), 400
+    known = q("""
+        SELECT 1 FROM tasks_current WHERE user_ref = %s
+        UNION SELECT 1 FROM signals WHERE author_ref = %s LIMIT 1""",
+        (to, to))
+    if not known:
+        return jsonify({"error": "the ledger does not know that person"
+                        }), 400
+    conn = _write_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT grant_access(%s,%s,'user',%s,'workload',"
+                        "%s,NULL)",
+                        (v, to, v, "week sheet, shared from the "
+                                   "dashboard"))
+        conn.commit()
+    finally:
+        conn.close()
+    return jsonify({"ok": True, "to": to})
 
 
 @app.route("/api/unblocked", methods=["POST"])

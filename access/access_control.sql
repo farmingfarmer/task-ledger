@@ -44,7 +44,11 @@ CREATE TABLE access_grant_events (
   grantee_ref  text NOT NULL,                -- who gets to look
   subject_type text NOT NULL CHECK (subject_type IN ('user','project')),
   subject_id   text NOT NULL,                -- user_ref or project_id
-  level        text NOT NULL CHECK (level IN ('progress','full_trace')),
+  -- 'workload' shares a person's week sheet (hours, priorities) --
+  -- its own level because a shared BOARD must not quietly imply
+  -- shared HOURS; see migrate_team.sql.
+  level        text NOT NULL CHECK (level IN
+                 ('progress','full_trace','workload')),
   event        text NOT NULL CHECK (event IN ('granted','revoked')),
   granted_by   text NOT NULL,
   note         text,

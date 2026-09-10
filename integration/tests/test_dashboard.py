@@ -1195,6 +1195,114 @@ def main():
         code, _ = as_viewer(client, "/api/workload?profile=synthetic")
         ok(code == 401, "and anonymous gets nothing")
 
+        print("also on another board")
+        DPX = str(int(time.time() * 1000))
+        dconn = psycopg2.connect(dsn)
+        with dconn, dconn.cursor() as dc:
+            # Defensive revoke FIRST: a prior run that died mid-block
+            # leaves its grant active (grants are append-only events),
+            # and the no-grant assertion below needs the world it
+            # asserts about. End-of-block cleanup alone is not cleanup
+            # -- the run that needs it most is the one that never got
+            # there.
+            dc.execute("SELECT revoke_access(%s,%s,'user',%s)",
+                       ("dup-partner", OWNER, "dup-partner"))
+            # DPX in the title: leaked pairs from a run that died
+            # mid-block stay open forever (append-only), and identical
+            # titles across generations would cross-match. Differing
+            # case and spacing between the two spellings is the point:
+            # the normalization must bridge them.
+            for tid, who, title in (
+                    ("task-dup-a-" + DPX, OWNER,
+                     "Refresh the  Intake DASHBOARDS " + DPX),
+                    ("task-dup-b-" + DPX, "dup-partner",
+                     "refresh the intake dashboards " + DPX)):
+                dc.execute("""
+                    SELECT apply_task_event(%s, %s, 'created',
+                      'manual_edit', NULL, %s::jsonb)""",
+                    (tid, who, json.dumps(
+                        {"title": title, "status": "in_progress",
+                         "owner_ref": who})))
+        dconn.close()
+        code, rev_d = as_viewer(client, "/api/review?profile=synthetic",
+                                OWNER)
+        ok(not [x for x in rev_d.get("duplicates", [])
+                if x["task_id"] == "task-dup-a-" + DPX],
+           "with no grant, the pair is invisible: discovering a "
+           "duplicate must not become a way to discover a board you "
+           "were never shown")
+        dconn = psycopg2.connect(dsn)
+        with dconn, dconn.cursor() as dc:
+            dc.execute("SELECT grant_access(%s,%s,'user',%s,'progress',"
+                       "'test',NULL)", ("dup-partner", OWNER,
+                                        "dup-partner"))
+        dconn.close()
+        code, rev_d = as_viewer(client, "/api/review?profile=synthetic",
+                                OWNER)
+        pair = [x for x in rev_d.get("duplicates", [])
+                if x["task_id"] == "task-dup-a-" + DPX]
+        ok(len(pair) == 1
+           and pair[0]["other_owner"] == "dup-partner",
+           "once the other board is shared, both same-titled open tasks "
+           "surface as one question -- whitespace and case differences "
+           "do not hide the match")
+        code, _ = spost("/api/duplicate?profile=synthetic",
+                        {"task_id": "task-dup-a-" + DPX,
+                         "other_task_id": "task-dup-b-" + DPX,
+                         "ruling": "distinct"})
+        ok(code == 200, "either owner may rule")
+        code, rev_d = as_viewer(client, "/api/review?profile=synthetic",
+                                OWNER)
+        ok(not [x for x in rev_d.get("duplicates", [])
+                if x["task_id"] == "task-dup-a-" + DPX],
+           "and one ruling settles it for both, permanently -- the "
+           "card never re-asks")
+        code, _ = spost("/api/duplicate?profile=synthetic",
+                        {"task_id": "task-ub-theirs-" + UB,
+                         "other_task_id": "task-dup-b-" + DPX,
+                         "ruling": "same"})
+        ok(code == 403,
+           "but ruling on a pair where neither task is yours is "
+           "refused: bystanders do not settle other people's "
+           "duplicates")
+        # Revoke the board grant: grants persist (append-only events),
+        # and the next run's "no grant, invisible" assertion needs the
+        # world it asserts about.
+        dconn = psycopg2.connect(dsn)
+        with dconn, dconn.cursor() as dc:
+            dc.execute("SELECT revoke_access(%s,%s,'user',%s)",
+                       ("dup-partner", OWNER, "dup-partner"))
+        dconn.close()
+
+        print("the team week")
+        code, tw = as_viewer(client, "/api/teamweek?profile=synthetic",
+                             OWNER)
+        ok(code == 200 and tw["shared"] == [],
+           "no workload grants, no shared sheets -- and a 'progress' "
+           "board grant did NOT leak hours, because hours are their own "
+           "level")
+        code, body = spost("/api/workload/share?profile=synthetic",
+                           {"to": "dup-partner"})
+        ok(code == 200,
+           "sharing my week is one call, and grant_access enforces "
+           "that only I can share mine")
+        # the OTHER person now sees mine:
+        r = client.get("/api/teamweek?profile=synthetic",
+                       headers={"X-Viewer": "dup-partner"})
+        tw2 = r.get_json()
+        ok(any(s["person"] == OWNER for s in tw2["shared"]),
+           "and the grantee sees my sheet in their team view")
+        mine_shared = [s for s in tw2["shared"] if s["person"] == OWNER]
+        ok(any(abs((x.get("planned") or 0) - 9.5) < 1e-9
+               for x in mine_shared[0]["rows"]),
+           "with the plan I actually stated -- 9.5 h, the number saved "
+           "in the workload test above")
+        code, wk_after = as_viewer(client,
+                                   "/api/workload?profile=synthetic",
+                                   OWNER)
+        ok("dup-partner" in (wk_after.get("shared_with") or []),
+           "my own sheet says who I am sharing it with")
+
         print("unreachable ledger")
         saved = dict(dashboard_api.PROFILES.get("copilot") or {})
         dashboard_api.PROFILES["copilot"] = {

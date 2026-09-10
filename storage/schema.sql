@@ -137,6 +137,21 @@ ORDER BY user_ref, subject, week_start, kind, event_id DESC;
 -- (append-only trigger attached in the loop below,
 --  after forbid_mutation() exists)
 
+-- Cross-board duplicate rulings: "same work, or genuinely two?" --
+-- answered once by either owner, remembered forever. Rationale in
+-- migrate_team.sql.
+CREATE TABLE IF NOT EXISTS crossboard_rulings (
+  ruling_id  bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  task_a     text NOT NULL,
+  task_b     text NOT NULL,
+  ruling     text NOT NULL CHECK (ruling IN ('same','distinct')),
+  ruled_by   text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (task_a < task_b)
+);
+CREATE INDEX IF NOT EXISTS crossboard_pair_idx
+  ON crossboard_rulings (task_a, task_b, ruling_id DESC);
+
 -- Signal pool: which signals are awaiting reconciliation for which user.
 -- Append-only events; current pool is the latest event per (signal, user).
 CREATE TABLE signal_pool_events (
@@ -360,7 +375,7 @@ BEGIN
   FOREACH t IN ARRAY ARRAY[
     'extraction_batches','signals','evidence_refs','signal_pool_events',
     'review_packets','packet_state_events','proposals','proposal_signals',
-    'decisions','task_events','workload_events']
+    'decisions','task_events','workload_events','crossboard_rulings']
   LOOP
     EXECUTE format(
       'CREATE TRIGGER %I_append_only BEFORE UPDATE OR DELETE ON %I

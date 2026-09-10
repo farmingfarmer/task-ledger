@@ -769,6 +769,12 @@
       </details>
 
       <details class="more">
+        <summary>The team&rsquo;s week &mdash; who waits on whom, and the
+          sheets shared with you</summary>
+        <div class="more-body"><div id="teamweek"></div></div>
+      </details>
+
+      <details class="more">
         <summary>Other people&rsquo;s boards &mdash; what has been shared
           with you</summary>
         <div class="more-body">
@@ -1062,6 +1068,88 @@
       });
     };
     box.appendChild(save); box.appendChild(note);
+
+    // Sharing the sheet is its own explicit act -- a board grant never
+    // implies it. The server enforces the same rule; this is just the
+    // handle.
+    var shr = el2("div","wkcap");
+    shr.appendChild(el("span", null, "Share my week with:"));
+    var who = document.createElement("input");
+    who.type = "text"; who.placeholder = "aad-colleague"; who.size = 18;
+    var sbtn = el2("button", null); sbtn.type = "button";
+    sbtn.textContent = "Share";
+    var snote = el("span","wkmeta",
+      (d.shared_with && d.shared_with.length)
+        ? "  currently shared with " + d.shared_with.map(personName)
+            .join(", ")
+        : "  nobody sees your hours unless you do this");
+    sbtn.onclick = function(){
+      if(!who.value.trim()){ who.focus(); return; }
+      sbtn.disabled = true; snote.textContent = "  Sharing\u2026";
+      post("/api/workload/share", {to: who.value.trim()})
+        .then(function(r){
+          snote.textContent = "  Shared with " + personName(r.to)
+            + " \u2014 revoke any time with tl share --revoke";
+          sbtn.disabled = false;
+        })["catch"](function(e){
+          sbtn.disabled = false; snote.textContent = "  " + e.message;
+        });
+    };
+    shr.appendChild(who); shr.appendChild(sbtn); shr.appendChild(snote);
+    box.appendChild(shr);
+  }
+
+  function paintTeamWeek(node, d){
+    node.innerHTML = "";
+    var deps = d.dependencies || [];
+    var head = el2("div","revsec");
+    head.appendChild(el("h3", null, "Waiting on each other"));
+    if(!deps.length){
+      head.appendChild(el("p","lede",
+        "No open cross-person dependencies among the boards you can "
+        + "see."));
+    } else {
+      deps.forEach(function(x){
+        var row = el2("div","revitem");
+        row.appendChild(el("div","ttl",
+          personName(x.waiting_owner) + " waits on "
+          + personName(x.on_owner)));
+        row.appendChild(el("div","meta",
+          "\u201c" + x.waiting_title + "\u201d \u2190 \u201c"
+          + x.on_title + "\u201d"
+          + (x.description ? " \u00b7 " + x.description : "")));
+        head.appendChild(row);
+      });
+    }
+    node.appendChild(head);
+    var sh = d.shared || [];
+    var sec = el2("div","revsec");
+    sec.appendChild(el("h3", null, "Weeks shared with you"));
+    if(!sh.length){
+      sec.appendChild(el("p","lede",
+        "Nobody has shared their week sheet with you. Sharing is its "
+        + "own act \u2014 hours never ride along with a board grant."));
+    } else {
+      sh.forEach(function(p){
+        var box = el2("div","revitem");
+        box.appendChild(el("div","ttl", personName(p.person)
+          + (p.capacity != null ? " \u00b7 " + p.capacity + " h this "
+             + "week" : "")));
+        (p.rows || []).forEach(function(r){
+          box.appendChild(el("div","meta",
+            (r.priority != null ? r.priority + ". " : "") + r.label
+            + (r.planned != null ? " \u00b7 " + r.planned + " h planned"
+                                 : " \u00b7 no plan stated")
+            + (r.blocker ? " \u00b7 blocked: " + r.blocker : "")));
+        });
+        sec.appendChild(box);
+      });
+    }
+    node.appendChild(sec);
+    node.appendChild(el("p","wkmeta", d.note || ""));
+  }
+  function loadTeamWeek(){
+    panel("teamweek", "/api/teamweek", paintTeamWeek);
   }
 
   function loadWeek(){
@@ -1078,7 +1166,7 @@
     loadTimeline();
     loadTeam(); loadShares(); loadCalibration();
     loadProjects(); loadRecent(); loadMeetings();
-    loadWeek();
+    loadWeek(); loadTeamWeek();
     document.getElementById("askout").innerHTML = "";
     document.getElementById("askhint").textContent =
       "Answers come from confirmed board state, with their receipts. " +
@@ -1410,7 +1498,8 @@
       // half of the system most worth showing.
       var n = (d.proposals || []).length + (d.quiet || []).length
               + (d.candidates || []).length
-              + (d.unblocked || []).length;
+              + (d.unblocked || []).length
+              + (d.duplicates || []).length;
       var btn = document.getElementById("revbtn");
       btn.hidden = n === 0;
       btn.innerHTML = "";
@@ -1900,6 +1989,61 @@
         secu.appendChild(row);
       });
       body.appendChild(secu);
+    }
+
+    // Same work on two boards. Asked as a question, to both owners,
+    // because an annotation nobody must answer is an annotation nobody
+    // reads -- and either owner's ruling settles it for both.
+    var dups = d.duplicates || [];
+    if(dups.length){
+      var secd = el2("div","revsec");
+      secd.appendChild(el("h3", null, "Also on another board"));
+      secd.appendChild(el("p","lede",
+        "These look like the same work tracked twice. Either answer "
+        + "settles it for both of you; nothing on either board "
+        + "changes."));
+      dups.forEach(function(du){
+        var row = el2("div","revitem");
+        row.appendChild(el("div","ttl", du.title));
+        row.appendChild(el("div","meta",
+          personName(du.other_owner) + "\u2019s board carries \u201c"
+          + du.other_title + "\u201d \u00b7 " + du.other_status
+          + " \u00b7 since " + String(du.other_since).slice(0, 10)));
+        var acts = el2("div","revacts");
+        var same = el2("button","yes"); same.type = "button";
+        same.textContent = "Same work";
+        var two = el2("button", null); two.type = "button";
+        two.textContent = "Genuinely two";
+        function rule(word, label){
+          lockActs(acts, word === "same" ? same : two);
+          post("/api/duplicate", {task_id: du.task_id,
+                                  other_task_id: du.other_task_id,
+                                  ruling: word})
+            .then(function(){
+              acts.innerHTML = "";
+              acts.appendChild(el("span","revdone", label));
+              REVIEW.dirty = true;
+              loadReview(false);
+            })["catch"](function(e){
+              acts.innerHTML = "";
+              acts.appendChild(el("span","revdone", e.message));
+            });
+        }
+        same.onclick = function(){
+          rule("same", "Recorded as one piece of work \u2014 worth a "
+               + "word with " + personName(du.other_owner)
+               + " about who carries it");
+        };
+        two.onclick = function(){
+          rule("distinct", "Recorded \u2014 it will not be asked "
+               + "again");
+        };
+        [same, two].forEach(function(b){ b.disabled = !d.writable; });
+        acts.appendChild(same); acts.appendChild(two);
+        row.appendChild(acts);
+        secd.appendChild(row);
+      });
+      body.appendChild(secd);
     }
 
     var quiet = d.quiet || [];

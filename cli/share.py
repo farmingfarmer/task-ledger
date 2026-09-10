@@ -170,7 +170,8 @@ def main():
     g.add_argument("--to", required=True, help="who may look")
     g.add_argument("--board", help="a user_ref; only your own")
     g.add_argument("--project", help="a project_id you own")
-    g.add_argument("--level", choices=["progress", "full_trace"],
+    g.add_argument("--level", choices=["progress", "full_trace",
+                                       "workload"],
                    default="progress")
     g.add_argument("--days", type=int,
                    help="expire the grant after N days (default: until "
