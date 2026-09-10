@@ -46,7 +46,7 @@ JUDGE_NUM_PREDICT = int(os.environ.get("TL_JUDGE_NUM_PREDICT", "256"))
 JUDGE_TIMEOUT = int(os.environ.get("TL_JUDGE_TIMEOUT", "90"))
 
 
-def ollama_chat(model, host="http://localhost:11434"):
+def ollama_chat(model, host="http://127.0.0.1:11434"):
     def call(messages):
         body = json.dumps({"model": model, "messages": messages,
                            "stream": False,
@@ -75,7 +75,7 @@ def main():
     ap.add_argument("--judge-model", default=None,
                     help="Ollama chat model for the judge; omit to hold "
                          "judge-band signals")
-    ap.add_argument("--ollama-host", default="http://localhost:11434")
+    ap.add_argument("--ollama-host", default="http://127.0.0.1:11434")
     ap.add_argument("--write", action="store_true",
                     help="persist packet, consume signals, apply aliases")
     args = ap.parse_args()

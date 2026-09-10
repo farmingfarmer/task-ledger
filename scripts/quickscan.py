@@ -223,7 +223,7 @@ def main():
     ap.add_argument("--embed-model", default=os.environ.get(
         "TL_EMBED_MODEL", "nomic-embed-text"))
     ap.add_argument("--ollama-host", default=os.environ.get(
-        "OLLAMA_HOST_URL", "http://localhost:11434"))
+        "OLLAMA_HOST_URL", "http://127.0.0.1:11434"))
     args = ap.parse_args()
 
     paths = []

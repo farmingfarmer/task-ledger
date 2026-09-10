@@ -73,7 +73,7 @@ def main():
     ap.add_argument("--limit", type=int, default=5)
     ap.add_argument("--embed-model", default=os.environ.get("TL_EMBED_MODEL"))
     ap.add_argument("--ollama-host", default=os.environ.get(
-        "OLLAMA_HOST_URL", "http://localhost:11434"))
+        "OLLAMA_HOST_URL", "http://127.0.0.1:11434"))
     args = ap.parse_args()
     query = " ".join(args.query)
     dsn = os.environ.get("DB_DSN")

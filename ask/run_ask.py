@@ -35,7 +35,7 @@ def main():
     ap.add_argument("--embed-model", default=None,
                     help="Ollama embedding model for subject matching; "
                          "omit for offline lexical matching")
-    ap.add_argument("--ollama-host", default="http://localhost:11434")
+    ap.add_argument("--ollama-host", default="http://127.0.0.1:11434")
     ap.add_argument("--json", action="store_true")
     args = ap.parse_args()
 

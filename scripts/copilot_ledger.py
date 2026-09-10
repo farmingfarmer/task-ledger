@@ -101,7 +101,7 @@ def main():
     # comparison ledger and left an empty one in its place -- destroying
     # something to discover a dependency was missing. The tick learned
     # this twice; this script had to learn it again.
-    host = os.environ.get("OLLAMA_HOST_URL", "http://localhost:11434")
+    host = os.environ.get("OLLAMA_HOST_URL", "http://127.0.0.1:11434")
     try:
         import urllib.request
         urllib.request.urlopen(host + "/api/tags", timeout=5).close()

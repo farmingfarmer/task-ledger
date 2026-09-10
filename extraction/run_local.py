@@ -26,7 +26,7 @@ import urllib.request
 import extraction_worker
 
 
-def ollama_llm(model, host="http://localhost:11434"):
+def ollama_llm(model, host="http://127.0.0.1:11434"):
     def call(messages):
         body = json.dumps({
             "model": model,
@@ -68,7 +68,7 @@ def main():
     ap.add_argument("--backend", choices=["ollama", "azure"],
                     default="ollama")
     ap.add_argument("--model", default="mistral-small3.1")
-    ap.add_argument("--ollama-host", default="http://localhost:11434")
+    ap.add_argument("--ollama-host", default="http://127.0.0.1:11434")
     ap.add_argument("--write-db", default=None,
                     help="DSN; if set, persist via signal_store_pg")
     args = ap.parse_args()

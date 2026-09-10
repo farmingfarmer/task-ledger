@@ -151,7 +151,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--corpus", default="corpus")
     ap.add_argument("--model", default="mistral-small3.1")
-    ap.add_argument("--ollama-host", default="http://localhost:11434")
+    ap.add_argument("--ollama-host", default="http://127.0.0.1:11434")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--llm-fake", default=None,
                     help="path to a JSON of canned responses (testing)")

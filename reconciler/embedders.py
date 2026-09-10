@@ -60,7 +60,7 @@ class OllamaEmbedder(object):
     """Embeddings via Ollama's /api/embeddings, one call per text."""
 
     def __init__(self, model="nomic-embed-text",
-                 host="http://localhost:11434"):
+                 host="http://127.0.0.1:11434"):
         self.model = model
         self.host = host
 

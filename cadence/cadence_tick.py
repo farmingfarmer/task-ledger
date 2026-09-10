@@ -33,7 +33,7 @@ Configuration (environment, set in the launchd plist or a shell):
   TL_EMBED_MODEL    default nomic-embed-text
   TL_JUDGE_MODEL    default mistral-small3.1
   TL_EXTRACT_MODEL  default mistral-small3.1
-  OLLAMA_HOST_URL   default http://localhost:11434
+  OLLAMA_HOST_URL   default http://127.0.0.1:11434
   TL_NO_NOTIFY      set to 1 to suppress the popup (tests, headless)
   TL_DIGEST_DAY     weekday for the weekly digest (0=Mon, default 4=Fri)
   TL_DIGEST_DIR     where digests are written (default ~/task-ledger-digests)
@@ -509,7 +509,7 @@ def main():
     if not dsn or not user:
         log("FATAL: DB_DSN and TL_USER are required")
         return 2
-    host = os.environ.get("OLLAMA_HOST_URL", "http://localhost:11434")
+    host = os.environ.get("OLLAMA_HOST_URL", "http://127.0.0.1:11434")
     inbox = os.path.expanduser(
         os.environ.get("TL_INBOX", "~/task-ledger-inbox"))
     os.makedirs(inbox, exist_ok=True)

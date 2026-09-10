@@ -234,7 +234,7 @@ def main():
     ap.add_argument("--judge-model", default=None,
                     help="Ollama model for the judge band; without it "
                          "closure signals hold and nothing completes")
-    ap.add_argument("--ollama-host", default="http://localhost:11434")
+    ap.add_argument("--ollama-host", default="http://127.0.0.1:11434")
     ap.add_argument("--i-know-what-this-is", action="store_true",
                     dest="override")
     args = ap.parse_args()

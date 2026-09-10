@@ -323,7 +323,7 @@ def check_schema(conn):
 
 
 def check_ollama():
-    host = os.environ.get("OLLAMA_HOST_URL", "http://localhost:11434")
+    host = os.environ.get("OLLAMA_HOST_URL", "http://127.0.0.1:11434")
     try:
         with urllib.request.urlopen(host + "/api/tags", timeout=3) as r:
             models = [m["name"] for m in
