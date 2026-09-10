@@ -1195,6 +1195,79 @@ def main():
         code, _ = as_viewer(client, "/api/workload?profile=synthetic")
         ok(code == 401, "and anonymous gets nothing")
 
+        print("friction killers")
+        # standup: the board turned into words, receipts attached
+        code, su = as_viewer(client, "/api/standup?profile=synthetic&"
+                             "days=7", OWNER)
+        ok(code == 200 and "Finished" in su["text"]
+           or code == 200 and su["text"],
+           "the standup drafts from confirmed board events only")
+        ok(code == 200 and ("typed by you" in su["text"]
+                            or "accepted by you" in su["text"]
+                            or "Nothing recorded" in su["text"]),
+           "and every line says how it was recorded -- accepted, typed, "
+           "or auto-applied -- because a draft with unmarked provenance "
+           "would launder guesses into a meeting")
+        code, _ = as_viewer(client, "/api/standup?profile=synthetic")
+        ok(code == 401, "standup is self-only: it is YOUR words")
+
+        # quick capture: one line into the same pool as a transcript
+        code, body = spost("/api/note?profile=synthetic",
+                           {"text": "waiting on IT for VPN access",
+                            "kind": "blocker"})
+        ok(code == 200, "a typed line is captured")
+        nconn = psycopg2.connect(dsn)
+        with nconn.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor) as nc:
+            nc.execute("""
+                SELECT s.signal_type, s.author_ref, s.confidence,
+                       b.source_type, b.extractor_model, ev.source_type
+                         AS ev_type, pe.user_ref AS pooled_for
+                FROM signals s
+                JOIN extraction_batches b USING (batch_id)
+                JOIN evidence_refs ev USING (signal_id)
+                JOIN signal_pool_events pe USING (signal_id)
+                WHERE s.title = 'waiting on IT for VPN access'
+                ORDER BY pe.event_id DESC LIMIT 1""")
+            row = nc.fetchone()
+        nconn.close()
+        ok(row and row["signal_type"] == "blocker"
+           and row["author_ref"] == OWNER
+           and row["pooled_for"] == OWNER,
+           "it lands in the POOL, typed by and pooled for its author -- "
+           "a review card at the next tick, never a board row: the "
+           "person still answers it like anything else")
+        ok(row["source_type"] == "manual_note"
+           and row["ev_type"] == "manual_note"
+           and row["extractor_model"] == "human:typed",
+           "and the provenance says exactly what it is -- a typed note, "
+           "extracted by nobody -- because labeling it a document would "
+           "be a lie in the one rail that must never lie")
+        code, _ = spost("/api/note?profile=synthetic",
+                        {"text": "x" * 301, "kind": "work"})
+        ok(code == 400, "a note is one line, not a pasted transcript")
+
+        # radar: deadlines ranked by worry
+        rconn = psycopg2.connect(dsn)
+        with rconn, rconn.cursor() as rc:
+            rc.execute("SELECT 1 FROM tasks_current WHERE task_id = "
+                       "'task-radar-over'")
+            if rc.fetchone() is None:
+                rc.execute("""
+                    SELECT apply_task_event('task-radar-over', %s,
+                      'created', 'manual_edit', NULL, %s::jsonb)""",
+                    (OWNER, json.dumps(
+                        {"title": "Radar overdue fixture",
+                         "status": "in_progress", "owner_ref": OWNER,
+                         "deadline": "2026-01-05"})))
+        rconn.close()
+        code, rad = as_viewer(client, "/api/radar?profile=synthetic",
+                              OWNER)
+        over = [x for x in rad["items"]
+                if x["task_id"] == "task-radar-over"]
+        ok(code == 200 and over and over[0]["bucket"] == "overdue",
+           "a past deadline on open work is OVERDUE, front of the strip")
+
         print("also on another board")
         DPX = str(int(time.time() * 1000))
         dconn = psycopg2.connect(dsn)

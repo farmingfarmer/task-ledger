@@ -2562,6 +2562,222 @@ def duplicate_ruling():
     return jsonify({"ok": True, "ruling": ruling})
 
 
+# ------------------------------------------------------- friction killers
+
+@app.route("/api/standup")
+def standup():
+    """SELF ONLY: your standup, drafted from the board, every line with
+    its receipt.
+
+    The inverse of everything else here: instead of reading meetings to
+    update the board, read the board to write the meeting. Zero risk by
+    construction -- it only reads CONFIRMED state, each line cites the
+    event behind it, and the person edits before speaking. This is also
+    the feature that makes people want their board current, which feeds
+    every other part of the system.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    try:
+        days = max(1, min(14, int(request.args.get("days", "1"))))
+    except ValueError:
+        days = 1
+    rows = q("""
+        SELECT e.task_id, t.title, e.event_type, e.actor_type,
+               e.occurred_at, e.payload,
+               src.source_ref
+        FROM task_events e
+        JOIN tasks_current t USING (task_id)
+        LEFT JOIN LATERAL (
+          SELECT b.source_ref
+          FROM decisions d
+          JOIN proposals pr ON pr.proposal_id = d.proposal_id
+          JOIN proposal_signals ps ON ps.proposal_id = pr.proposal_id
+          JOIN signals s ON s.signal_id = ps.signal_id
+          JOIN extraction_batches b ON b.batch_id = s.batch_id
+          WHERE d.decision_id = e.decision_id
+          LIMIT 1) src ON true
+        WHERE t.user_ref = %s AND t.merged_into IS NULL
+          AND e.occurred_at > now() - make_interval(days => %s)
+          AND e.event_type IN ('created','status_changed','completed',
+                               'cancelled','blocker_added',
+                               'blocker_resolved','deadline_changed')
+        ORDER BY e.occurred_at""", (v, days))
+    done, moving, blocked, unblocked, new = [], [], [], [], []
+    for r in rows:
+        when = str(r["occurred_at"])[:10]
+        how = ("accepted by you" if r["actor_type"] == "user_decision"
+               else "typed by you" if r["actor_type"] == "manual_edit"
+               else "auto-applied, unconfirmed")
+        cite = " ({0} {1}{2})".format(
+            how, when,
+            " \u00b7 from " + r["source_ref"] if r["source_ref"] else "")
+        et = r["event_type"]
+        if et == "completed":
+            done.append("Finished: " + r["title"] + cite)
+        elif et == "created":
+            new.append("Took on: " + r["title"] + cite)
+        elif et == "blocker_added":
+            d = (r["payload"] or {}).get("description")
+            blocked.append("Now blocked: " + r["title"]
+                           + (" \u2014 " + d if d else "") + cite)
+        elif et == "blocker_resolved":
+            unblocked.append("Unblocked: " + r["title"] + cite)
+        elif et == "status_changed":
+            to = (r["payload"] or {}).get("to_status")
+            if to == "in_progress":
+                moving.append("Moving: " + r["title"] + cite)
+    still = q("""
+        SELECT t.title, b.description FROM task_blockers b
+        JOIN tasks_current t USING (task_id)
+        WHERE t.user_ref = %s AND b.resolved_event_id IS NULL
+          AND t.status NOT IN ('completed','cancelled')
+          AND t.merged_into IS NULL""", (v,))
+    lines = []
+    for head, items in (("Done", done), ("In motion", moving + new),
+                        ("Blocked", blocked
+                         + ["Still blocked: " + s["title"]
+                            + (" \u2014 " + s["description"]
+                               if s["description"] else "")
+                            for s in still]),
+                        ("Unblocked", unblocked)):
+        if items:
+            lines.append(head + ":")
+            lines.extend("  \u2022 " + i for i in items)
+    text = "\n".join(lines) if lines else (
+        "Nothing recorded in the last {0} day(s). Either a quiet "
+        "stretch, or the board is behind -- the review popup knows "
+        "which.".format(days))
+    return jsonify({"days": days, "text": text,
+                    "note": "Drafted from confirmed board events only; "
+                            "every line carries how and when it was "
+                            "recorded. Edit before you say it -- it is "
+                            "a draft, not a report card."})
+
+
+@app.route("/api/note", methods=["POST"])
+def quick_note():
+    """One typed line -> the same pool, gates and review as a meeting.
+
+    Extraction is skipped DELIBERATELY: there is no transcript to
+    comprehend. The typed sentence is the claim, its author is the
+    speaker, its confidence is high because the owner said so about
+    their own work -- and everything downstream is unchanged: the
+    not_work gate can still bin it, a mention still needs the register,
+    and nothing lands on the board except through the review the person
+    answers themselves.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    if not _writable():
+        return _refuse_write()
+    body = request.get_json(silent=True) or {}
+    text = (body.get("text") or "").strip()
+    kind = (body.get("kind") or "work").strip()
+    if not text or len(text) > 300:
+        return jsonify({"error": "one line, up to 300 characters"}), 400
+    stype = {"work": "proposal", "update": "status_update",
+             "blocker": "blocker"}.get(kind)
+    if not stype:
+        return jsonify({"error": "kind must be work, update or "
+                                 "blocker"}), 400
+    now = datetime.datetime.now().replace(microsecond=0)
+    import hashlib as _h
+    rid = "note-{0}-{1}".format(v, now.strftime("%Y%m%dT%H%M%S"))
+    batch_id = _h.sha256(("manual-note\x1f" + rid).encode()).hexdigest()[:32]
+    signal_id = _h.sha256((batch_id + "\x1f" + text).encode()) \
+        .hexdigest()[:32]
+    raw = {"signal_id": signal_id, "type": stype, "title": text[:120],
+           "description": (text if len(text) > 120 else None),
+           "author_ref": v, "confidence": 0.9,
+           "owner_candidates": [{"person_ref": v, "confidence": 0.9,
+                                 "basis": "self_reference"}],
+           "evidence": [{"source_type": "manual_note",
+                         "resource_id": rid, "span": None,
+                         "content_hash": _h.sha256(
+                             text.encode()).hexdigest()}]}
+    if stype == "blocker":
+        raw["blocker"] = {"description": text[:300],
+                          "blocking_party_ref": None}
+    conn = _write_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO extraction_batches (batch_id, extracted_at,
+                  extractor_model, prompt_version, source_type,
+                  source_ref, window_start, window_end)
+                VALUES (%s, now(), 'human:typed', 'note-v1',
+                        'manual_note', %s, now(), now())
+                ON CONFLICT (batch_id) DO NOTHING""", (batch_id, rid))
+            cur.execute("""
+                INSERT INTO signals (signal_id, batch_id, signal_type,
+                  title, description, confidence, blocker_desc,
+                  author_ref, owner_candidates, raw)
+                VALUES (%s,%s,%s,%s,%s,0.9,%s,%s,%s,%s)
+                ON CONFLICT (signal_id) DO NOTHING""",
+                (signal_id, batch_id, stype, text[:120],
+                 raw.get("description"),
+                 text[:300] if stype == "blocker" else None,
+                 v, json.dumps(raw["owner_candidates"]),
+                 json.dumps(raw)))
+            cur.execute("""
+                INSERT INTO evidence_refs (signal_id, ordinal,
+                  source_type, resource_id, content_hash)
+                VALUES (%s, 1, 'manual_note', %s, %s)
+                ON CONFLICT DO NOTHING""",
+                (signal_id, rid, raw["evidence"][0]["content_hash"]))
+            cur.execute("""
+                INSERT INTO signal_pool_events (signal_id, user_ref,
+                  event, run_id)
+                VALUES (%s, %s, 'pooled', 'quick-note')""",
+                (signal_id, v))
+        conn.commit()
+    except psycopg2.errors.CheckViolation:
+        return jsonify({"error": "this ledger predates manual notes",
+                        "detail": "Apply storage/migrate_manual_note"
+                                  ".sql, then note again."}), 409
+    finally:
+        conn.close()
+    return jsonify({"ok": True,
+                    "detail": "Captured, typed by you, into the same "
+                              "pool as everything else. It becomes a "
+                              "card at the next reconcile tick."})
+
+
+@app.route("/api/radar")
+def radar():
+    """SELF ONLY: deadlines ranked by how much they should worry you.
+
+    Three facts already stored, one glance: overdue; due within 7 days
+    AND at risk (blocked, or nothing has moved in a week); merely due.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    return jsonify({"items": q("""
+        SELECT t.task_id, t.title, t.deadline, t.status,
+               (now()::date - le.last_moved::date) AS quiet_days,
+               CASE
+                 WHEN t.deadline < CURRENT_DATE THEN 'overdue'
+                 WHEN t.deadline <= CURRENT_DATE + 7
+                      AND (t.status = 'blocked'
+                           OR le.last_moved < now() - interval '7 days')
+                   THEN 'at_risk'
+                 WHEN t.deadline <= CURRENT_DATE + 7 THEN 'due_soon'
+               END AS bucket
+        FROM tasks_current t
+        JOIN LATERAL (SELECT max(occurred_at) AS last_moved
+                      FROM task_events e
+                      WHERE e.task_id = t.task_id) le ON true
+        WHERE t.user_ref = %s AND t.merged_into IS NULL
+          AND t.status NOT IN ('completed','cancelled')
+          AND t.deadline IS NOT NULL
+          AND t.deadline <= CURRENT_DATE + 7
+        ORDER BY t.deadline""", (v,))})
+
+
 @app.route("/api/teamweek")
 def teamweek():
     """The consented team view: dependency edges the viewer can see

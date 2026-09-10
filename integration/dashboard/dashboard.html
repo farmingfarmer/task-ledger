@@ -552,6 +552,27 @@
   .wkcap input{font:inherit;width:70px;padding:4px 6px;
          border:1px solid var(--line);border-radius:var(--r1)}
   .wkeow{font-weight:700}
+  .radar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .radchip{font-size:12.5px;padding:5px 10px;border-radius:14px;
+         border:1.5px solid var(--line)}
+  .radchip.overdue{border-color:#c0392b;color:#c0392b;font-weight:600}
+  .radchip.at_risk{border-color:#e67e22;color:#b9660f;font-weight:600}
+  .radchip.due_soon{border-color:#d4ac0d;color:#8a6d03}
+  .capture{display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+         margin-bottom:12px}
+  .capture input[type=text]{font:inherit;font-size:13px;flex:1;
+         min-width:240px;padding:7px 10px;border:1px solid var(--line);
+         border-radius:var(--r1);background:var(--panel)}
+  .capture .kinds button{font:inherit;font-size:12px;padding:5px 9px;
+         border:1px solid var(--line);border-radius:var(--r1);
+         background:var(--panel);cursor:pointer}
+  .capture .kinds button[aria-pressed="true"]{
+         background:var(--accent,#2f6fed);color:#fff;
+         border-color:var(--accent,#2f6fed)}
+  .standup pre{font:12.5px/1.5 ui-monospace,Menlo,Consolas,monospace;
+         white-space:pre-wrap;background:var(--panel-2);
+         padding:12px 14px;border-radius:var(--r1);
+         border:1px solid var(--line)}
   .busywait{color:var(--faint);font-style:italic;font-size:12.5px;
          animation:busypulse 1s ease-in-out infinite}
   button.busy{outline:2px solid var(--accent,#2f6fed)}
@@ -755,7 +776,13 @@
       <h2>Your week
         <span class="sub">priority, hours so far, and a proposed plan
           &mdash; suggestions until you save them</span></h2>
+      <div id="radar"></div>
+      <div class="capture" id="capturebox"></div>
       <div id="weekpanel"></div>
+      <details class="more"><summary>Your standup, drafted &mdash; the
+        board turned into words, every line with its receipt</summary>
+        <div class="more-body"><div id="standup"></div></div>
+      </details>
     </section>
 
     <section class="sect" id="sect-more">
@@ -1152,6 +1179,112 @@
     panel("teamweek", "/api/teamweek", paintTeamWeek);
   }
 
+  // ---- deadline radar ----
+  function paintRadar(node, d){
+    node.innerHTML = "";
+    var items = (d.items || []).filter(function(x){ return x.bucket; });
+    if(!items.length) return;
+    var strip = el2("div","radar");
+    items.forEach(function(x){
+      var c = el("span","radchip " + x.bucket,
+        (x.bucket === "overdue" ? "OVERDUE " :
+         x.bucket === "at_risk" ? "AT RISK " : "due ")
+        + String(x.deadline).slice(5) + " \u00b7 " + x.title
+        + (x.bucket === "at_risk"
+           ? (x.status === "blocked" ? " (blocked)"
+              : " (quiet " + x.quiet_days + "d)") : ""));
+      strip.appendChild(c);
+    });
+    node.appendChild(strip);
+  }
+  function loadRadar(){ panel("radar", "/api/radar", paintRadar); }
+
+  // ---- quick capture ----
+  //
+  // The biggest modeling hole was work that never passes a meeting.
+  // One line, typed here, enters the SAME pool and gates as a
+  // transcript claim -- extraction skipped because a typed sentence
+  // needs no comprehending, everything after unchanged. It becomes a
+  // review card, not a board row: the person still answers it.
+  function paintCapture(){
+    var box = document.getElementById("capturebox");
+    box.innerHTML = "";
+    var inp = document.createElement("input");
+    inp.type = "text"; inp.maxLength = 300;
+    inp.placeholder = "Note something the meetings never heard \u2014 "
+      + "\u201cwaiting on IT for VPN access\u201d\u2026";
+    var kinds = el2("span","kinds");
+    var kind = "work";
+    [["work","New work"],["update","Update"],["blocker","Blocked by"]]
+      .forEach(function(pair, i){
+        var b = el2("button", null); b.type = "button";
+        b.textContent = pair[1];
+        b.setAttribute("aria-pressed", i === 0 ? "true" : "false");
+        b.onclick = function(){
+          kind = pair[0];
+          var sibs = kinds.querySelectorAll("button");
+          for(var j = 0; j < sibs.length; j++)
+            sibs[j].setAttribute("aria-pressed",
+                                 sibs[j] === b ? "true" : "false");
+        };
+        kinds.appendChild(b);
+      });
+    var go = el2("button","yes"); go.type = "button";
+    go.textContent = "Capture";
+    var note = el("span","wkmeta","");
+    function send(){
+      if(!inp.value.trim()){ inp.focus(); return; }
+      go.disabled = true; note.textContent = " Recording\u2026";
+      post("/api/note", {text: inp.value.trim(), kind: kind})
+        .then(function(r){
+          inp.value = "";
+          go.disabled = false;
+          note.textContent = " " + r.detail;
+        })["catch"](function(e){
+          go.disabled = false; note.textContent = " " + e.message;
+        });
+    }
+    go.onclick = send;
+    inp.addEventListener("keydown", function(e){
+      if(e.key === "Enter") send();
+    });
+    box.appendChild(inp); box.appendChild(kinds);
+    box.appendChild(go); box.appendChild(note);
+  }
+
+  // ---- the drafted standup ----
+  function paintStandup(node, d){
+    node.innerHTML = "";
+    var wrap = el2("div","standup");
+    var bar = el2("div","wkcap");
+    bar.appendChild(el("span", null, "Since:"));
+    [["1","yesterday"],["3","3 days"],["7","the week"]].forEach(
+      function(pair){
+        var b = el2("button", null); b.type = "button";
+        b.textContent = pair[1];
+        b.onclick = function(){
+          get("/api/standup?days=" + pair[0]).then(function(nd){
+            paintStandup(node, nd);
+          });
+        };
+        bar.appendChild(b);
+      });
+    var copy = el2("button","yes"); copy.type = "button";
+    copy.textContent = "Copy";
+    copy.onclick = function(){
+      if(navigator.clipboard) navigator.clipboard.writeText(d.text);
+      copy.textContent = "Copied \u2014 edit before you say it";
+    };
+    bar.appendChild(copy);
+    wrap.appendChild(bar);
+    var pre = document.createElement("pre");
+    pre.textContent = d.text;
+    wrap.appendChild(pre);
+    wrap.appendChild(el("p","wkmeta", d.note || ""));
+    node.appendChild(wrap);
+  }
+  function loadStandup(){ panel("standup", "/api/standup", paintStandup); }
+
   function loadWeek(){
     panel("weekpanel", "/api/workload",
           function(_node, data){ paintWeek(data); });
@@ -1166,7 +1299,8 @@
     loadTimeline();
     loadTeam(); loadShares(); loadCalibration();
     loadProjects(); loadRecent(); loadMeetings();
-    loadWeek(); loadTeamWeek();
+    loadWeek(); loadTeamWeek(); loadRadar(); loadStandup();
+    paintCapture();
     document.getElementById("askout").innerHTML = "";
     document.getElementById("askhint").textContent =
       "Answers come from confirmed board state, with their receipts. " +
