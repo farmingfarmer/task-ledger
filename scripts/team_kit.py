@@ -277,7 +277,7 @@ def main():
         print("     dashboard would open with nothing to review.")
         print("     Ingest transcripts and run a tick first:")
         print("       tl transcripts <your transcripts file>")
-        print("       python cadence/cadence_tick.py")
+        print("       tl tick")
         print("     (--no-ledger builds a code-only kit deliberately.)")
         return 2
     else:

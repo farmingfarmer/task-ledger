@@ -182,10 +182,9 @@ def main():
         return 1
     print("\nempty and current. Next:\n"
           "  tl transcripts <your transcripts_raw.txt>\n"
-          "  python cadence/cadence_tick.py\n"
+          "  tl tick\n"
           "  tl review    (accept the real projects)\n"
-          "  python cadence/cadence_tick.py    (progress attaches to what "
-          "you accepted)")
+          "  tl tick      (progress attaches to what you accepted)")
     return 0
 
 
