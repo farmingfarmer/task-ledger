@@ -48,6 +48,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import urllib.request
 
 
@@ -548,23 +549,55 @@ def main():
     lock = acquire_tick_lock(dsn)
     if lock is None or isinstance(lock, tuple):
         holder = lock[1] if isinstance(lock, tuple) else None
-        log("another tick already holds the lock -- this one bows out; "
-            "nothing was started twice.")
-        if holder:
-            pid, state, since, app = holder
-            log("  the holder: database session {0} ({1}), connected "
-                "since {2}{3}.".format(pid, state or "?", since,
-                                       " via " + app if app else ""))
-            log("  If a cadence_tick.py python process is running, it is "
-                "real -- wait for it or kill that process. If NO such "
-                "process exists, the session is a zombie; release it "
-                "with:")
-            log("    psql -c \"SELECT pg_terminate_backend({0})\""
-                .format(pid))
+        # --steal: terminate the holder's session and take the lock.
+        # Offered BY the tick rather than as pasted psql because every
+        # rescue command this project has handed out lately assumed
+        # something about the machine -- PATH, hostname resolution,
+        # wmic existing -- and each assumption cost a round trip. This
+        # one runs inside the connection that already works. And it is
+        # safe BY THE SYSTEM'S OWN DESIGN, which is the only reason it
+        # exists: ticks are idempotent over append-only storage, a
+        # killed tick's lock dies with its session, and the next tick
+        # resumes from exactly what is recorded. Worst case, a real
+        # tick dies mid-window and this run redoes that window.
+        if "--steal" in sys.argv and holder:
+            log("stealing the tick lock: terminating session {0} "
+                "(idempotent storage makes this safe; a real tick "
+                "killed here just means this run redoes its "
+                "in-flight window)".format(holder[0]))
+            import psycopg2
+            c = psycopg2.connect(dsn)
+            c.autocommit = True
+            with c.cursor() as cur:
+                cur.execute("SELECT pg_terminate_backend(%s)",
+                            (holder[0],))
+            c.close()
+            time.sleep(1.0)
+            lock = acquire_tick_lock(dsn)
+            if lock is None or isinstance(lock, tuple):
+                log("  still held (a scheduler may have restarted one "
+                    "instantly) -- giving up politely.")
+                return 0
         else:
-            log("  (could not identify the holder -- likely released "
-                "in the last instant; just run this again)")
-        return 0
+            log("another tick already holds the lock -- this one bows "
+                "out; nothing was started twice.")
+            if holder:
+                pid, state, since, app = holder
+                log("  the holder: database session {0} ({1}), "
+                    "connected since {2}{3}.".format(
+                        pid, state or "?", since,
+                        " via " + app if app else ""))
+                log("  A real tick is a running cadence_tick.py "
+                    "process; between model calls its session shows "
+                    "'idle', so idle alone proves nothing.")
+                log("  Sure nothing real is running (or happy to let "
+                    "this run redo its window)? Take the lock:")
+                log("    tl tick --steal")
+            else:
+                log("  (could not identify the holder -- likely "
+                    "released in the last instant; just run this "
+                    "again)")
+            return 0
     # A configured model that is not installed does not fail fast on its
     # own: extraction calls time out per window, half an hour each, and
     # the run "completes" having learned nothing. It happened twice in one
