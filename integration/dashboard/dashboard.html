@@ -796,6 +796,12 @@
       </details>
 
       <details class="more">
+        <summary>The system&rsquo;s own scorecard &mdash; what it got
+          wrong lately, by its own count</summary>
+        <div class="more-body"><div id="scorecard"></div></div>
+      </details>
+
+      <details class="more">
         <summary>The team&rsquo;s week &mdash; who waits on whom, and the
           sheets shared with you</summary>
         <div class="more-body"><div id="teamweek"></div></div>
@@ -1285,6 +1291,27 @@
   }
   function loadStandup(){ panel("standup", "/api/standup", paintStandup); }
 
+  function paintScorecard(node, d){
+    node.innerHTML = "";
+    var lines = d.lines || [];
+    if(!lines.length){
+      node.appendChild(emptyEl("No rulings in the last sixty days \u2014 "
+        + "the scorecard needs your decisions to score against."));
+      return;
+    }
+    lines.forEach(function(l){
+      var row = el2("div","revitem");
+      row.appendChild(el("div", null,
+        (l.kind === "better" ? "\u2193 " :
+         l.kind === "worse" ? "\u2191 " : "") + l.line));
+      node.appendChild(row);
+    });
+    node.appendChild(el("p","wkmeta", d.note || ""));
+  }
+  function loadScorecard(){
+    panel("scorecard", "/api/scorecard", paintScorecard);
+  }
+
   function loadWeek(){
     panel("weekpanel", "/api/workload",
           function(_node, data){ paintWeek(data); });
@@ -1300,6 +1327,7 @@
     loadTeam(); loadShares(); loadCalibration();
     loadProjects(); loadRecent(); loadMeetings();
     loadWeek(); loadTeamWeek(); loadRadar(); loadStandup();
+    loadScorecard();
     paintCapture();
     document.getElementById("askout").innerHTML = "";
     document.getElementById("askhint").textContent =
@@ -3089,6 +3117,16 @@
     head.appendChild(el("div","t", task.title));
     head.appendChild(el("div","tid", task.task_id +
       (task.project_name ? " \u00b7 " + task.project_name : "")));
+    // The receipt permalink: this same chain as one printable page,
+    // pasteable into Teams -- "where did this come from?" answered
+    // with a link instead of an argument.
+    var rl = document.createElement("a");
+    rl.href = "/receipt/" + encodeURIComponent(task.task_id)
+              + "?as=" + encodeURIComponent(state.viewer);
+    rl.target = "_blank";
+    rl.textContent = "receipt page \u2197";
+    rl.className = "tid";
+    head.appendChild(rl);
     box.appendChild(head);
     get("/api/task/" + encodeURIComponent(task.task_id) + "/history")
     .then(function(res){

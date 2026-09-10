@@ -1376,6 +1376,67 @@ def main():
         ok("dup-partner" in (wk_after.get("shared_with") or []),
            "my own sheet says who I am sharing it with")
 
+        print("receipt pages")
+        r = client.get("/receipt/" + "task-dup-a-" + DPX
+                       + "?as=" + OWNER + "&profile=synthetic")
+        page = r.get_data(as_text=True)
+        ok(r.status_code == 200 and "full_trace access" in page
+           and "typed by hand" in page,
+           "the owner's receipt shows the whole chain: every event, "
+           "who acted, and how each fact was recorded")
+        ok("append-only" in page,
+           "and the page says what makes it a receipt: the record can "
+           "only be added to, never edited")
+        r = client.get("/receipt/" + "task-dup-a-" + DPX
+                       + "?as=total-stranger&profile=synthetic")
+        ok(r.status_code == 403,
+           "a stranger gets no page at all -- a permalink is not a "
+           "leak, the same task_level gate rules it")
+        r = client.get("/receipt/" + "task-dup-b-" + DPX
+                       + "?as=" + OWNER + "&profile=synthetic")
+        ok(r.status_code == 403,
+           "and after the grant was revoked, the other board's task is "
+           "closed to me again -- receipts follow grants, live")
+        r = client.get("/receipt/nope-" + DPX + "?as=" + OWNER
+                       + "&profile=synthetic")
+        ok(r.status_code in (403, 404),
+           "an unknown task id yields nothing")
+
+        print("the system's own scorecard")
+        SCX = str(int(time.time() * 1000))
+        sconn = psycopg2.connect(dsn)
+        with sconn, sconn.cursor() as sc:
+            # A prior-month ruling, inserted with a backdated
+            # decided_at: decisions are append-only but INSERT sets its
+            # own timestamp, which is exactly what a fixture needs.
+            sc.execute("""
+                INSERT INTO proposals (proposal_id, packet_id, op,
+                  rationale, confidence, payload)
+                VALUES (%s, %s, 'add_subtask', 'r', 0.6,
+                        '{"kind":"add_subtask","parent_task_id":"x",
+                          "title":"scorecard prior fixture"}')
+                ON CONFLICT DO NOTHING""",
+                ("prop-sc-prior-" + SCX, PACKET))
+            sc.execute("""
+                INSERT INTO decisions (proposal_id, packet_id, decision,
+                  reject_reason, decided_by, decided_at)
+                VALUES (%s, %s, 'reject', 'wrong_owner', %s,
+                        now() - interval '40 days')""",
+                ("prop-sc-prior-" + SCX, PACKET, OWNER))
+        sconn.close()
+        code, scd = as_viewer(client, "/api/scorecard?profile=synthetic",
+                              OWNER)
+        wo = [l for l in scd["lines"] if "wrong owner" in l["line"]]
+        ok(code == 200 and wo,
+           "a reject reason with any history gets a trend line")
+        ok(all("scorecard of people" in scd["note"]
+               for _ in [1]),
+           "and the panel restates the founding promise in its own "
+           "words: claims the system made, ruled by you -- never a "
+           "scorecard of people")
+        code, _ = as_viewer(client, "/api/scorecard?profile=synthetic")
+        ok(code == 401, "self-only, like every judgement surface")
+
         print("unreachable ledger")
         saved = dict(dashboard_api.PROFILES.get("copilot") or {})
         dashboard_api.PROFILES["copilot"] = {

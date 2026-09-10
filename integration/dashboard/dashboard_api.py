@@ -2562,6 +2562,215 @@ def duplicate_ruling():
     return jsonify({"ok": True, "ruling": ruling})
 
 
+# --------------------------------------------------------- receipt pages
+
+RECEIPT_CSS = """
+body{font:14px/1.55 -apple-system,'Segoe UI',sans-serif;color:#1c2733;
+  max-width:760px;margin:2rem auto;padding:0 1rem}
+h1{font-size:1.3rem;margin-bottom:.2rem} .sub{color:#5a6b7c;font-size:13px}
+.badge{display:inline-block;padding:2px 9px;border-radius:10px;
+  font-size:11.5px;border:1.5px solid #c6ccd4;margin-left:.4rem}
+.born{background:#f4f7fa;border:1px solid #dfe5ec;border-radius:8px;
+  padding:12px 15px;margin:1.1rem 0}
+.ev{border-left:3px solid #dfe5ec;margin:.7rem 0;padding:.1rem 0 .1rem 13px}
+.ev .w{font-weight:600} .ev .who{color:#5a6b7c;font-size:12.5px}
+.ev .prov{font-size:12.5px;color:#3b4a5a;margin-top:2px}
+.hash{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#8a97a5}
+.foot{margin-top:1.6rem;padding-top:.8rem;border-top:1px solid #dfe5ec;
+  color:#5a6b7c;font-size:12px}
+@media print{.noprint{display:none}}
+"""
+
+
+def _esc(s):
+    return (str(s).replace("&", "&amp;").replace("<", "&lt;")
+            .replace(">", "&gt;"))
+
+
+@app.route("/receipt/<task_id>")
+def receipt(task_id):
+    """The said->tracked->done chain as one page you can paste a link
+    to. 'Where did this requirement come from?' answered with a URL
+    instead of an argument.
+
+    Identity comes from ?as= (or the header), same trust model as the
+    picker this whole demo runs on, and the page SAYS whose view it is
+    -- a receipt that hid its viewpoint would undermine the thing it
+    exists to prove. Access is task_level: full trace for the owner and
+    full_trace grantees, the redacted skeleton at progress, and a
+    status_only edge gets title and status, nothing more. Evidence
+    stays pointers-and-hashes, never message text: the page proves the
+    chain exists and where it anchors, it does not republish anyone's
+    words.
+    """
+    v = (request.args.get("as") or "").strip() or viewer()
+    if not v:
+        return ("<p>Say who is looking: add ?as=your-ref to the "
+                "link.</p>", 401)
+    level = task_level(v, task_id)
+    if level is None:
+        return ("<p>This task is not shared with {0}.</p>".format(
+            _esc(v)), 403)
+    t = q("SELECT * FROM tasks_current WHERE task_id = %s", (task_id,))
+    if not t:
+        return ("<p>No such task.</p>", 404)
+    t = t[0]
+    out = ["<style>{0}</style>".format(RECEIPT_CSS)]
+    out.append("<h1>{0}<span class='badge'>{1}</span></h1>".format(
+        _esc(t["title"]), _esc(t["status"])))
+    out.append("<div class='sub'>owner {0} \u00b7 viewed as {1} "
+               "({2} access) \u00b7 {3}</div>".format(
+                   _esc(t["owner_ref"] or t["user_ref"]), _esc(v),
+                   _esc(level), _esc(task_id)))
+    if level == "status_only":
+        out.append("<p class='born'>Visible to {0} only because it "
+                   "blocks their work: current status, nothing "
+                   "more.</p>".format(_esc(v)))
+        return "\n".join(out)
+
+    events = q("""
+        SELECT e.event_id, e.occurred_at, e.event_type, e.actor_type,
+               e.payload, d.decision, d.decided_by,
+               p.rationale, p.confidence,
+               s.title AS said, s.author_ref AS said_by,
+               ev.resource_id, ev.content_hash, b.source_ref
+        FROM task_events e
+        LEFT JOIN decisions d ON d.decision_id = e.decision_id
+        LEFT JOIN proposals p ON p.proposal_id = d.proposal_id
+        LEFT JOIN proposal_signals ps ON ps.proposal_id = p.proposal_id
+        LEFT JOIN signals s ON s.signal_id = ps.signal_id
+        LEFT JOIN evidence_refs ev ON ev.signal_id = s.signal_id
+                                  AND ev.ordinal = 1
+        LEFT JOIN extraction_batches b ON b.batch_id = s.batch_id
+        WHERE e.task_id = %s
+        ORDER BY e.event_id""", (task_id,))
+    seen = set()
+    full = (level == "full_trace")
+    for e in events:
+        if e["event_id"] in seen:
+            continue          # one row per event; extra signals collapse
+        seen.add(e["event_id"])
+        who = ("accepted by " + _esc(e["decided_by"])
+               if e["actor_type"] == "user_decision" and full
+               and e["decided_by"]
+               else "a person decided" if e["actor_type"]
+                   == "user_decision"
+               else "typed by hand" if e["actor_type"] == "manual_edit"
+               else "auto-applied, unconfirmed"
+                   if e["actor_type"] == "auto_applied"
+               else "system")
+        out.append("<div class='ev'><span class='w'>{0}</span> "
+                   "<span class='who'>\u00b7 {1} \u00b7 {2}</span>"
+                   .format(_esc(e["event_type"].replace("_", " ")),
+                           str(e["occurred_at"])[:16], who))
+        if full and e["said"]:
+            out.append("<div class='prov'>from the claim "
+                       "\u201c{0}\u201d{1}{2}</div>"
+                       "<div class='hash'>evidence {3} \u00b7 "
+                       "hash {4}</div>".format(
+                           _esc(e["said"]),
+                           " said by " + _esc(e["said_by"])
+                           if e["said_by"] else "",
+                           " in " + _esc(e["source_ref"])
+                           if e["source_ref"] else "",
+                           _esc(e["resource_id"] or "\u2014"),
+                           _esc((e["content_hash"] or "")[:16])))
+        if full and e["rationale"]:
+            out.append("<div class='prov'>rationale: {0}</div>".format(
+                _esc(e["rationale"])))
+        out.append("</div>")
+    out.append("<div class='foot'>Generated {0}. This record is "
+               "append-only: nothing above can be edited, only added "
+               "to. Evidence is cited by pointer and content hash "
+               "\u2014 the page proves where each fact anchors "
+               "without republishing anyone\u2019s words.</div>"
+               .format(datetime.date.today().isoformat()))
+    return "\n".join(out)
+
+
+@app.route("/api/scorecard")
+def scorecard():
+    """The system keeping score on ITSELF, for this viewer -- the
+    founding promise, finally read back. Composed sentences comparing
+    the last 30 days with the 30 before: your acceptance rate, where
+    the rejections went, what applied itself and how often you put it
+    back. Never a scorecard of people: every number is about claims
+    the system made and what one person ruled about them.
+    """
+    v = viewer()
+    if not v:
+        return _need_viewer()
+
+    def window(a, b):
+        rows = q("""
+            SELECT d.decision, d.reject_reason, count(*) AS n
+            FROM decisions d
+            JOIN proposals p USING (proposal_id)
+            JOIN review_packets rp ON rp.packet_id = p.packet_id
+            WHERE rp.user_ref = %s AND d.decision <> 'defer'
+              AND d.decided_at >  now() - make_interval(days => %s)
+              AND d.decided_at <= now() - make_interval(days => %s)
+            GROUP BY 1, 2""", (v, a, b))
+        acc = sum(r["n"] for r in rows
+                  if r["decision"] in ("accept", "accept_edited"))
+        rej = {r["reject_reason"]: r["n"] for r in rows
+               if r["decision"] == "reject" and r["reject_reason"]}
+        return acc, rej
+
+    acc_now, rej_now = window(30, 0)
+    acc_prev, rej_prev = window(60, 30)
+    tot_now = acc_now + sum(rej_now.values())
+    tot_prev = acc_prev + sum(rej_prev.values())
+    lines = []
+    if tot_now or tot_prev:
+        lines.append({
+            "line": "You ruled on {0} claim(s) this month and accepted "
+                    "{1}%; last month it was {2} at {3}%.".format(
+                        tot_now,
+                        round(100 * acc_now / tot_now) if tot_now else 0,
+                        tot_prev,
+                        round(100 * acc_prev / tot_prev)
+                        if tot_prev else 0),
+            "kind": "volume"})
+    for reason in sorted(set(rej_now) | set(rej_prev)):
+        a, b = rej_prev.get(reason, 0), rej_now.get(reason, 0)
+        if a == b == 0:
+            continue
+        lines.append({
+            "line": "{0}: {1} \u2192 {2}{3}".format(
+                reason.replace("_", " "), a, b,
+                " \u2014 improving" if b < a else
+                " \u2014 getting worse" if b > a else ""),
+            "kind": "better" if b < a else "worse" if b > a else "flat"})
+    auto = q("""
+        SELECT count(*) AS n,
+               count(*) FILTER (WHERE EXISTS (
+                 SELECT 1 FROM task_events u
+                 WHERE u.task_id = e.task_id
+                   AND u.actor_type = 'manual_edit'
+                   AND u.payload->>'undoes_event_id'
+                       = e.event_id::text)) AS undone
+        FROM task_events e
+        WHERE e.user_ref = %s AND e.actor_type = 'auto_applied'
+          AND e.occurred_at > now() - interval '30 days'""", (v,))
+    if auto and auto[0]["n"]:
+        lines.append({
+            "line": "{0} change(s) applied themselves; you put {1} "
+                    "back. {2}".format(
+                        auto[0]["n"], auto[0]["undone"],
+                        "The gate is earning its keep."
+                        if auto[0]["undone"] == 0 else
+                        "Every put-back tightens the gate\u2019s "
+                        "case for being narrower."),
+            "kind": "flat" if auto[0]["undone"] else "better"})
+    return jsonify({
+        "lines": lines,
+        "note": "Every number here is about claims the SYSTEM made and "
+                "what you ruled -- there is no scorecard of people, "
+                "and there never will be.",
+    })
+
+
 # ------------------------------------------------------- friction killers
 
 @app.route("/api/standup")
