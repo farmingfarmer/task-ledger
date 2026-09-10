@@ -98,6 +98,7 @@ usage() {
   echo "subcommands:"
   echo "  up | doctor     preflight and current pipeline state (default)"
   echo "  env             print the exports, to paste into a bare shell"
+  echo "  tick            the whole cadence: pool, reconcile everyone, deliver"
   echo "  reconcile       signals + board -> ReviewPacket (writes)"
   echo "  review          accept / edit / reject / defer the packet"
   echo "  digest          the week, addressed to a person"
@@ -324,6 +325,11 @@ case "$CMD" in
     export DB_DSN
     echo "tl: suites against $(dbname_of "$DB_DSN")"
     ./run_tests.sh "$@"
+    ;;
+
+  tick)
+    banner; preflight tick
+    python3 cadence/cadence_tick.py "$@"
     ;;
 
   prompt)

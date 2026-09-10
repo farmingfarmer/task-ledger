@@ -84,7 +84,14 @@ if /i "%CMD%"=="help" goto :usage
 if /i "%CMD%"=="up" goto :up
 if /i "%CMD%"=="doctor" goto :up
 if /i "%CMD%"=="env" goto :env
-if /i "%CMD%"=="reconcile" goto :reconcile
+if /i "%CMD%"=="tick" goto :tick
+if /i "%CMD%"=="reconcile" goto :tick
+call :banner
+call :preflight || exit /b 1
+python cadence\cadence_tick.py %ARGS%
+exit /b %errorlevel%
+
+:reconcile
 if /i "%CMD%"=="review" goto :review
 if /i "%CMD%"=="digest" goto :digest
 if /i "%CMD%"=="ask" goto :ask
@@ -116,6 +123,7 @@ echo tl -- one entrypoint for the daily loop.
 echo.
 echo   up ^| doctor     preflight and current pipeline state (default)
 echo   env             print the SET lines, for a bare shell
+echo   tick            the whole cadence: pool, reconcile everyone, deliver
 echo   reconcile       signals + board -^> ReviewPacket (writes)
 echo   review          accept / edit / reject / defer the packet
 echo   digest          the week, addressed to a person
