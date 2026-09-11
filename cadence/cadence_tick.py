@@ -31,8 +31,8 @@ Configuration (environment, set in the launchd plist or a shell):
   TL_REPO           repo root (default: two levels up from this file)
   TL_INBOX          transcript inbox (default ~/task-ledger-inbox)
   TL_EMBED_MODEL    default nomic-embed-text
-  TL_JUDGE_MODEL    default mistral-small3.1
-  TL_EXTRACT_MODEL  default mistral-small3.1
+  TL_JUDGE_MODEL    default: best installed chat model, announced; none -> hold
+  TL_EXTRACT_MODEL  default: best installed chat model, announced
   OLLAMA_HOST_URL   default http://127.0.0.1:11434
   TL_NO_NOTIFY      set to 1 to suppress the popup (tests, headless)
   TL_DIGEST_DAY     weekday for the weekly digest (0=Mon, default 4=Fri)
@@ -417,8 +417,10 @@ def run_reconcile(dsn, user, host, embed_model, judge_model):
         # embedder on any cache trouble.
         embed = embedders.CachedEmbedder(
             embedders.OllamaEmbedder(embed_model, host), dsn, embed_model)
-        judge = ollama_chat(judge_model, host)
-        mode = "ollama"
+        # judge_model may be None on a machine with no chat model
+        # installed: real embeddings, no judge, judge-band held.
+        judge = ollama_chat(judge_model, host) if judge_model else None
+        mode = "ollama" + ("" if judge_model else " (no judge: holds)")
     else:
         embed = embedders.TokenEmbedder()
         judge = None
@@ -605,24 +607,68 @@ def main():
     # has. Ollama being DOWN is not this check's business (the offline
     # path holds work safely); a reachable Ollama that lacks the named
     # model is a configuration error and gets one line, immediately.
+    # UNSET model envs are resolved against what this Ollama actually
+    # has, in a stated preference order -- never against a hard-coded
+    # name. The old default, mistral-small3.1, existed on the machine
+    # this was written on and never on the machine it ran on, so every
+    # fresh window FATALed until somebody remembered the right `set`
+    # line: the exact invisible-window-state disease this launcher has
+    # been curing all week, living in its own preflight. An EXPLICITLY
+    # set model that is missing still fails fast -- a person who named
+    # a model meant that model, and silently substituting would make
+    # the run a lie. Auto-picks are announced, with how to pin.
+    have = installed_models(host) or []
+
+    def _pick(env, preferred, purpose):
+        val = os.environ.get(env)
+        if val:
+            return val, val
+        for cand in preferred:
+            hit = [m for m in have
+                   if m == cand or m.split(":")[0] == cand.split(":")[0]]
+            if hit:
+                log("{0} unset -- using installed {1} for {2} "
+                    "(set {0} to pin a choice)".format(
+                        env, hit[0], purpose))
+                return hit[0], hit[0] + "(auto)"
+        return None, None
+
+    extract_model, extract_label = _pick(
+        "TL_EXTRACT_MODEL",
+        ["mistral-small3.1", "qwen2.5:7b", "llama3.1:8b"], "extraction")
+    judge_model, judge_label = _pick(
+        "TL_JUDGE_MODEL",
+        ["mistral-small3.1", "llama3.1:8b", "qwen2.5:7b"], "judging")
+    embed_model = os.environ.get("TL_EMBED_MODEL", "nomic-embed-text")
+    if extract_model is None:
+        log("FATAL: no usable extraction model. Installed: {0}. Pull "
+            "one (ollama pull qwen2.5:7b) or set TL_EXTRACT_MODEL."
+            .format(", ".join(have) or "none"))
+        return 2
+    if judge_model is None:
+        log("judge: none installed -- ambiguous matches will be HELD, "
+            "not guessed at. Pull a chat model to enable judging.")
+        judge_label = "none"
     missing = missing_models(host, [
-        os.environ.get("TL_EXTRACT_MODEL", "mistral-small3.1"),
-        os.environ.get("TL_JUDGE_MODEL", "mistral-small3.1"),
-        os.environ.get("TL_EMBED_MODEL", "nomic-embed-text")])
+        m for m in (extract_model, judge_model, embed_model) if m])
     if missing:
         log("FATAL: model(s) not installed on this Ollama: {0}. "
             "Installed: {1}. Set TL_*_MODEL to one of those or pull the "
-            "missing one.".format(
-                ", ".join(missing),
-                ", ".join(installed_models(host) or []) or "none"))
+            "missing one.".format(", ".join(missing),
+                                  ", ".join(have) or "none"))
         return 2
-    # Echo the models actually received. A pasted `set` line that never
-    # reaches the program falls back to the default and logs nothing, so a
-    # run with the wrong model is indistinguishable from the one intended.
+    # Make the resolved choices authoritative for every stage this tick
+    # spawns -- subprocesses read the same envs.
+    os.environ["TL_EXTRACT_MODEL"] = extract_model
+    if judge_model:
+        os.environ["TL_JUDGE_MODEL"] = judge_model
+    else:
+        os.environ.pop("TL_JUDGE_MODEL", None)
+    # Echo the models actually in force. A pasted `set` line that never
+    # reached the program is otherwise indistinguishable from the run
+    # intended.
     log("models: extract={0} judge={1} embed={2}".format(
-        os.environ.get("TL_EXTRACT_MODEL", "mistral-small3.1(default)"),
-        os.environ.get("TL_JUDGE_MODEL", "mistral-small3.1(default)"),
-        os.environ.get("TL_EMBED_MODEL", "nomic-embed-text(default)")))
+        extract_label, judge_label, embed_model))
     # And the promotion bar in force, read from the same file the reconciler
     # will read. An edit that never saved -- a mangled paste, a findstr that
     # hung before it could confirm, a Notepad dialog nobody clicked -- is
@@ -639,7 +685,7 @@ def main():
         log("promotion: policy unreadable ({0!r})".format(exc))
     try:
         process_inbox(dsn, inbox, host,
-                      os.environ.get("TL_EXTRACT_MODEL", "mistral-small3.1"),
+                      os.environ["TL_EXTRACT_MODEL"],
                       ollama_chat)
         # Everyone with claims waiting, not just this tick's owner. The
         # notification below stays about TL_USER -- one person is being
@@ -654,8 +700,7 @@ def main():
                 run_reconcile(dsn, who, host,
                               os.environ.get("TL_EMBED_MODEL",
                                              "nomic-embed-text"),
-                              os.environ.get("TL_JUDGE_MODEL",
-                                             "mistral-small3.1"))
+                              os.environ.get("TL_JUDGE_MODEL"))
             except Exception as exc:                    # noqa: BLE001
                 # One person's packet failing must not cost everyone else
                 # theirs; the tick reports it and carries on.
