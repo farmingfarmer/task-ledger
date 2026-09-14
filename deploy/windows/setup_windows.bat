@@ -41,7 +41,7 @@ if errorlevel 1 (
   echo [setup] database taskintel already present
 )
 
-echo [setup] python deps (user scope)
+echo [setup] python deps ^(user scope^)
 python -m pip install --user -q psycopg2-binary jsonschema pyyaml flask || exit /b 1
 
 echo [setup] offline suites

@@ -115,26 +115,26 @@ goto :usage
 :usage
 echo tl -- one entrypoint for the daily loop.
 echo.
-echo   up ^| doctor     preflight and current pipeline state (default)
+echo   up ^| doctor     preflight and current pipeline state ^(default^)
 echo   env             print the SET lines, for a bare shell
 echo   tick            the whole cadence: pool, reconcile everyone, deliver
-echo   reconcile       signals + board -^> ReviewPacket (writes)
+echo   reconcile       signals + board -^> ReviewPacket ^(writes^)
 echo   review          accept / edit / reject / defer the packet
 echo   digest          the week, addressed to a person
 echo   ask "question"  answers over confirmed state, with receipts
 echo   share ^<args^>    grant / revoke / list access
 echo   dashboard       serve http://127.0.0.1:8090 ^(--blind --hands-on --picker^)
-echo   extract ^<file^>  one transcript -^> typed signals (writes)
+echo   extract ^<file^>  one transcript -^> typed signals ^(writes^)
 echo   ingest ^<file^>   a Copilot paste -^> the inbox
-echo   transcripts ^<f^> a Teams transcript (Word .txt) -^> the inbox
-echo   quickscan ^<f^>   what a transcript names + what is new (read-only)
+echo   transcripts ^<f^> a Teams transcript ^(Word .txt^) -^> the inbox
+echo   quickscan ^<f^>   what a transcript names + what is new ^(read-only^)
 echo   brief [meeting] before the standup: what this room said + what became of it
 echo   recall ^<words^>  who said that, when -- quoted, with receipts
 echo   handover ^<who^>  everything one person carries, with history
 echo   kit             package the system + a ledger copy for a teammate
 echo   copilot ^<file^>  build a Copilot-claims ledger beside yours, to compare
 echo   demo-set        generate the synthetic transcript demo set
-echo   demo-tx ^<src^>   build the demo board from transcripts (writes)
+echo   demo-tx ^<src^>   build the demo board from transcripts ^(writes^)
 echo   score ^<dir^>     extraction vs golden labels, measured
 echo   demo            seed a reviewable state, no Ollama needed
 echo   demo-check      drive the real app and assert the demo holds up
@@ -227,7 +227,7 @@ echo %ARGS% | findstr /C:"--hands-on" >nul && set "TL_HANDS_ON=1"
 echo %ARGS% | findstr /C:"--picker" >nul && set "TL_VIEWER_PICKER=1"
 call :preflight || exit /b 1
 rem Browse the literal IP; bare hostnames get https-upgraded on Windows.
-echo tl: http://127.0.0.1:8090  (ctrl-c to stop)
+echo tl: http://127.0.0.1:8090  ^(ctrl-c to stop^)
 python integration\dashboard\dashboard_api.py %ARGS%
 exit /b %errorlevel%
 
@@ -322,7 +322,7 @@ exit /b %errorlevel%
 
 :score
 if not defined ARG1 (
-  echo tl: score needs a corpus directory (with golden.json) 1>&2
+  echo tl: score needs a corpus directory ^(with golden.json^) 1>&2
   exit /b 2
 )
 for %%I in ("%ARG1%") do set "CORPUS=%%~fI"

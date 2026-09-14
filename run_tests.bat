@@ -13,6 +13,7 @@ cd /d "%~dp0testdata" && python test_synth.py || exit /b 1
 cd /d "%~dp0cadence" && python test_cadence.py || exit /b 1
 cd /d "%~dp0integration\tests" && python test_dashboard.py || exit /b 1
 where node >nul 2>&1 && node "%~dp0integration\dashboard\check_js.js" "%~dp0integration\dashboard\dashboard.html"
+python scripts\lint_bat.py || exit /b 1
 cd /d "%~dp0" && set "TL_MAP_OUT=%TEMP%\tl-system-map.html" && python scripts\build_system_map.py || exit /b 1
 echo ALL SUITES COMPLETE
 endlocal

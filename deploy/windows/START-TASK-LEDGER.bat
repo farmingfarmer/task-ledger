@@ -202,7 +202,7 @@ if not defined DBOK (
     rem inside of the ZIP and reported the file did not exist.
     rem ON_ERROR_STOP keeps the log short, so show all of it;
     rem a photo of this window is now the complete bug report.
-    echo   ---- what went wrong (setup-log.txt) ----
+    echo   ---- what went wrong ^(setup-log.txt^) ----
     type "!SETUPLOG!"
     echo   ------------------------------------------
     echo       Photograph this window and send it to whoever
