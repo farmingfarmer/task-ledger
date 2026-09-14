@@ -406,7 +406,15 @@ def main():
 
     if not args.no_ledger and dsn and dump:
         target = os.path.join(args.out, "ledger.sql")
-        cmd = [dump, "-h", parts.get("host", "localhost"),
+        # --no-owner --no-privileges: a plain dump bakes "ALTER ...
+        # OWNER TO <builder's username>" into every object, and the
+        # recipient's Postgres has no such role -- so the restore died
+        # at the first ownership statement, on every machine except the
+        # one that built the kit. First seen the first time a restore
+        # ever ran under a different username; the objects belong to
+        # whoever restores them, which is the point of a kit.
+        cmd = [dump, "--no-owner", "--no-privileges",
+               "-h", parts.get("host", "localhost"),
                "-p", parts.get("port", "5432"), "-d", db, "-f", target]
         if parts.get("user"):
             cmd += ["-U", parts["user"]]
@@ -431,7 +439,8 @@ def main():
                   "ledger; there would be nothing to compare. Stopping.")
             return 1
         target = os.path.join(args.out, "ledger-b.sql")
-        cmd = [dump, "-h", bparts.get("host", "localhost"),
+        cmd = [dump, "--no-owner", "--no-privileges",
+               "-h", bparts.get("host", "localhost"),
                "-p", bparts.get("port", "5432"), "-d", bdb, "-f", target]
         if bparts.get("user"):
             cmd += ["-U", bparts["user"]]

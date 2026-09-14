@@ -196,9 +196,17 @@ if not defined DBOK (
     echo   [X] The ledger could not be prepared, so the app would only
     echo       show errors. Nothing here is your fault.
     echo.
-    echo       What went wrong is written to:
-    echo         !SETUPLOG!
-    echo       Send that file to whoever gave you this kit.
+    rem Print the log RIGHT HERE. "Send that file" asked a
+    rem first-time user to find a path in a folder tree they had
+    rem just extracted -- the first one to try was browsing the
+    rem inside of the ZIP and reported the file did not exist.
+    rem ON_ERROR_STOP keeps the log short, so show all of it;
+    rem a photo of this window is now the complete bug report.
+    echo   ---- what went wrong (setup-log.txt) ----
+    type "!SETUPLOG!"
+    echo   ------------------------------------------
+    echo       Photograph this window and send it to whoever
+    echo       gave you this kit.
     echo.
     pause
     exit /b 1
