@@ -1673,10 +1673,29 @@
               + (d.unblocked || []).length
               + (d.duplicates || []).length;
       var btn = document.getElementById("revbtn");
-      btn.hidden = n === 0;
       btn.innerHTML = "";
-      btn.appendChild(document.createTextNode("Review"));
-      if(n) btn.appendChild(el("span","cnt", String(n)));
+      if(n){
+        btn.hidden = false;
+        btn.appendChild(document.createTextNode("Review"));
+        btn.appendChild(el("span","cnt", String(n)));
+        btn.onclick = openReview;
+      } else {
+        // The queue is empty -- which is exactly when the survey
+        // matters, and the survey's only door used to be inside this
+        // popup. A finished reviewer who lost the form mid-fill had
+        // NO way back: the button that led to it hid itself the
+        // moment they finished. If the form is still owed, the button
+        // stays, relabelled, and leads straight there.
+        btn.hidden = true;
+        get("/api/survey").then(function(spec){
+          if(spec && spec.submitted === false){
+            btn.hidden = false;
+            btn.appendChild(document.createTextNode(
+              "Finish the feedback form"));
+            btn.onclick = function(){ openSurvey(true); };
+          }
+        })["catch"](function(){ /* no survey configured */ });
+      }
       // In a kit, the greeting owns the screen until the person closes
       // it -- it IS the instructions, and the review popping over it
       // buried the one thing a first-time user was supposed to read.
@@ -1737,7 +1756,14 @@
           + (REVIEW.data.quiet || []).length
           + (REVIEW.data.candidates || []).length
         : null;
-      if(counted === 0) return;
+      if(counted === 0){
+        // Cards all answered but the form still owed: closing the
+        // greeting goes straight to the form, not to a quiet page.
+        // openSurvey(false) is a no-op when this arm is already
+        // submitted, so a finished person lands on the checklist.
+        openSurvey(false);
+        return;
+      }
       REVIEW.shown = true;
       openReview();
       if(counted === null) loadReview(false);
