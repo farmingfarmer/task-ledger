@@ -1581,6 +1581,35 @@ def main():
             ok(heard_row["payload"].get("heard_in"),
                "candidate accepts carry the meeting they were heard "
                "in, so no surface can call them hand-typed")
+        # And the PRE-FIX history: an old accept has no heard_in in its
+        # payload and never will, but the alias its accept taught still
+        # chains to the meeting. Seed one shaped exactly like the old
+        # events and demand the history rescues it.
+        OLD = "task-oldaccept-" + str(int(time.time() * 1000))
+        oconn = psycopg2.connect(dsn)
+        with oconn, oconn.cursor() as oc:
+            oc.execute("""
+                SELECT apply_task_event(%s, %s, 'created', 'manual_edit',
+                  NULL, %s::jsonb)""",
+                (OLD, OWNER, json.dumps(
+                    {"title": "Old-style accepted work",
+                     "status": "proposed", "owner_ref": OWNER})))
+            oc.execute("""
+                SELECT apply_task_event(%s, %s, 'alias_added', 'system',
+                  NULL, %s::jsonb)""",
+                (OLD, OWNER, json.dumps(
+                    {"alias": "old style accepted work heard",
+                     "source_signal_id": SIGNAL})))
+        oconn.close()
+        code, hist = as_viewer(client,
+                               "/api/task/" + OLD
+                               + "/history?profile=synthetic", OWNER)
+        created = [e for e in hist["events"]
+                   if e["event_type"] == "created"]
+        ok(code == 200 and created and created[0]["heard_in"],
+           "a PRE-FIX accept -- no heard_in in its payload, ever -- "
+           "still names its meeting through the alias its accept "
+           "taught: the history is rescued, not rewritten")
         # 3. the honest exit for stale work -- its own fixture task,
         #    because cancelling a shared one breaks its owners on rerun
         CXL = "task-cxl-" + str(int(time.time() * 1000))

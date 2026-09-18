@@ -1021,7 +1021,23 @@ def history(task_id):
                d.decision, d.decided_by, d.decided_at,
                p.proposal_id, p.rationale, p.confidence,
                (d.decision_id IS NOT NULL) AS has_provenance,
-               e.payload->>'heard_in' AS heard_in
+               -- heard_in arrived in the payload only after the pilot's
+               -- first reviewer proved "typed by hand" was a lie on
+               -- accepted claims. Events written BEFORE that carry no
+               -- link and never will (append-only) -- but the aliases
+               -- their accepts taught DO carry source_signal_id, so the
+               -- meeting is recoverable for most of them. Payload wins
+               -- when present; the alias chain rescues the history.
+               COALESCE(e.payload->>'heard_in',
+                 CASE WHEN e.event_type = 'created'
+                       AND e.actor_type = 'manual_edit' THEN
+                   (SELECT b.source_ref
+                    FROM task_aliases a
+                    JOIN signals s ON s.signal_id = a.source_signal_id
+                    JOIN extraction_batches b USING (batch_id)
+                    WHERE a.task_id = e.task_id
+                    ORDER BY a.added_at LIMIT 1)
+                 END) AS heard_in
         FROM task_events e
         LEFT JOIN decisions d ON d.decision_id = e.decision_id
         LEFT JOIN proposals p ON p.proposal_id = d.proposal_id
@@ -2771,6 +2787,15 @@ def receipt(task_id):
             continue          # one row per event; extra signals collapse
         seen.add(e["event_id"])
         heard = (e["payload"] or {}).get("heard_in")
+        if (not heard and e["event_type"] == "created"
+                and e["actor_type"] == "manual_edit"):
+            rescue = q("""
+                SELECT b.source_ref FROM task_aliases a
+                JOIN signals s ON s.signal_id = a.source_signal_id
+                JOIN extraction_batches b USING (batch_id)
+                WHERE a.task_id = %s
+                ORDER BY a.added_at LIMIT 1""", (task_id,))
+            heard = rescue[0]["source_ref"] if rescue else None
         who = ("accepted by " + _esc(e["decided_by"])
                if e["actor_type"] == "user_decision" and full
                and e["decided_by"]
