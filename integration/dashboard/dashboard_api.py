@@ -3399,6 +3399,14 @@ def meetings_v2():
         return _need_viewer()
     out = {}
     for r in _claim_rows(v):
+        # A typed note is not a meeting. Each one is its own batch, so
+        # left in, a person who uses quick capture buries their actual
+        # conversations under one-line "meetings" named note-<ts> --
+        # the list capped out at 25 of them in testing. A note's
+        # follow-through already lives where notes live: the review
+        # popup and the standup draft.
+        if r["source_type"] == "manual_note":
+            continue
         m = out.setdefault(r["source_ref"], {
             "source_ref": r["source_ref"], "source_type": r["source_type"],
             "met_at": r["window_start"], "windows": set(), "claims": 0,
