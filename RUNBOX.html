@@ -32,8 +32,8 @@ overwritten whenever the sequence changes &mdash; if you are unsure whether
 it is current, <b>pull first</b>; the newest RUNBOX arrives with the pull.
 Every dark block is pure commands: paste the whole block, nothing in it is
 commentary.</p>
-<p class="stamp">Revision: 2026-09-18 &middot; mission: ship the
-pilot-round-1 fixes to all four testers</p>
+<p class="stamp">Revision: 2026-09-18b &middot; mission: ship the
+pilot-round-1 fixes; Ollama is now one word: tl.bat ollama</p>
 
 <div class="mission"><b>Right now:</b> Jason&rsquo;s feedback is fixed in
 the build (provenance labels, instant capture, &ldquo;not relevant
@@ -71,8 +71,10 @@ attendees only. Quick check per kit before zipping:
 <h2>Cold start (any morning, after any reboot)</h2>
 <p class="why">Three actions, no <code>set</code> lines, no memory
 required.</p>
-<div class="rule">1. Windows key &rarr; type <b>Ollama</b> &rarr; Enter
-(tray icon = server running).</div>
+<div class="block"><pre>tl.bat ollama</pre></div>
+<p class="why">Finds Ollama wherever this machine keeps it (PATH, the
+installed app, or the bare exe in your user folder) and starts it in its
+own window &mdash; leave that window open.</p>
 <div class="block"><pre>tl.bat tick</pre></div>
 <div class="block"><pre>tl.bat dashboard --hands-on --picker</pre></div>
 
@@ -80,8 +82,8 @@ required.</p>
 <p class="why">Another tick holds the lock and you are sure it should not
 (or are happy to let this run redo its window):</p>
 <div class="block"><pre>tl.bat tick --steal</pre></div>
-<p class="why">Ollama not answering and the Start-menu route did not take:</p>
-<div class="block"><pre>start "ollama" "%LOCALAPPDATA%\Programs\Ollama\ollama.exe" serve</pre></div>
+<p class="why">Ollama not answering:</p>
+<div class="block"><pre>tl.bat ollama</pre></div>
 <p class="why">Anything else: photograph the black window &mdash; every
 failure now prints its own explanation, and the photo is the complete bug
 report.</p>

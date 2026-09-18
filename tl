@@ -98,6 +98,7 @@ usage() {
   echo "subcommands:"
   echo "  up | doctor     preflight and current pipeline state (default)"
   echo "  env             print the exports, to paste into a bare shell"
+  echo "  ollama          find and start the local model server"
   echo "  tick            the whole cadence: pool, reconcile everyone, deliver"
   echo "  reconcile       signals + board -> ReviewPacket (writes)"
   echo "  review          accept / edit / reject / defer the packet"
@@ -325,6 +326,16 @@ case "$CMD" in
     export DB_DSN
     echo "tl: suites against $(dbname_of "$DB_DSN")"
     ./run_tests.sh "$@"
+    ;;
+
+  ollama)
+    command -v ollama >/dev/null || {
+      echo "tl: ollama not on PATH -- brew install ollama, or say" >&2
+      echo "    where it lives: export OLLAMA_EXE=/path/to/ollama" >&2
+      exit 1
+    }
+    echo "tl: starting ollama serve (leave it running)"
+    "${OLLAMA_EXE:-ollama}" serve
     ;;
 
   tick)

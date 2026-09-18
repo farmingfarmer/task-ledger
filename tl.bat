@@ -84,6 +84,7 @@ if /i "%CMD%"=="help" goto :usage
 if /i "%CMD%"=="up" goto :up
 if /i "%CMD%"=="doctor" goto :up
 if /i "%CMD%"=="env" goto :env
+if /i "%CMD%"=="ollama" goto :ollama
 if /i "%CMD%"=="tick" goto :tick
 if /i "%CMD%"=="reconcile" goto :reconcile
 if /i "%CMD%"=="review" goto :review
@@ -117,6 +118,7 @@ echo tl -- one entrypoint for the daily loop.
 echo.
 echo   up ^| doctor     preflight and current pipeline state ^(default^)
 echo   env             print the SET lines, for a bare shell
+echo   ollama          find and start the local model server, wherever it lives
 echo   tick            the whole cadence: pool, reconcile everyone, deliver
 echo   reconcile       signals + board -^> ReviewPacket ^(writes^)
 echo   review          accept / edit / reject / defer the packet
@@ -169,6 +171,26 @@ exit /b 0
 call :banner
 python scripts\doctor.py
 exit /b %errorlevel%
+
+:ollama
+rem Find and start Ollama, wherever this machine keeps it. The three
+rem homes seen so far: on PATH, the installed app under LOCALAPPDATA,
+rem and a bare exe in %USERPROFILE%\ollama. A server whose location
+rem lives in somebody's memory is the disease this launcher exists to
+rem cure; one word starts it from any of them.
+set "OLLAMA_EXE="
+where ollama >nul 2>&1 && set "OLLAMA_EXE=ollama"
+if not defined OLLAMA_EXE if exist "%LOCALAPPDATA%\Programs\Ollama\ollama.exe" set "OLLAMA_EXE=%LOCALAPPDATA%\Programs\Ollama\ollama.exe"
+if not defined OLLAMA_EXE if exist "%USERPROFILE%\ollama\ollama.exe" set "OLLAMA_EXE=%USERPROFILE%\ollama\ollama.exe"
+if not defined OLLAMA_EXE (
+  echo tl: could not find ollama.exe -- looked on PATH, in
+  echo     %LOCALAPPDATA%\Programs\Ollama, and %USERPROFILE%\ollama.
+  echo     Say where it lives:  set "OLLAMA_EXE=C:\path\to\ollama.exe"
+  exit /b 1
+)
+echo tl: starting Ollama from "%OLLAMA_EXE%" -- leave its window open
+start "ollama" "%OLLAMA_EXE%" serve
+exit /b 0
 
 :tick
 call :banner
