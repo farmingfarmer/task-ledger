@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Task Ledger RUNBOX</title>
+<style>
+  body{font:15px/1.55 -apple-system,'Segoe UI',sans-serif;color:#1c2733;
+    max-width:860px;margin:2rem auto;padding:0 1rem;background:#fafbfc}
+  h1{font-size:1.5rem;margin-bottom:.1rem}
+  h2{font-size:1.05rem;margin:1.6rem 0 .4rem;border-bottom:2px solid #e3e8ee;
+    padding-bottom:.2rem}
+  .stamp{color:#5a6b7c;font-size:13px}
+  .mission{background:#eef4fb;border:1px solid #cfe0f5;border-radius:8px;
+    padding:10px 14px;margin:1rem 0;font-size:14px}
+  .why{color:#5a6b7c;font-size:13px;margin:.3rem 0 .5rem}
+  .block{position:relative;margin:.4rem 0 1rem}
+  pre{font:13px/1.5 ui-monospace,Consolas,Menlo,monospace;background:#0f1720;
+    color:#d7e2ec;padding:14px 16px;border-radius:8px;overflow-x:auto;
+    white-space:pre}
+  .copy{position:absolute;top:8px;right:8px;font:12px sans-serif;
+    padding:4px 10px;border:1px solid #3b4a5a;border-radius:6px;
+    background:#1c2733;color:#d7e2ec;cursor:pointer}
+  .rule{background:#fff8e6;border:1px solid #eadfb8;border-radius:8px;
+    padding:8px 12px;font-size:13.5px;margin:.5rem 0}
+  .stop{color:#c0392b;font-weight:600}
+</style>
+</head>
+<body>
+<h1>RUNBOX</h1>
+<p class="stamp">The exact commands for the ThinkPad, in order. This file is
+overwritten whenever the sequence changes &mdash; if you are unsure whether
+it is current, <b>pull first</b>; the newest RUNBOX arrives with the pull.
+Every dark block is pure commands: paste the whole block, nothing in it is
+commentary.</p>
+<p class="stamp">Revision: 2026-09-18 &middot; mission: ship the
+pilot-round-1 fixes to all four testers</p>
+
+<div class="mission"><b>Right now:</b> Jason&rsquo;s feedback is fixed in
+the build (provenance labels, instant capture, &ldquo;not relevant
+anymore&rdquo;, faster load, clearer receipts and saves). Rebuild all five
+kits and resend, then reply to Jason and ask him to finish his Ledger&nbsp;B
+form.</p></div>
+
+<h2>1 &middot; Update the machine</h2>
+<div class="block"><pre>cd %USERPROFILE%\dev\task-ledger
+git pull</pre></div>
+
+<h2>2 &middot; The two session lines (fresh window only)</h2>
+<p class="why">The salt decides who sees which ledger as A/B &mdash; same
+names in, same salt out. Paste the <code>set "TL_BLIND_SALT=..."</code>
+line the first command prints, then set the second-ledger pointer.</p>
+<div class="block"><pre>tl.bat blind alexander-marunycz yesha-patel jason-tjia lorenzo-rossi patrick-toral --balance</pre></div>
+<div class="block"><pre>set "CPDSN=host=localhost port=5433 dbname=taskintel_copilot user=%USERNAME%"</pre></div>
+
+<h2>3 &middot; Build the five kits</h2>
+<div class="block"><pre>tl.bat kit --for alexander-marunycz --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
+tl.bat kit --for jason-tjia --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
+tl.bat kit --for yesha-patel --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
+tl.bat kit --for lorenzo-rossi --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
+tl.bat kit --for patrick-toral --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply</pre></div>
+
+<h2>4 &middot; Prove one cold, then ship</h2>
+<div class="rule">Close every Task Ledger black window first (port 8090).
+Zip <b>your own</b> kit, extract the zip somewhere fresh, double-click
+START-TASK-LEDGER.bat, and walk to the greeting. Only when your greeting
+appears: zip the other four and send &mdash; named folder to named person,
+attendees only. Quick check per kit before zipping:
+<code>kit-config.json</code> names the right person, and
+<code>ledger.sql</code> has <b>zero</b> hits for <code>OWNER TO</code>.</div>
+
+<h2>Cold start (any morning, after any reboot)</h2>
+<p class="why">Three actions, no <code>set</code> lines, no memory
+required.</p>
+<div class="rule">1. Windows key &rarr; type <b>Ollama</b> &rarr; Enter
+(tray icon = server running).</div>
+<div class="block"><pre>tl.bat tick</pre></div>
+<div class="block"><pre>tl.bat dashboard --hands-on --picker</pre></div>
+
+<h2>Rescues</h2>
+<p class="why">Another tick holds the lock and you are sure it should not
+(or are happy to let this run redo its window):</p>
+<div class="block"><pre>tl.bat tick --steal</pre></div>
+<p class="why">Ollama not answering and the Start-menu route did not take:</p>
+<div class="block"><pre>start "ollama" "%LOCALAPPDATA%\Programs\Ollama\ollama.exe" serve</pre></div>
+<p class="why">Anything else: photograph the black window &mdash; every
+failure now prints its own explanation, and the photo is the complete bug
+report.</p>
+
+<script>
+document.querySelectorAll("pre").forEach(function(pre){
+  var b=document.createElement("button");
+  b.className="copy";b.textContent="copy";
+  b.onclick=function(){
+    navigator.clipboard.writeText(pre.textContent);
+    b.textContent="copied";setTimeout(function(){b.textContent="copy"},1500);
+  };
+  pre.parentNode.insertBefore(b,pre);
+});
+</script>
+</body>
+</html>
