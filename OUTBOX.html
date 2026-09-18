@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Task Ledger OUTBOX</title>
+<style>
+  body{font:15px/1.55 -apple-system,'Segoe UI',sans-serif;color:#1c2733;
+    max-width:860px;margin:2rem auto;padding:0 1rem;background:#fafbfc}
+  h1{font-size:1.5rem;margin-bottom:.1rem}
+  .stamp{color:#5a6b7c;font-size:13px;margin-bottom:1rem}
+  .block{position:relative;margin:.4rem 0 1.2rem}
+  pre{font:13.5px/1.6 -apple-system,'Segoe UI',sans-serif;background:#fff;
+    color:#1c2733;padding:16px 18px;border:1px solid #d9dee5;
+    border-radius:8px;white-space:pre-wrap}
+  .copy{position:absolute;top:8px;right:8px;font:12px sans-serif;
+    padding:4px 10px;border:1px solid #c6ccd4;border-radius:6px;
+    background:#f4f7fa;cursor:pointer}
+  h2{font-size:1rem;margin:1.2rem 0 .3rem}
+</style>
+</head>
+<body>
+<h1>OUTBOX</h1>
+<p class="stamp">The current outgoing message, ready to paste. Replaced with
+each new message; pull first and this is always the latest. Revision:
+2026-09-18 &middot; to: Jason, with his round-2 kit.</p>
+
+<h2>Subject / first line</h2>
+<div class="block"><pre>Fresh Task Ledger kit — everything you flagged, addressed. Your answers carry over.</pre></div>
+
+<h2>The message</h2>
+<div class="block"><pre>Jason — thank you for the walkthrough video and the writeups. That was exactly the feedback this pilot exists for: every item below traces to something you said, and several were bugs nobody would have found without you.
+
+Fixed because of your input, in this kit:
+
+1. "Tasks marked 'typed by hand' were not entered manually" — you were right, and it's fixed everywhere, including your older tasks. Accepted claims now say "accepted from a claim heard in <meeting>" with the meeting named.
+2. Receipts now name their sources in words — "sprint planning (2026-09-10)", "Copilot export of..." — instead of internal ids.
+3. Capture no longer swallows your words: type a note and it becomes a review card instantly, and the message tells you exactly where it went.
+4. Old, no-longer-relevant tasks now have an honest exit: a "Not relevant anymore" button — no more choosing between a false "Done" and letting them haunt the list.
+5. Saving your week now says where the numbers went and what happens Monday.
+6. The feedback form can't strand you anymore: a "Finish the feedback form" button stays in the header until you've sent it, and closing the greeting drops you back into an unfinished form.
+7. The page loads much lighter — collapsed sections only load when you open them.
+8. Typed notes no longer clutter the Conversations panel as fake one-line "meetings."
+
+Still open, and two of them need YOU:
+
+- Load time: it should be far faster now — would you time it once and tell me roughly how long from double-click to greeting? One number is plenty.
+- Your Ledger B feedback form: your Ledger A answers arrived, but the form ate your Ledger B thoughts before I fixed it. When your cards are done, "Finish the feedback form" in the header is the way in — that half is the piece my comparison is still missing.
+- Logging hours actually worked (your "I worked 5 hours on this") — on the roadmap, not in this build yet.
+- Your Teams-bot-to-sprint-board idea — going straight into my meeting with IT about automatic transcript access. A PM asking for it unprompted is my best exhibit.
+
+Same routine as before: delete the old ZIP and folders, extract this one to a plain folder like C:\taskledger, open folders until you see START-TASK-LEDGER, double-click. Everything you've already answered is kept — you will not redo anything. If you'd already saved any feedback files, copy the my-answers folder from the old kit into the new one first.
+
+If anything misbehaves, the black window now prints its own explanation — one photo of it is a complete bug report.
+
+— Alex</pre></div>
+
+<script>
+document.querySelectorAll("pre").forEach(function(pre){
+  var b=document.createElement("button");
+  b.className="copy";b.textContent="copy";
+  b.onclick=function(){
+    navigator.clipboard.writeText(pre.textContent);
+    b.textContent="copied";setTimeout(function(){b.textContent="copy"},1500);
+  };
+  pre.parentNode.insertBefore(b,pre);
+});
+</script>
+</body>
+</html>
