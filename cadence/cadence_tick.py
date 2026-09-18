@@ -617,7 +617,27 @@ def main():
     # set model that is missing still fails fast -- a person who named
     # a model meant that model, and silently substituting would make
     # the run a lie. Auto-picks are announced, with how to pin.
-    have = installed_models(host) or []
+    have = installed_models(host)
+    if have is None:
+        # Unreachable is NOT "no models installed" -- it is nobody home,
+        # and it has its own long-standing answer: the offline pass.
+        # The auto-pick change briefly collapsed the two and turned a
+        # stopped Ollama into a FATAL that told the operator to pull a
+        # model he already had. Extraction leaves the inbox alone,
+        # reconciliation runs the offline matcher and holds ambiguity,
+        # and this line says the one thing worth doing about it.
+        log("Ollama is not answering at {0} -- start it (Windows key, "
+            "type Ollama, Enter; look for the tray icon). Running this "
+            "tick OFFLINE: transcripts wait in the inbox, matching uses "
+            "the offline embedder, ambiguity holds.".format(host))
+        log("models: extract=offline judge=offline embed=offline")
+        return _run_stages(dsn, user, host, inbox)
+    if have == []:
+        log("FATAL: Ollama is running but has NO models installed. "
+            "Pull the two it needs:")
+        log("    ollama pull qwen2.5:7b")
+        log("    ollama pull nomic-embed-text")
+        return 2
 
     def _pick(env, preferred, purpose):
         val = os.environ.get(env)
@@ -669,6 +689,15 @@ def main():
     # intended.
     log("models: extract={0} judge={1} embed={2}".format(
         extract_label, judge_label, embed_model))
+    return _run_stages(dsn, user, host, inbox)
+
+
+def _run_stages(dsn, user, host, inbox):
+    """Everything after preflight: extraction, reconciliation, poke,
+    digest. Runs identically whether models were resolved or the tick
+    is offline -- each stage already carries its own degraded path
+    (extraction leaves the inbox when Ollama is unreachable; the
+    reconciler falls back to the offline embedder and holds)."""
     # And the promotion bar in force, read from the same file the reconciler
     # will read. An edit that never saved -- a mangled paste, a findstr that
     # hung before it could confirm, a Notepad dialog nobody clicked -- is
@@ -685,7 +714,7 @@ def main():
         log("promotion: policy unreadable ({0!r})".format(exc))
     try:
         process_inbox(dsn, inbox, host,
-                      os.environ["TL_EXTRACT_MODEL"],
+                      os.environ.get("TL_EXTRACT_MODEL", "offline"),
                       ollama_chat)
         # Everyone with claims waiting, not just this tick's owner. The
         # notification below stays about TL_USER -- one person is being
@@ -733,6 +762,8 @@ def main():
     except Exception as e:
         log("tick FAILED: {0!r}".format(e))
         return 1
+
+
 
 
 if __name__ == "__main__":
