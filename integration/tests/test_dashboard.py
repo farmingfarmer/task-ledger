@@ -98,6 +98,33 @@ def seed(conn):
                   AND d.decision_id IS NULL
                 ON CONFLICT (proposal_id, decided_by) DO NOTHING""",
                 (OWNER, ATTRIB_PROP, UNCITED_PROP, SERIES_PROP))
+            # Restore the packet landscape. The capture test reconciles
+            # inline, which SUPERSEDES the fixture packet and leaves its
+            # own as the owner's newest open one -- so the next run's
+            # pending assertions would count the wrong packet. Append-
+            # only surgery, same semantics the orchestrator uses: every
+            # stray open packet is superseded, and the fixture packet is
+            # re-delivered (latest state event wins).
+            cur.execute("""
+                INSERT INTO packet_state_events (packet_id, state)
+                SELECT rp.packet_id, 'superseded'
+                FROM review_packets rp
+                JOIN (SELECT DISTINCT ON (packet_id) packet_id, state
+                      FROM packet_state_events
+                      ORDER BY packet_id, event_id DESC) le
+                  USING (packet_id)
+                WHERE rp.user_ref = %s AND rp.packet_id <> %s
+                  AND le.state IN ('draft','delivered',
+                                   'partially_decided')""",
+                (OWNER, PACKET))
+            cur.execute("""
+                INSERT INTO packet_state_events (packet_id, state)
+                SELECT %s, 'delivered'
+                WHERE (SELECT state FROM packet_state_events
+                       WHERE packet_id = %s
+                       ORDER BY event_id DESC LIMIT 1)
+                      NOT IN ('draft','delivered','partially_decided')""",
+                (PACKET, PACKET))
             cur.execute("SELECT 1 FROM tasks_current WHERE task_id = %s",
                         (TASK,))
             if cur.fetchone() is None:
@@ -598,7 +625,14 @@ def main():
     mine = [m for m in mtgs if m["source_ref"] == "dash-fixture"]
     ok(code == 200 and mine, "the viewer's own conversation is reported")
     m = mine[0]
-    ok(m["claims"] == 3 and m["on the board"] >= 1 and m["waiting"] >= 1,
+    # >= 3, not == 3: a claim is "this meeting's" once it has ever been
+    # pooled to the viewer, and superseding a packet legitimately
+    # RETURNS its undecided signals to the pool -- so any test that
+    # triggers a supersede (the capture test does, by design) adds real
+    # pool events to this meeting forever. The invariant is that the
+    # three canonical fixture claims are among them, not that history
+    # stopped.
+    ok(m["claims"] >= 3 and m["on the board"] >= 1 and m["waiting"] >= 1,
        "a meeting summarises what its claims became "
        "({0} claims, {1} on the board, {2} waiting)".format(
            m["claims"], m["on the board"], m["waiting"]))
@@ -1143,8 +1177,19 @@ def main():
                    AND NOT EXISTS (SELECT 1 FROM task_blockers
                                    WHERE task_id = 'task-wk-blocked')""")
         wconn.close()
-        code, sheet = as_viewer(client, "/api/workload?profile=synthetic",
-                                OWNER)
+        # A run-unique week for every stated-number assertion. Stated
+        # rows persist per (subject, week) forever, and priority drift
+        # across runs changes which row a run's save lands on -- so on
+        # an aged database the "untouched rows stay proposals" check
+        # kept meeting statements left by earlier generations. A week
+        # nobody has ever stated into is a clean sheet by construction.
+        import datetime as _dt
+        WKN = (_dt.date(2030, 1, 7)
+               + _dt.timedelta(weeks=int(time.time()) % 4000))
+        WKN = str(WKN - _dt.timedelta(days=WKN.weekday()))
+        code, sheet = as_viewer(client,
+                                "/api/workload?profile=synthetic&week="
+                                + WKN, OWNER)
         ok(code == 200 and sheet["rows"],
            "the sheet exists, one row per project or parent")
         blocked = [r for r in sheet["rows"]
@@ -1161,7 +1206,7 @@ def main():
 
         sid = sheet["rows"][0]["subject"]
         code, body = spost("/api/workload?profile=synthetic",
-                           {"week_start": sheet["week_start"],
+                           {"week_start": WKN,
                             "capacity": 38,
                             "rows": [{"subject": sid, "opening_total": 20,
                                       "planned": 9.5, "priority": 1}]})
@@ -1169,7 +1214,8 @@ def main():
            "stating capacity, an opening total, a plan and a priority "
            "writes four events")
         code, sheet2 = as_viewer(client,
-                                 "/api/workload?profile=synthetic", OWNER)
+                                 "/api/workload?profile=synthetic&week="
+                                 + WKN, OWNER)
         row = [r for r in sheet2["rows"] if r["subject"] == sid][0]
         ok(row["opening_total"]["source"] == "stated"
            and row["planned"]["source"] == "stated"
@@ -1186,7 +1232,7 @@ def main():
            "rows the person did not touch stay proposals -- saving one "
            "row does not silently adopt the rest")
         code, _ = spost("/api/workload?profile=synthetic",
-                        {"week_start": sheet["week_start"],
+                        {"week_start": WKN,
                          "rows": [{"subject": "task-of-somebody-else",
                                    "planned": 4}]})
         ok(code == 400,
@@ -1194,6 +1240,13 @@ def main():
            "self-only in both directions")
         code, _ = as_viewer(client, "/api/workload?profile=synthetic")
         ok(code == 401, "and anonymous gets nothing")
+        # One CURRENT-week statement too: the team-week test asserts the
+        # grantee sees a 9.5 h plan, and the shared view reads the
+        # current week by design.
+        code, _ = spost("/api/workload?profile=synthetic",
+                        {"week_start": sheet["week_start"],
+                         "rows": [{"subject": sid, "planned": 9.5}]})
+        ok(code == 200, "a current-week plan saves too")
 
         print("friction killers")
         # standup: the board turned into words, receipts attached
@@ -1250,9 +1303,10 @@ def main():
         # radar: deadlines ranked by worry
         rconn = psycopg2.connect(dsn)
         with rconn, rconn.cursor() as rc:
-            rc.execute("SELECT 1 FROM tasks_current WHERE task_id = "
-                       "'task-radar-over'")
-            if rc.fetchone() is None:
+            rc.execute("SELECT status FROM tasks_current WHERE "
+                       "task_id = 'task-radar-over'")
+            rrow = rc.fetchone()
+            if rrow is None:
                 rc.execute("""
                     SELECT apply_task_event('task-radar-over', %s,
                       'created', 'manual_edit', NULL, %s::jsonb)""",
@@ -1260,6 +1314,15 @@ def main():
                         {"title": "Radar overdue fixture",
                          "status": "in_progress", "owner_ref": OWNER,
                          "deadline": "2026-01-05"})))
+            elif rrow[0] in ("completed", "cancelled"):
+                # an earlier generation of the cancel test closed it;
+                # the radar only watches OPEN work, so reopen -- the
+                # fixture owes the state, not merely the row
+                rc.execute("""
+                    SELECT apply_task_event('task-radar-over', %s,
+                      'status_changed', 'manual_edit', NULL,
+                      %s::jsonb)""",
+                    (OWNER, json.dumps({"to_status": "in_progress"})))
         rconn.close()
         code, rad = as_viewer(client, "/api/radar?profile=synthetic",
                               OWNER)
@@ -1476,6 +1539,104 @@ def main():
            "scorecard of people")
         code, _ = as_viewer(client, "/api/scorecard?profile=synthetic")
         ok(code == 401, "self-only, like every judgement surface")
+
+        print("jason's pilot findings")
+        # Runs LAST in the writable section: the instant
+        # reconcile SUPERSEDES the fixture packet (the tick's own
+        # semantics), so every assertion that expects the fixture
+        # packet open must already have run.
+        # 1. capture closes its own loop: the note becomes a card in
+        #    the SAME request, because kits never run ticks and a
+        #    pooled-forever note reads as words vanishing.
+        code, body = spost("/api/note?profile=synthetic",
+                           {"text": "Create a PowerPoint agent for "
+                                    "copilot ability spread",
+                            "kind": "work"})
+        ok(code == 200 and body.get("reconciled") is True,
+           "a captured note is reconciled on the spot, offline, "
+           "through the same gates")
+        code, rev_n = as_viewer(client, "/api/review?profile=synthetic",
+                                OWNER)
+        found = [p for p in rev_n["proposals"]
+                 if "PowerPoint agent" in (p["payload"].get("title")
+                                           or "")]
+        ok(found,
+           "and it is a review card before the response lands -- "
+           "nobody watches their own words disappear again")
+        # 2. a candidate accepted from a heard claim stops being
+        #    labeled "typed by hand"
+        cconn = psycopg2.connect(dsn)
+        with cconn.cursor(
+                cursor_factory=psycopg2.extras.RealDictCursor) as cc:
+            cc.execute("""
+                SELECT payload FROM task_events
+                WHERE actor_type = 'manual_edit'
+                  AND payload->>'accepted_from_signal' IS NOT NULL
+                LIMIT 1""")
+            heard_row = cc.fetchone()
+        cconn.close()
+        # (the candidate flow is exercised earlier in this suite; if a
+        # row exists it must carry its heard_in)
+        if heard_row:
+            ok(heard_row["payload"].get("heard_in"),
+               "candidate accepts carry the meeting they were heard "
+               "in, so no surface can call them hand-typed")
+        # 3. the honest exit for stale work -- its own fixture task,
+        #    because cancelling a shared one breaks its owners on rerun
+        CXL = "task-cxl-" + str(int(time.time() * 1000))
+        xconn = psycopg2.connect(dsn)
+        with xconn, xconn.cursor() as xc:
+            xc.execute("""
+                SELECT apply_task_event(%s, %s, 'created', 'manual_edit',
+                  NULL, %s::jsonb)""",
+                (CXL, OWNER, json.dumps(
+                    {"title": "Word agent testing (two months old)",
+                     "status": "in_progress", "owner_ref": OWNER})))
+        xconn.close()
+        code, _ = spost("/api/nudge?profile=synthetic",
+                        {"task_id": CXL, "status": "cancelled",
+                         "note": "not relevant anymore"})
+        ok(code == 200,
+           "'not relevant anymore' is one tap: cancelled, typed by "
+           "you, not a false Done")
+        nconn2 = psycopg2.connect(dsn)
+        with nconn2.cursor() as nc2:
+            nc2.execute("SELECT status FROM tasks_current WHERE "
+                        "task_id = %s", (CXL,))
+            ok(nc2.fetchone()[0] == 'cancelled',
+               "and the board says cancelled, with the note in the "
+               "event record")
+        nconn2.close()
+        # Put the packet landscape back. The instant reconcile
+        # SUPERSEDED the fixture packet (by design); every fixture-
+        # packet assertion after this point -- wherever the file's
+        # section order drifts to next -- needs it open again. The
+        # restoration is the same append-only surgery the seed does,
+        # so this block is position-independent instead of a landmine
+        # for whoever inserts a test after it.
+        rconn2 = psycopg2.connect(dsn)
+        with rconn2, rconn2.cursor() as rr:
+            rr.execute("""
+                INSERT INTO packet_state_events (packet_id, state)
+                SELECT rp.packet_id, 'superseded'
+                FROM review_packets rp
+                JOIN (SELECT DISTINCT ON (packet_id) packet_id, state
+                      FROM packet_state_events
+                      ORDER BY packet_id, event_id DESC) le
+                  USING (packet_id)
+                WHERE rp.user_ref = %s AND rp.packet_id <> %s
+                  AND le.state IN ('draft','delivered',
+                                   'partially_decided')""",
+                (OWNER, PACKET))
+            rr.execute("""
+                INSERT INTO packet_state_events (packet_id, state)
+                SELECT %s, 'delivered'
+                WHERE (SELECT state FROM packet_state_events
+                       WHERE packet_id = %s
+                       ORDER BY event_id DESC LIMIT 1)
+                      NOT IN ('draft','delivered','partially_decided')""",
+                (PACKET, PACKET))
+        rconn2.close()
 
         print("unreachable ledger")
         saved = dict(dashboard_api.PROFILES.get("copilot") or {})

@@ -1103,8 +1103,11 @@
       else if(d.capacity.value == null && capin.value !== "")
         body.capacity = Number(capin.value);
       save.disabled = true; note.textContent = "  Saving\u2026";
-      post("/api/workload", body).then(function(){
-        note.textContent = "  Saved.";
+      post("/api/workload", body).then(function(r){
+        note.textContent = "  Saved for the week of " + r.week_start
+          + " \u2014 it stays on this sheet (numbers turn upright), "
+          + "and next Monday's \u2018hours so far\u2019 rolls it "
+          + "forward.";
         loadWeek();
       })["catch"](function(e){
         save.disabled = false; note.textContent = "  " + e.message;
@@ -1256,6 +1259,9 @@
           inp.value = "";
           go.disabled = false;
           note.textContent = " " + r.detail;
+          // the card is real the moment the response lands -- open
+          // the review so the person SEES where their words went
+          if(r.reconciled){ REVIEW.shown = false; loadReview(true); }
         })["catch"](function(e){
           go.disabled = false; note.textContent = " " + e.message;
         });
@@ -1322,6 +1328,19 @@
     panel("scorecard", "/api/scorecard", paintScorecard);
   }
 
+  // Load a details-panel's content on first open; reload fresh on
+  // every reopen (cheap, and the data may have moved).
+  function lazySection(id, loader){
+    var node = document.getElementById(id);
+    if(!node) return;
+    var det = node.closest ? node.closest("details") : null;
+    if(!det){ loader(); return; }
+    if(det.open){ loader(); return; }
+    det.addEventListener("toggle", function(){
+      if(det.open) loader();
+    });
+  }
+
   function loadWeek(){
     panel("weekpanel", "/api/workload",
           function(_node, data){ paintWeek(data); });
@@ -1334,11 +1353,22 @@
     paintPipe(); paintDrawer();
     loadWork(); loadPending(); loadHeld(); loadMetrics();
     loadTimeline();
-    loadTeam(); loadShares(); loadCalibration();
-    loadProjects(); loadRecent(); loadMeetings();
-    loadWeek(); loadTeamWeek(); loadRadar(); loadStandup();
-    loadScorecard();
+    loadProjects(); loadRecent();
+    loadWeek(); loadRadar();
     paintCapture();
+    // Everything living inside a closed <details> loads when the
+    // person OPENS it, not at boot. Boot used to fire every panel on
+    // the page at once -- a dozen queries, some heavy, against a
+    // laptop database, twice per ledger switch -- and the first pilot
+    // machine took minutes to settle while Teams and Outlook gasped
+    // beside it. A closed drawer owes nobody a database query.
+    lazySection("standup", loadStandup);
+    lazySection("scorecard", loadScorecard);
+    lazySection("teamweek", loadTeamWeek);
+    lazySection("meetings", loadMeetings);
+    lazySection("team", loadTeam);
+    lazySection("shares", loadShares);
+    lazySection("cal", loadCalibration);
     document.getElementById("askout").innerHTML = "";
     document.getElementById("askhint").textContent =
       "Answers come from confirmed board state, with their receipts. " +
@@ -2677,6 +2707,10 @@
     acts.appendChild(ask("Still going", "in_progress"));
     acts.appendChild(ask("Blocked", "blocked"));
     acts.appendChild(ask("Done", "completed"));
+    // The commonest true answer about old work, per the first pilot
+    // reviewer: real then, not relevant now. Without this button the
+    // only exits were a false "Done" or eternal haunting of this list.
+    acts.appendChild(ask("Not relevant anymore", "cancelled"));
     row.appendChild(acts);
     return row;
   }
@@ -2861,7 +2895,10 @@
     var out = what + (detail ? " " + String(detail).replace(/_/g," ") : "") +
               " \u00b7 " + when + (days != null ? " (" + days + "d ago)" : "");
     if(ln.on_whose_word) out += " \u00b7 on " + ln.on_whose_word + "'s word";
-    else if(ln.actor_type === "manual_edit") out += " \u00b7 typed by hand";
+    else if(ln.actor_type === "manual_edit")
+      out += ln.heard_in
+        ? " \u00b7 accepted from a claim heard in " + ln.heard_in
+        : " \u00b7 typed by hand";
     else if(ln.actor_type === "user_decision") out += " \u00b7 you confirmed it";
     return out;
   }

@@ -1020,7 +1020,8 @@ def history(task_id):
                e.actor_type, e.payload,
                d.decision, d.decided_by, d.decided_at,
                p.proposal_id, p.rationale, p.confidence,
-               (d.decision_id IS NOT NULL) AS has_provenance
+               (d.decision_id IS NOT NULL) AS has_provenance,
+               e.payload->>'heard_in' AS heard_in
         FROM task_events e
         LEFT JOIN decisions d ON d.decision_id = e.decision_id
         LEFT JOIN proposals p ON p.proposal_id = d.proposal_id
@@ -2102,6 +2103,23 @@ def candidate_rule():
                         "deadline": None, "parent_task_id": None})))
 
             task_id = "task-" + cid[:8]
+            # The heard claim rides in the payload. Without it, a task a
+            # person ACCEPTED from a meeting claim was labeled "typed by
+            # hand" everywhere -- the first pilot reviewer said, flatly,
+            # that he did not type it, and he was right. actor_type stays
+            # manual_edit (a human decided, no proposal id exists on the
+            # candidate path); the payload says what the decision was
+            # ABOUT, and every surface can now say "accepted from a
+            # claim heard in <meeting>" instead of lying by omission.
+            cur.execute("""
+                SELECT e.signal_id, b.source_ref
+                FROM task_candidate_events e
+                JOIN signals s ON s.signal_id = e.signal_id
+                JOIN extraction_batches b ON b.batch_id = s.batch_id
+                WHERE e.candidate_id = %s AND e.user_ref = %s
+                  AND e.event = 'sighted' AND e.signal_id IS NOT NULL
+                ORDER BY e.event_id DESC LIMIT 1""", (cid, v))
+            lead = cur.fetchone()
             cur.execute(
                 "SELECT apply_task_event(%s,%s,'created','manual_edit',"
                 "NULL,%s::jsonb)",
@@ -2110,7 +2128,10 @@ def candidate_rule():
                     "status": "proposed", "owner_ref": v,
                     "deadline": None,
                     "parent_task_id": parent_id
-                    if action == "attach" else None})))
+                    if action == "attach" else None,
+                    "accepted_from_signal": (lead["signal_id"]
+                                             if lead else None),
+                    "heard_in": (lead["source_ref"] if lead else None)})))
             # Every wording the register heard this work under becomes an
             # alias, so the paraphrases that corroborated the candidate can
             # match the task directly instead of asking a judge -- the same
@@ -2643,6 +2664,26 @@ def duplicate_ruling():
 
 # --------------------------------------------------------- receipt pages
 
+def _pretty_source(ref):
+    """source_refs are ids; people read words. 'teams-2026-09-10-sprint-
+    planning-p2' -> 'sprint planning (2026-09-10)'; 'copilot-claims-...'
+    says what it is. The raw ref stays available everywhere -- this is a
+    reading aid, not a replacement."""
+    if not ref:
+        return "(unrecorded)"
+    m = re.match(r"(?:teams|meeting|copilot)-(\d{4}-\d{2}-\d{2})-(.+?)"
+                 r"(?:-p\d+)?$", ref)
+    if m:
+        return "{0} ({1})".format(m.group(2).replace("-", " "),
+                                  m.group(1))
+    m = re.match(r"copilot-claims-(\d{4}-\d{2}-\d{2})-(.+)$", ref)
+    if m:
+        return "Copilot export of {0}".format(m.group(1))
+    if ref.startswith("note-"):
+        return "a note typed directly"
+    return ref
+
+
 RECEIPT_CSS = """
 body{font:14px/1.55 -apple-system,'Segoe UI',sans-serif;color:#1c2733;
   max-width:760px;margin:2rem auto;padding:0 1rem}
@@ -2729,11 +2770,15 @@ def receipt(task_id):
         if e["event_id"] in seen:
             continue          # one row per event; extra signals collapse
         seen.add(e["event_id"])
+        heard = (e["payload"] or {}).get("heard_in")
         who = ("accepted by " + _esc(e["decided_by"])
                if e["actor_type"] == "user_decision" and full
                and e["decided_by"]
                else "a person decided" if e["actor_type"]
                    == "user_decision"
+               else ("accepted by a person, from a claim heard in "
+                     + _esc(_pretty_source(heard)))
+                   if e["actor_type"] == "manual_edit" and heard
                else "typed by hand" if e["actor_type"] == "manual_edit"
                else "auto-applied, unconfirmed"
                    if e["actor_type"] == "auto_applied"
@@ -2750,7 +2795,8 @@ def receipt(task_id):
                            _esc(e["said"]),
                            " said by " + _esc(e["said_by"])
                            if e["said_by"] else "",
-                           " in " + _esc(e["source_ref"])
+                           " in " + _esc(_pretty_source(
+                               e["source_ref"]))
                            if e["source_ref"] else "",
                            _esc(e["resource_id"] or "\u2014"),
                            _esc((e["content_hash"] or "")[:16])))
@@ -2944,6 +2990,47 @@ def standup():
                             "a draft, not a report card."})
 
 
+def _reconcile_now(v):
+    """One person's pool through the full reconciler, synchronously.
+
+    Offline embedder and no judge, deliberately: deterministic, fast,
+    zero model dependencies -- a kit machine has no Ollama and must
+    not need one to see its own note become a card. Ambiguous matches
+    hold, exactly as the no-judge path always has. The packet write
+    uses the same storage path as every tick, so nothing about the
+    record says this happened in a request instead of a cadence.
+    """
+    root = os.path.normpath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+    for sub in ("reconciler",):
+        d = os.path.join(root, sub)
+        if d not in sys.path:
+            sys.path.insert(0, d)
+    import board_io_pg
+    import embedders
+    import reconciler as rec_mod
+    dsn = profile_dsn()
+    signals = board_io_pg.load_signals(dsn, v)
+    if not signals:
+        return
+    tasks, version = board_io_pg.load_board(dsn, v)
+    all_tasks = board_io_pg.load_all_boards(dsn)
+    candidates = board_io_pg.load_candidates(
+        dsn, v, window_days=(rec_mod.load_policy()
+                             .get("candidate_promotion")
+                             or {}).get("window_days"))
+    run_id = "note-{0}".format(
+        datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
+    rec = rec_mod.Reconciler(embed=embedders.TokenEmbedder(),
+                             judge_llm=None)
+    packet, report = rec.reconcile(v, signals, tasks, version, run_id,
+                                   all_tasks=all_tasks,
+                                   candidates=candidates)
+    board_io_pg.write_packet(dsn, packet, report["consumed"],
+                             report["annotations"], run_id,
+                             report=report)
+
+
 @app.route("/api/note", methods=["POST"])
 def quick_note():
     """One typed line -> the same pool, gates and review as a meeting.
@@ -3028,10 +3115,28 @@ def quick_note():
                                   ".sql, then note again."}), 409
     finally:
         conn.close()
-    return jsonify({"ok": True,
-                    "detail": "Captured, typed by you, into the same "
-                              "pool as everything else. It becomes a "
-                              "card at the next reconcile tick."})
+    # INSTANT LOOP. "It becomes a card at the next tick" was written
+    # for the machine that runs ticks; a kit never does, so a captured
+    # note vanished into the pool forever and the first pilot reviewer
+    # watched his own words disappear -- "I don't know where it's
+    # going" -- which is the exact feeling this system exists to
+    # abolish. The note is now reconciled ON THE SPOT: offline
+    # embedder, no judge (ambiguity holds, as ever), same gates, and
+    # the card is in the review popup before the response lands. If
+    # the inline pass fails for any reason the note is still safely
+    # pooled and the old message tells the truth for that case.
+    try:
+        _reconcile_now(v)
+        return jsonify({"ok": True, "reconciled": True,
+                        "detail": "Captured, typed by you, through the "
+                                  "same gates as everything else -- it "
+                                  "is in your review now."})
+    except Exception as exc:                            # noqa: BLE001
+        print("instant reconcile failed: %r" % (exc,), file=sys.stderr)
+        return jsonify({"ok": True, "reconciled": False,
+                        "detail": "Captured and safely pooled; it "
+                                  "becomes a card at the next reconcile "
+                                  "tick."})
 
 
 @app.route("/api/radar")
@@ -3238,9 +3343,15 @@ def nudge():
     body = request.get_json(silent=True) or {}
     task_id = (body.get("task_id") or "").strip()
     status = (body.get("status") or "").strip()
-    if status not in ("in_progress", "blocked", "completed"):
-        return jsonify({"error": "status must be in_progress, blocked or "
-                                 "completed"}), 400
+    # 'cancelled' joined the list for the pilot's commonest true
+    # answer about old work: "this was real, and it is not relevant
+    # anymore." Without it the only exits were pretending it was done
+    # or leaving it to haunt the quiet list forever -- the first
+    # reviewer met tasks from two months ago and had no honest button.
+    if status not in ("in_progress", "blocked", "completed",
+                      "cancelled"):
+        return jsonify({"error": "status must be in_progress, blocked, "
+                                 "completed or cancelled"}), 400
     note = (body.get("note") or "").strip()[:200] or None
 
     conn = _write_conn()
@@ -3255,6 +3366,7 @@ def nudge():
             if row[0] != v:
                 return jsonify({"error": "not your task"}), 403
             event = ("completed" if status == "completed"
+                     else "cancelled" if status == "cancelled"
                      else "blocker_added" if status == "blocked"
                      else "status_changed")
             # Payload keys are apply_task_event's contract, not this
