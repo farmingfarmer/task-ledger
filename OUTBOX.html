@@ -22,38 +22,26 @@
 <h1>OUTBOX</h1>
 <p class="stamp">The current outgoing message, ready to paste. Replaced with
 each new message; pull first and this is always the latest. Revision:
-2026-09-18 &middot; to: Jason, with his round-2 kit.</p>
+2026-09-28 &middot; to: Jason, answering &ldquo;did you send the right
+version?&rdquo;</p>
 
-<h2>Subject / first line</h2>
-<div class="block"><pre>Fresh Task Ledger kit — everything you flagged, addressed. Your answers carry over.</pre></div>
+<h2>The reply</h2>
+<div class="block"><pre>You've got the right version — the two things you noticed as new (the feedback button and "not relevant anymore") only exist in the new build, so that's the proof. The rest of the fixes don't change how the page looks; they change what happens when you do the specific things that were broken. Where each one lives:
 
-<h2>The message</h2>
-<div class="block"><pre>Jason — thank you for the walkthrough video and the writeups. That was exactly the feedback this pilot exists for: every item below traces to something you said, and several were bugs nobody would have found without you.
+- The "typed by hand" fix: open any task on your board, click "receipt page" — tasks you accepted from meetings now say "accepted from a claim heard in <meeting name>", including your old ones.
+- Capture: type a note in the "Note something..." box — it becomes a review card instantly instead of vanishing.
+- Receipts now name meetings in words instead of internal ids — visible on any receipt page.
+- Saving your week now tells you where the numbers went — visible when you hit "Save my week".
+- Typed notes no longer show up as fake one-line "meetings" in Conversations.
 
-Fixed because of your input, in this kit:
+So: same face, different behavior — try the receipt page and a capture note and you'll see round 2.
 
-1. "Tasks marked 'typed by hand' were not entered manually" — you were right, and it's fixed everywhere, including your older tasks. Accepted claims now say "accepted from a claim heard in <meeting>" with the meeting named.
-2. Receipts now name their sources in words — "sprint planning (2026-09-10)", "Copilot export of..." — instead of internal ids.
-3. Capture no longer swallows your words: type a note and it becomes a review card instantly, and the message tells you exactly where it went.
-4. Old, no-longer-relevant tasks now have an honest exit: a "Not relevant anymore" button — no more choosing between a false "Done" and letting them haunt the list.
-5. Saving your week now says where the numbers went and what happens Monday.
-6. The feedback form can't strand you anymore: a "Finish the feedback form" button stays in the header until you've sent it, and closing the greeting drops you back into an unfinished form.
-7. The page loads much lighter — collapsed sections only load when you open them.
-8. Typed notes no longer clutter the Conversations panel as fake one-line "meetings."
+Two things I still need from you:
 
-Still open, and two of them need YOU:
-
-- Load time: it should be far faster now — would you time it once and tell me roughly how long from double-click to greeting? One number is plenty.
-- Your Ledger B feedback form: your Ledger A answers arrived, but the form ate your Ledger B thoughts before I fixed it. When your cards are done, "Finish the feedback form" in the header is the way in — that half is the piece my comparison is still missing.
-- Logging hours actually worked (your "I worked 5 hours on this") — on the roadmap, not in this build yet.
-- Your Teams-bot-to-sprint-board idea — going straight into my meeting with IT about automatic transcript access. A PM asking for it unprompted is my best exhibit.
-
-Same routine as before: delete the old ZIP and folders, extract this one to a plain folder like C:\taskledger, open folders until you see START-TASK-LEDGER, double-click. Everything you've already answered is kept — you will not redo anything. If you'd already saved any feedback files, copy the my-answers folder from the old kit into the new one first.
-
-If anything misbehaves, the black window now prints its own explanation — one photo of it is a complete bug report.
+1. The 5-minute load is still way too slow and I want to find it. Next time you launch, one observation: during the wait, is the BLACK WINDOW still printing lines, or is it quiet with the BROWSER spinning? That one answer tells me which half of the system is eating the time.
+2. Your Ledger B feedback form — "Finish the feedback form" in the header. Your Ledger A answers made it; B is the half of your verdict I'm still missing.
 
 — Alex</pre></div>
-
 <script>
 document.querySelectorAll("pre").forEach(function(pre){
   var b=document.createElement("button");
