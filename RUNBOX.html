@@ -22,92 +22,99 @@
     background:#1c2733;color:#d7e2ec;cursor:pointer}
   .rule{background:#fff8e6;border:1px solid #eadfb8;border-radius:8px;
     padding:8px 12px;font-size:13.5px;margin:.5rem 0}
-  .stop{color:#c0392b;font-weight:600}
+  .note{background:#eefbf0;border:1px solid #cdeeD4;border-radius:8px;
+    padding:8px 12px;font-size:13.5px;margin:.5rem 0}
 </style>
 </head>
 <body>
 <h1>RUNBOX</h1>
-<p class="stamp">The exact commands for the ThinkPad, in order. This file is
-overwritten whenever the sequence changes &mdash; if you are unsure whether
-it is current, <b>pull first</b>; the newest RUNBOX arrives with the pull.
-Every dark block is pure commands: paste the whole block, nothing in it is
-commentary.</p>
-<p class="stamp">Revision: 2026-10-05 &middot; mission: freshness
-cycle &mdash; feed September/October into both ledgers, ingest status
-reports, rebuild and reship the kits</p>
+<p class="stamp">The exact commands for the ThinkPad, in order. Overwritten
+whenever the sequence changes &mdash; <b>pull first</b> and this is always
+current. Every dark block is pure commands: paste the whole block, nothing
+in it is commentary.</p>
+<p class="stamp">Revision: 2026-10-05b &middot; mission: ingest the expanded
+Copilot export + all new sources, run the pipeline, reship the kits</p>
 
-<div class="mission"><b>Right now:</b> Jason&rsquo;s round-3 verdict:
-no bad cards in Ledger B, but the ledger stops at August and never saw
-his status-report tasks. Both are feeding problems, not extraction
-problems. This cycle: ingest the new transcripts, the round-2 Copilot
-export, and each person&rsquo;s status report, run the tick, rebuild the
-kits, reship.</div>
+<div class="mission"><b>Right now:</b> copilot_claims_raw.txt has grown new
+meeting summaries. Feed everything new into both ledgers &mdash;
+transcripts first (anchoring matches Copilot&rsquo;s quotes against
+transcripts already on disk, so order matters), then the Copilot export,
+then any status reports &mdash; run the tick, review your own cards, and
+rebuild the kits so the team finally sees September and October.</div>
 
 <h2>1 &middot; Update the machine</h2>
 <div class="block"><pre>cd %USERPROFILE%\dev\task-ledger
 git pull</pre></div>
 
-<h2>2 &middot; Feed the ledger everything new</h2>
-<p class="why">New Teams transcripts first; then the Copilot export made
-with the current prompt (<code>tl.bat prompt | clip</code>, one meeting
-per chat, transcript pasted under the prompt); then each person&rsquo;s
-status report. Repeat the statusreport line per person per file.</p>
+<h2>2 &middot; Transcripts first (only if transcripts_raw.txt has new meetings)</h2>
+<p class="why">This must run BEFORE the Copilot import: quotes in the
+export can only earn receipts against transcripts the system already
+holds.</p>
 <div class="block"><pre>tl.bat transcripts transcripts_raw.txt</pre></div>
+
+<h2>3 &middot; The expanded Copilot export</h2>
+<p class="why">Dry run first, and read one line of its output: &ldquo;N of
+M claim(s) matched a sentence in your transcripts&rdquo;. That anchor rate
+is the round-2 number for the decision memo &mdash; write it down.</p>
 <div class="block"><pre>python scripts\copilot_claims_ingest.py copilot_claims_raw.txt --dry-run</pre></div>
+<p class="why">Then rebuild the comparison ledger from scratch (it exists
+only for this; rebuilds are free):</p>
 <div class="block"><pre>tl.bat copilot copilot_claims_raw.txt --apply</pre></div>
+
+<h2>4 &middot; Status reports (repeat per person, as they arrive)</h2>
+<p class="why">Jason&rsquo;s format, as written: &ldquo;Week of MM/DD:&rdquo;
+headings with bulleted tasks. Each line becomes a claim authored by that
+person about their own work, with the report line as its receipt &mdash;
+and it still arrives as a review card, never a board row.</p>
 <div class="block"><pre>tl.bat statusreport jason-status.txt --for jason-tjia</pre></div>
 
-<h2>3 &middot; Run the pipeline</h2>
+<h2>5 &middot; Run the pipeline</h2>
 <div class="block"><pre>tl.bat ollama</pre></div>
 <div class="block"><pre>tl.bat tick</pre></div>
+<p class="why">The tick announces which models it picked and reconciles
+everyone with claims waiting. If it bows out on the lock and you are sure
+nothing real is running: <code>tl.bat tick --steal</code>.</p>
 
-<h2>4 &middot; Review your own cards, then the session lines</h2>
+<h2>6 &middot; Review your own cards</h2>
 <div class="block"><pre>tl.bat dashboard --hands-on --picker</pre></div>
+<p class="why">Answer your review popup. Things worth eyeballing while you
+are in there: estimate phrases on cards (&ldquo;Estimate: 2 points&rdquo;
+driving the week sheet), &ldquo;Files under&hellip;&rdquo; parent hints,
+and a receipt page on any accepted task naming its meeting in words.
+Ctrl-C the dashboard when done &mdash; the kit build needs port 8090 free
+later.</p>
 
-<div class="block"><pre>cd %USERPROFILE%\dev\task-ledger
-git pull</pre></div>
-
-<h2>5 &middot; The two session lines (fresh window only)</h2>
-<p class="why">The salt decides who sees which ledger as A/B &mdash; same
-names in, same salt out. Paste the <code>set "TL_BLIND_SALT=..."</code>
-line the first command prints, then set the second-ledger pointer.</p>
+<h2>7 &middot; The two session lines (fresh window only)</h2>
 <div class="block"><pre>tl.bat blind alexander-marunycz yesha-patel jason-tjia lorenzo-rossi patrick-toral --balance</pre></div>
+<p class="why">Paste the <code>set "TL_BLIND_SALT=..."</code> line it
+prints, then:</p>
 <div class="block"><pre>set "CPDSN=host=localhost port=5433 dbname=taskintel_copilot user=%USERNAME%"</pre></div>
 
-<h2>6 &middot; Build the five kits</h2>
+<h2>8 &middot; Build the five kits</h2>
 <div class="block"><pre>tl.bat kit --for alexander-marunycz --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
 tl.bat kit --for jason-tjia --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
 tl.bat kit --for yesha-patel --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
 tl.bat kit --for lorenzo-rossi --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
 tl.bat kit --for patrick-toral --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply</pre></div>
 
-<h2>7 &middot; Prove one cold, then ship</h2>
-<div class="rule">Close every Task Ledger black window first (port 8090).
-Zip <b>your own</b> kit, extract the zip somewhere fresh, double-click
-START-TASK-LEDGER.bat, and walk to the greeting. Only when your greeting
-appears: zip the other four and send &mdash; named folder to named person,
-attendees only. Quick check per kit before zipping:
-<code>kit-config.json</code> names the right person, and
-<code>ledger.sql</code> has <b>zero</b> hits for <code>OWNER TO</code>.</div>
-
-<h2>Cold start (any morning, after any reboot)</h2>
-<p class="why">Three actions, no <code>set</code> lines, no memory
-required.</p>
-<div class="block"><pre>tl.bat ollama</pre></div>
-<p class="why">Finds Ollama wherever this machine keeps it (PATH, the
-installed app, or the bare exe in your user folder) and starts it in its
-own window &mdash; leave that window open.</p>
-<div class="block"><pre>tl.bat tick</pre></div>
-<div class="block"><pre>tl.bat dashboard --hands-on --picker</pre></div>
+<h2>9 &middot; Prove one cold, then ship</h2>
+<div class="rule">No Task Ledger black window open anywhere. Zip
+<b>your own</b> kit, extract the zip somewhere fresh, double-click
+START-TASK-LEDGER.bat. The startup lines now carry [time] stamps &mdash;
+glance at where the minutes go. Walk to the greeting, type one capture
+note and watch it become a card, open one receipt. Then: per-kit check
+(<code>kit-config.json</code> names the right person; zero
+<code>OWNER TO</code> hits in <code>ledger.sql</code>), zip, send &mdash;
+named folder to named person, attendees only. Jason&rsquo;s message is in
+OUTBOX.html.</div>
 
 <h2>Rescues</h2>
-<p class="why">Another tick holds the lock and you are sure it should not
-(or are happy to let this run redo its window):</p>
-<div class="block"><pre>tl.bat tick --steal</pre></div>
 <p class="why">Ollama not answering:</p>
 <div class="block"><pre>tl.bat ollama</pre></div>
+<p class="why">Tick lock held by a ghost:</p>
+<div class="block"><pre>tl.bat tick --steal</pre></div>
 <p class="why">Anything else: photograph the black window &mdash; every
-failure now prints its own explanation, and the photo is the complete bug
+failure prints its own explanation, and the photo is the complete bug
 report.</p>
 
 <script>
