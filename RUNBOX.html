@@ -32,7 +32,7 @@
 whenever the sequence changes &mdash; <b>pull first</b> and this is always
 current. Every dark block is pure commands: paste the whole block, nothing
 in it is commentary.</p>
-<p class="stamp">Revision: 2026-10-05b &middot; mission: ingest the expanded
+<p class="stamp">Revision: 2026-10-05c &middot; mission: ingest the expanded
 Copilot export + all new sources, run the pipeline, reship the kits</p>
 
 <div class="mission"><b>Right now:</b> copilot_claims_raw.txt has grown new
@@ -62,11 +62,23 @@ only for this; rebuilds are free):</p>
 <div class="block"><pre>tl.bat copilot copilot_claims_raw.txt --apply</pre></div>
 
 <h2>4 &middot; Status reports (repeat per person, as they arrive)</h2>
-<p class="why">Jason&rsquo;s format, as written: &ldquo;Week of MM/DD:&rdquo;
-headings with bulleted tasks. Each line becomes a claim authored by that
-person about their own work, with the report line as its receipt &mdash;
-and it still arrives as a review card, never a board row.</p>
+<p class="why">Each line becomes a claim authored by that person about
+their own work, with the report line as its receipt &mdash; and it still
+arrives as a review card, never a board row. The report CONTENT never
+enters the repo (same fence as transcripts); this block writes the file
+on this machine from the excerpt Jason already gave in his survey:</p>
+<div class="block"><pre>(
+echo Week of 07/13:
+echo - AI Sandbox Guide ^& Communication
+echo - Drafting Practice Questions for RAI Taskforce Training
+echo.
+echo Week of 08/24:
+echo - Smart Utilization Project Charter
+) > jason-status.txt</pre></div>
 <div class="block"><pre>tl.bat statusreport jason-status.txt --for jason-tjia</pre></div>
+<p class="why">When his FULL report arrives (the OUTBOX message asks for
+it), overwrite jason-status.txt with it and run the same command &mdash;
+re-ingesting is an upsert-shaped no-op for unchanged weeks.</p>
 
 <h2>5 &middot; Run the pipeline</h2>
 <div class="block"><pre>tl.bat ollama</pre></div>

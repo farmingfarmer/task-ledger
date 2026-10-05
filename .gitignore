@@ -28,3 +28,7 @@ claims*.txt
 claims*.json
 *_claims.txt
 *_claims.json
+# Status reports are a person's own task list, named and dated -- the
+# same class as transcripts, fenced the same way. They are ingested
+# from wherever they live; nothing needs them inside the repo.
+*status*.txt
