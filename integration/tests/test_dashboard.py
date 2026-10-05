@@ -1242,9 +1242,16 @@ def main():
         ok(code == 401, "and anonymous gets nothing")
         # One CURRENT-week statement too: the team-week test asserts the
         # grantee sees a 9.5 h plan, and the shared view reads the
-        # current week by design.
+        # current week by design. Computed HERE, not taken from the
+        # sheet -- the sheet above was fetched for the isolated far
+        # week, and using its week_start quietly re-saved the far week
+        # while September's pre-isolation residue kept the teamweek
+        # assertion green... until the first Monday rollover, when the
+        # residue aged out of "current" and the bomb went off.
+        cur_monday = (_dt.date.today()
+                      - _dt.timedelta(days=_dt.date.today().weekday()))
         code, _ = spost("/api/workload?profile=synthetic",
-                        {"week_start": sheet["week_start"],
+                        {"week_start": str(cur_monday),
                          "rows": [{"subject": sid, "planned": 9.5}]})
         ok(code == 200, "a current-week plan saves too")
 
