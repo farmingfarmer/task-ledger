@@ -32,34 +32,56 @@ overwritten whenever the sequence changes &mdash; if you are unsure whether
 it is current, <b>pull first</b>; the newest RUNBOX arrives with the pull.
 Every dark block is pure commands: paste the whole block, nothing in it is
 commentary.</p>
-<p class="stamp">Revision: 2026-09-18b &middot; mission: ship the
-pilot-round-1 fixes; Ollama is now one word: tl.bat ollama</p>
+<p class="stamp">Revision: 2026-10-05 &middot; mission: freshness
+cycle &mdash; feed September/October into both ledgers, ingest status
+reports, rebuild and reship the kits</p>
 
-<div class="mission"><b>Right now:</b> Jason&rsquo;s feedback is fixed in
-the build (provenance labels, instant capture, &ldquo;not relevant
-anymore&rdquo;, faster load, clearer receipts and saves). Rebuild all five
-kits and resend, then reply to Jason and ask him to finish his Ledger&nbsp;B
-form.</p></div>
+<div class="mission"><b>Right now:</b> Jason&rsquo;s round-3 verdict:
+no bad cards in Ledger B, but the ledger stops at August and never saw
+his status-report tasks. Both are feeding problems, not extraction
+problems. This cycle: ingest the new transcripts, the round-2 Copilot
+export, and each person&rsquo;s status report, run the tick, rebuild the
+kits, reship.</div>
 
 <h2>1 &middot; Update the machine</h2>
 <div class="block"><pre>cd %USERPROFILE%\dev\task-ledger
 git pull</pre></div>
 
-<h2>2 &middot; The two session lines (fresh window only)</h2>
+<h2>2 &middot; Feed the ledger everything new</h2>
+<p class="why">New Teams transcripts first; then the Copilot export made
+with the current prompt (<code>tl.bat prompt | clip</code>, one meeting
+per chat, transcript pasted under the prompt); then each person&rsquo;s
+status report. Repeat the statusreport line per person per file.</p>
+<div class="block"><pre>tl.bat transcripts transcripts_raw.txt</pre></div>
+<div class="block"><pre>python scripts\copilot_claims_ingest.py copilot_claims_raw.txt --dry-run</pre></div>
+<div class="block"><pre>tl.bat copilot copilot_claims_raw.txt --apply</pre></div>
+<div class="block"><pre>tl.bat statusreport jason-status.txt --for jason-tjia</pre></div>
+
+<h2>3 &middot; Run the pipeline</h2>
+<div class="block"><pre>tl.bat ollama</pre></div>
+<div class="block"><pre>tl.bat tick</pre></div>
+
+<h2>4 &middot; Review your own cards, then the session lines</h2>
+<div class="block"><pre>tl.bat dashboard --hands-on --picker</pre></div>
+
+<div class="block"><pre>cd %USERPROFILE%\dev\task-ledger
+git pull</pre></div>
+
+<h2>5 &middot; The two session lines (fresh window only)</h2>
 <p class="why">The salt decides who sees which ledger as A/B &mdash; same
 names in, same salt out. Paste the <code>set "TL_BLIND_SALT=..."</code>
 line the first command prints, then set the second-ledger pointer.</p>
 <div class="block"><pre>tl.bat blind alexander-marunycz yesha-patel jason-tjia lorenzo-rossi patrick-toral --balance</pre></div>
 <div class="block"><pre>set "CPDSN=host=localhost port=5433 dbname=taskintel_copilot user=%USERNAME%"</pre></div>
 
-<h2>3 &middot; Build the five kits</h2>
+<h2>6 &middot; Build the five kits</h2>
 <div class="block"><pre>tl.bat kit --for alexander-marunycz --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
 tl.bat kit --for jason-tjia --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
 tl.bat kit --for yesha-patel --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
 tl.bat kit --for lorenzo-rossi --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
 tl.bat kit --for patrick-toral --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply</pre></div>
 
-<h2>4 &middot; Prove one cold, then ship</h2>
+<h2>7 &middot; Prove one cold, then ship</h2>
 <div class="rule">Close every Task Ledger black window first (port 8090).
 Zip <b>your own</b> kit, extract the zip somewhere fresh, double-click
 START-TASK-LEDGER.bat, and walk to the greeting. Only when your greeting

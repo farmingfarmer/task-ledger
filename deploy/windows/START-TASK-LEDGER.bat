@@ -60,7 +60,7 @@ rem (the outer ZIP is then a dozen files and extracts instantly), and
 rem this launcher unpacks them here, once, with bsdtar -- built into
 rem Windows 10+, immune to both slow paths.
 if not exist "%KITROOT%python-runtime\python.exe" if exist "%KITROOT%python-runtime.zip" (
-  echo   one-time setup: unpacking Python. File names will scroll
+  echo   [%TIME%] one-time setup: unpacking Python. File names will scroll
   echo   past -- that is the proof it is alive. On a corporate laptop
   echo   the virus scanner checks every file, so this can take a while.
   tar -xvf "%KITROOT%python-runtime.zip" -C "%KITROOT%." || (
@@ -70,7 +70,7 @@ if not exist "%KITROOT%python-runtime\python.exe" if exist "%KITROOT%python-runt
   )
 )
 if not exist "%KITROOT%postgresin\pg_ctl.exe" if exist "%KITROOT%postgres.zip" (
-  echo   one-time setup: unpacking the database. File names scroll
+  echo   [%TIME%] one-time setup: unpacking the database. File names scroll
   echo   past while it works; expect several minutes on a corporate
   echo   laptop whose virus scanner inspects each file.
   tar -xvf "%KITROOT%postgres.zip" -C "%KITROOT%." || (
@@ -138,7 +138,7 @@ rem (">"%VAR%"") are safe either way; bare echoes are not.
 rem ---- start the server if it is not already answering ---------
 "%PGBIN%\pg_isready.exe" -p %PGPORT% >nul 2>&1
 if errorlevel 1 (
-  echo   starting the database...
+  echo   [%TIME%] starting the database...
   if not exist "%PGDATA%" (
     "%PGBIN%\initdb.exe" -D "%PGDATA%" -U %USERNAME% -E UTF8 >nul 2>&1
   )
@@ -177,7 +177,7 @@ if defined DBOK "%PGBIN%\psql.exe" -p %PGPORT% -d %DBNAME% -tAc "SELECT expires_
 if defined DBOK for /f "usebackq delims=" %%N in (`"%PGBIN%\psql.exe" -p %PGPORT% -d %DBNAME% -tAc "SELECT count(*) FROM signals" 2^>nul`) do if "%%N"=="0" set "DBOK="
 
 if not defined DBOK (
-  echo   preparing your copy of the ledger...
+  echo   [%TIME%] preparing your copy of the ledger...
   rem Dropped, not reused: a half-built database is the thing being fixed.
   "%PGBIN%\dropdb.exe" -p %PGPORT% --if-exists %DBNAME% >"%SETUPLOG%" 2>&1
   "%PGBIN%\createdb.exe" -p %PGPORT% %DBNAME% >>"%SETUPLOG%" 2>&1
@@ -259,7 +259,7 @@ if exist "%KITROOT%ledger-b.sql" (
   "%PGBIN%\psql.exe" -p %PGPORT% -d %DBNAME%_b -tAc "SELECT author_ref FROM signals LIMIT 1" >nul 2>&1 || set "DB_B_OK="
   if defined DB_B_OK for /f "usebackq delims=" %%N in (`"%PGBIN%\psql.exe" -p %PGPORT% -d %DBNAME%_b -tAc "SELECT count(*) FROM signals" 2^>nul`) do if "%%N"=="0" set "DB_B_OK="
   if not defined DB_B_OK (
-    echo   preparing the second ledger...
+    echo   [%TIME%] preparing the second ledger...
     "%PGBIN%\dropdb.exe" -p %PGPORT% --if-exists %DBNAME%_b >>"%SETUPLOG%" 2>&1
     "%PGBIN%\createdb.exe" -p %PGPORT% %DBNAME%_b >>"%SETUPLOG%" 2>&1
     "%PGBIN%\psql.exe" -q -v ON_ERROR_STOP=1 -p %PGPORT% -d %DBNAME%_b -f "%KITROOT%ledger-b.sql" >>"%SETUPLOG%" 2>&1
@@ -299,7 +299,7 @@ netstat -ano | findstr /C:":8090 " | findstr "LISTENING" >nul && (
 )
 
 echo.
-echo   Ready. Opening http://127.0.0.1:8090 in your browser.
+echo   [%TIME%] ready -- opening http://127.0.0.1:8090 in your browser.
 echo.
 start "" http://127.0.0.1:8090
 "%PY%" integration\dashboard\dashboard_api.py

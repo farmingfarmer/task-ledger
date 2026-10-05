@@ -114,6 +114,7 @@ usage() {
   echo "  recall <words>  who said that, when -- quoted, with receipts"
   echo "  handover <who>  everything one person carries, with history"
   echo "  kit             package the system + a ledger copy for a teammate"
+  echo "  statusreport <f> --for <who>  a weekly status report -> their own claims"
   echo "  copilot <file>  build a Copilot-claims ledger beside yours, to compare"
   echo "  demo-set        generate the synthetic transcript demo set"
   echo "  demo-tx <src>   build the demo board from transcripts (writes)"
@@ -210,6 +211,15 @@ case "$CMD" in
     fi
     banner
     python3 scripts/copilot_ingest.py "$1" --out "$TL_INBOX" "${@:2}"
+    ;;
+
+  statusreport)
+    if [ -z "$1" ]; then
+      echo "tl: statusreport needs a file and a person, e.g." >&2
+      echo "    ./tl statusreport report.txt --for jason-tjia" >&2
+      exit 2
+    fi
+    python3 scripts/status_report_ingest.py "$@" --dsn "$DB_DSN"
     ;;
 
   copilot)

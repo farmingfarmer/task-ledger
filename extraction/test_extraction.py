@@ -210,6 +210,48 @@ def test_copilot_paste_shapes():
        "reaches it")
 
 
+def test_status_report_parse():
+    print("status report parsing")
+    sys.path.insert(0, os.path.join(os.path.dirname(
+        os.path.dirname(os.path.abspath(__file__))), "scripts"))
+    import status_report_ingest as sr
+    import datetime as dt
+    today = dt.date(2026, 10, 5)
+    weeks = sr.parse_report(
+        "Week of 07/13:\n"
+        "- AI Sandbox Guide & Communication\n"
+        "- Drafting Practice Questions\n"
+        "  for RAI Taskforce Training\n"
+        "\n"
+        "Week of 08/24:\n"
+        "- Smart Utilization Project Charter\n", today)
+    ok(len(weeks) == 2 and weeks[0][0] == dt.date(2026, 7, 13),
+       "'Week of MM/DD' headings split the report into weeks")
+    ok(weeks[0][1][1] == "Drafting Practice Questions for RAI "
+                         "Taskforce Training",
+       "a wrapped bullet is one task -- people wrap long task names")
+    ok(weeks[1][1] == ["Smart Utilization Project Charter"],
+       "the reviewer's own sample parses exactly")
+    dec = sr.parse_report("Week of 12/29:\n- year-end wrap", today)
+    ok(dec[0][0] == dt.date(2025, 12, 29),
+       "a yearless date lands in the PAST: a status report describes "
+       "work done, so 12/29 read in October means last December")
+    ok(sr.parse_report("no headings here\n- stray bullet", today) == [],
+       "bullets outside any week are not guessed into one")
+    b = sr.build_batches(weeks, "aad-jason-tjia", "r.txt")
+    ok(len(b) == 2 and all(s["author_ref"] == "aad-jason-tjia"
+                           and s["owner_candidates"][0]["basis"]
+                               == "self_reference"
+                           for bb in b for s in bb["signals"]),
+       "every claim is authored AND owned by the report's person -- "
+       "self_reference is literally true here")
+    again = sr.build_batches(weeks, "aad-jason-tjia", "r2.txt")
+    ok([s["signal_id"] for bb in b for s in bb["signals"]]
+       == [s["signal_id"] for bb in again for s in bb["signals"]],
+       "ids are deterministic, so re-ingesting an updated report is an "
+       "upsert-shaped no-op for unchanged weeks")
+
+
 def test_parent_hint_contract():
     print("parent hint contract")
     import jsonschema
@@ -751,6 +793,7 @@ if __name__ == "__main__":
     test_copilot_paste_shapes()
     test_quote_anchoring()
     test_parent_hint_contract()
+    test_status_report_parse()
     test_prompt_build()
     test_golden()
     test_determinism()

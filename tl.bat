@@ -98,6 +98,7 @@ if /i "%CMD%"=="transcripts" goto :transcripts
 if /i "%CMD%"=="quickscan" goto :quickscan
 if /i "%CMD%"=="brief" goto :brief
 if /i "%CMD%"=="kit" goto :kit
+if /i "%CMD%"=="statusreport" goto :statusreport
 if /i "%CMD%"=="copilot" goto :copilot
 if /i "%CMD%"=="recall" goto :recall
 if /i "%CMD%"=="handover" goto :handover
@@ -134,6 +135,7 @@ echo   brief [meeting] before the standup: what this room said + what became of 
 echo   recall ^<words^>  who said that, when -- quoted, with receipts
 echo   handover ^<who^>  everything one person carries, with history
 echo   kit             package the system + a ledger copy for a teammate
+echo   statusreport ^<f^> --for ^<who^>  a weekly status report -^> their own claims
 echo   copilot ^<file^>  build a Copilot-claims ledger beside yours, to compare
 echo   demo-set        generate the synthetic transcript demo set
 echo   demo-tx ^<src^>   build the demo board from transcripts ^(writes^)
@@ -270,6 +272,16 @@ if not defined ARG1 (
 )
 call :banner
 python scripts\copilot_ingest.py "%ARG1%" --out "%TL_INBOX%" %REST%
+exit /b %errorlevel%
+
+:statusreport
+if not defined ARG1 (
+  echo tl: statusreport needs a file and a person, e.g. 1>&2
+  echo     tl statusreport report.txt --for jason-tjia 1>&2
+  exit /b 2
+)
+call :banner
+python scripts\status_report_ingest.py %ARGS% --dsn "%DB_DSN%"
 exit /b %errorlevel%
 
 :copilot
