@@ -514,6 +514,16 @@ def main():
     if os.path.exists(launcher):
         shutil.copy(launcher, os.path.join(args.out,
                                            "START-TASK-LEDGER.bat"))
+    # The freshness choice, shipped beside the persistence default: the
+    # launcher keeps a local ledger forever (answers survive upgrades),
+    # so a kit carrying NEWER meetings needs an explicit, labeled way to
+    # load them. It confirms, states the cost, and never touches
+    # my-answers.
+    refresher = os.path.join(ROOT, "deploy", "windows",
+                             "REFRESH-LEDGER.bat")
+    if os.path.exists(refresher):
+        shutil.copy(refresher, os.path.join(args.out,
+                                            "REFRESH-LEDGER.bat"))
     for want, path, name in (
             (args.with_runtime, args.runtime, "python-runtime"),
             (args.with_postgres, args.postgres, "postgres")):
