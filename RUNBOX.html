@@ -32,7 +32,7 @@
 whenever the sequence changes &mdash; <b>pull first</b> and this is always
 current. Every dark block is pure commands: paste the whole block, nothing
 in it is commentary.</p>
-<p class="stamp">Revision: 2026-10-05c &middot; mission: ingest the expanded
+<p class="stamp">Revision: 2026-10-06 &middot; mission: ingest the expanded
 Copilot export + all new sources, run the pipeline, reship the kits</p>
 
 <div class="mission"><b>Right now:</b> copilot_claims_raw.txt has grown new
@@ -96,18 +96,23 @@ and a receipt page on any accepted task naming its meeting in words.
 Ctrl-C the dashboard when done &mdash; the kit build needs port 8090 free
 later.</p>
 
-<h2>7 &middot; The two session lines (fresh window only)</h2>
-<div class="block"><pre>tl.bat blind alexander-marunycz yesha-patel jason-tjia lorenzo-rossi patrick-toral --balance</pre></div>
+<h2>7 &middot; The one session line (fresh window only)</h2>
+<div class="block"><pre>tl.bat blind alexander-marunycz yesha-m-patel jason-tjia lorenzo-rossi patrick-toral --balance</pre></div>
 <p class="why">Paste the <code>set "TL_BLIND_SALT=..."</code> line it
-prints, then:</p>
-<div class="block"><pre>set "CPDSN=host=localhost port=5433 dbname=taskintel_copilot user=%USERNAME%"</pre></div>
+prints. That is the ONLY session state left: the kit now finds the
+comparison ledger by itself on the same server and says so in its plan
+&mdash; no CPDSN, ever again.</p>
 
 <h2>8 &middot; Build the five kits</h2>
-<div class="block"><pre>tl.bat kit --for alexander-marunycz --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
-tl.bat kit --for jason-tjia --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
-tl.bat kit --for yesha-patel --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
-tl.bat kit --for lorenzo-rossi --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
-tl.bat kit --for patrick-toral --copilot-dsn "%CPDSN%" --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply</pre></div>
+<div class="block"><pre>tl.bat kit --for alexander-marunycz --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
+tl.bat kit --for jason-tjia --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
+tl.bat kit --for yesha-m-patel --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
+tl.bat kit --for lorenzo-rossi --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
+tl.bat kit --for patrick-toral --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply</pre></div>
+<p class="why">Each plan must say &ldquo;second ledger: found
+taskintel_copilot&rdquo; and list ledger-b.sql with non-zero counts. If a
+plan says it is shipping ONE ledger, stop &mdash; the comparison database
+is missing and the --apply for the Copilot export has not run.</p>
 
 <h2>9 &middot; Prove one cold, then ship</h2>
 <div class="rule">No Task Ledger black window open anywhere. Zip

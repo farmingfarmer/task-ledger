@@ -32,6 +32,7 @@ the most useful thing they can do with it. Everyone else gets
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -205,6 +206,15 @@ def main():
         hits = [r for r in refs if r == want or r == "aad-" + want]
         if not hits:
             hits = [r for r in refs if want in r]
+        if not hits:
+            # Segment matching bridges middle initials and partial
+            # names: 'yesha-patel' names aad-yesha-m-patel uniquely,
+            # because both segments appear in it. All query segments
+            # must be whole segments of the ref -- 'al' matching
+            # 'alexander' would be guessing, and a kit guesses nothing.
+            toks = [t for t in want.split("-") if t and t != "aad"]
+            hits = [r for r in refs
+                    if all(t in r.split("-") for t in toks)]
         if len(hits) != 1:
             print("--for '{0}' matches {1} people{2}".format(
                 args.for_person, len(hits),
@@ -242,6 +252,33 @@ def main():
     # while doing it, and lands on a colleague's desk as a system with no
     # data and invented names. That happened, and the tool was cheerful
     # throughout; being cheerful about shipping nothing is the bug.
+    # A fresh window that skipped the `set CPDSN` line hands us the
+    # LITERAL text "%CPDSN%" -- cmd does not expand unset variables, it
+    # passes them through. Treat any %...% literal as unset instead of
+    # dying on it downstream with a '?' nobody can act on.
+    if args.copilot_dsn and re.match(r"^%.*%$", args.copilot_dsn.strip()):
+        print("  (--copilot-dsn arrived as the unexpanded text '{0}' -- "
+              "the set line never ran in this window; treating it as "
+              "unset)".format(args.copilot_dsn.strip()))
+        args.copilot_dsn = None
+    # And when it IS unset, do what the dashboard already does: the
+    # comparison ledger has a conventional name on the same server.
+    # Probe for it, announce, use it. The session line stops existing.
+    if not args.no_ledger and not args.copilot_dsn and dsn:
+        _p = dict(kv.split("=", 1) for kv in dsn.split() if "=" in kv)
+        _p["dbname"] = "taskintel_copilot"
+        _cand = " ".join("{0}={1}".format(k, v) for k, v in _p.items())
+        try:
+            import psycopg2
+            psycopg2.connect(_cand, connect_timeout=3).close()
+            args.copilot_dsn = _cand
+            print("  second ledger: found taskintel_copilot on the same "
+                  "server -- shipping it blind (pass --copilot-dsn to "
+                  "override, --no-ledger to skip)")
+        except Exception:                               # noqa: BLE001
+            print("  second ledger: no taskintel_copilot on this server "
+                  "-- shipping ONE ledger, no blind comparison")
+
     content = None
     if dsn and not args.no_ledger:
         try:
