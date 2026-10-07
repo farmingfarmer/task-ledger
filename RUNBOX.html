@@ -32,7 +32,7 @@
 whenever the sequence changes &mdash; <b>pull first</b> and this is always
 current. Every dark block is pure commands: paste the whole block, nothing
 in it is commentary.</p>
-<p class="stamp">Revision: 2026-10-06 &middot; mission: ingest the expanded
+<p class="stamp">Revision: 2026-10-06b &middot; mission: ingest the expanded
 Copilot export + all new sources, run the pipeline, reship the kits</p>
 
 <div class="mission"><b>Right now:</b> copilot_claims_raw.txt has grown new
@@ -96,14 +96,13 @@ and a receipt page on any accepted task naming its meeting in words.
 Ctrl-C the dashboard when done &mdash; the kit build needs port 8090 free
 later.</p>
 
-<h2>7 &middot; The one session line (fresh window only)</h2>
-<div class="block"><pre>tl.bat blind alexander-marunycz yesha-m-patel jason-tjia lorenzo-rossi patrick-toral --balance</pre></div>
-<p class="why">Paste the <code>set "TL_BLIND_SALT=..."</code> line it
-prints. That is the ONLY session state left: the kit now finds the
-comparison ledger by itself on the same server and says so in its plan
-&mdash; no CPDSN, ever again.</p>
-
-<h2>8 &middot; Build the five kits</h2>
+<h2>7 &middot; Build the five kits</h2>
+<p class="why">No session lines remain &mdash; at all. The kit finds the
+comparison ledger by itself, and the blind salt is PINNED to the default
+(task-ledger-blind-v1) for the pilot&rsquo;s lifetime: every survey
+already collected was produced under it, and changing it mid-pilot would
+silently swap which ledger is &ldquo;A&rdquo; under everyone&rsquo;s
+feet. Do not set TL_BLIND_SALT.</p>
 <div class="block"><pre>tl.bat kit --for alexander-marunycz --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
 tl.bat kit --for jason-tjia --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
 tl.bat kit --for yesha-m-patel --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
@@ -114,7 +113,12 @@ taskintel_copilot&rdquo; and list ledger-b.sql with non-zero counts. If a
 plan says it is shipping ONE ledger, stop &mdash; the comparison database
 is missing and the --apply for the Copilot export has not run.</p>
 
-<h2>9 &middot; Prove one cold, then ship</h2>
+<h2>8 &middot; Prove one cold, then ship</h2>
+<div class="note">New in every kit: <b>REFRESH-LEDGER.bat</b> &mdash;
+loads a kit&rsquo;s newer data on a machine that already has an older
+copy. It narrates every step with timestamps, starts the database if it
+is down, and closes lingering sessions before dropping. Teammates whose
+kit carries newer meetings run it once; the message says so.</div>
 <div class="rule">No Task Ledger black window open anywhere. Zip
 <b>your own</b> kit, extract the zip somewhere fresh, double-click
 START-TASK-LEDGER.bat. The startup lines now carry [time] stamps &mdash;
