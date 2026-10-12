@@ -1,0 +1,10 @@
+{
+  "domain": "work",
+  "project": "taskledger",
+  "display_name": "Task Ledger (communication-to-task-board pipeline)",
+  "aliases": ["task ledger", "ledger", "task board", "decision record", "signal extraction", "teams tasks"],
+  "files": [
+    {"path": "DEVELOPMENT.md", "tag": "development_guide"},
+    {"path": "PROFILES.md", "tag": "extraction_profiles"}
+  ]
+}

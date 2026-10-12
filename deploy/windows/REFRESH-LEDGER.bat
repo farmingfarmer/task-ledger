@@ -17,6 +17,20 @@ rem ============================================================
 setlocal
 set "PGPORT=5433"
 set "PGDATA=%USERPROFILE%\pgdata-taskledger"
+rem On a FRESH extract the database tools are still inside
+rem postgres.zip -- the normal launcher unpacks them on first run,
+rem and the first teammate to follow "extract, then refresh" met a
+rem refusal for exactly that reason. Unpack here too; order of the
+rem two launchers stops mattering.
+if not exist "%~dp0postgres\bin\dropdb.exe" if not exist "%~dp0postgres\pgsql\bin\dropdb.exe" if exist "%~dp0postgres.zip" (
+  echo   [%TIME%] one-time setup: unpacking the database tools.
+  echo   File names scroll past while it works -- that is normal.
+  tar -xvf "%~dp0postgres.zip" -C "%~dp0." || (
+    echo   [X] Could not unpack postgres.zip. Details above.
+    pause
+    exit /b 1
+  )
+)
 if exist "%~dp0postgres\bin\dropdb.exe" (
   set "PGBIN=%~dp0postgres\bin"
 ) else if exist "%~dp0postgres\pgsql\bin\dropdb.exe" (
