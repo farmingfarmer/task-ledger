@@ -318,44 +318,96 @@ def claim_signal(rec, batch_id, idx, bootstrap=False, transcripts=None):
     return signal, None, (how if anchor else None)
 
 
+_SRC_DATE = re.compile(r"(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?")
+
+
+def _meeting_date(source, exported_at):
+    """A date for the meeting a claim cites, parsed from its sources
+    string when one is written there ('Weekly Sprint 10/07'), the
+    export date otherwise. Yearless dates land in the PAST, same rule
+    as status reports: a claims export describes meetings that
+    happened."""
+    m = _SRC_DATE.search(source or "")
+    if not m:
+        return exported_at[:10]
+    import datetime as _dt
+    today = _dt.date.fromisoformat(exported_at[:10])
+    month, day = int(m.group(1)), int(m.group(2))
+    try:
+        if m.group(3):
+            y = int(m.group(3))
+            d = _dt.date(y + 2000 if y < 100 else y, month, day)
+        else:
+            d = _dt.date(today.year, month, day)
+            if d > today + _dt.timedelta(days=7):
+                d = _dt.date(today.year - 1, month, day)
+    except ValueError:
+        return exported_at[:10]
+    return d.isoformat()
+
+
 def build_batch(records, exported_at, label, bootstrap=False,
                 transcripts=None):
-    source_ref = "copilot-claims-{0}-{1}".format(exported_at[:10], slug(label,
-                                                                       24))
-    batch_id = sha(source_ref, exported_at, PROMPT_VERSION)[:32]
-    batch = {
-        "batch_id": batch_id,
-        "extracted_at": exported_at,
-        "extractor": {"model": "copilot:claims-export",
-                      "prompt_version": PROMPT_VERSION},
-        "window": {"source_type": "copilot_claims",
-                   "source_ref": source_ref,
-                   "time_start": exported_at,
-                   "time_end": exported_at},
-        "signals": [],
-    }
-    report = {"records": len(records), "kept": 0, "dropped": [],
-              "anchored": 0, "anchor_how": {}}
-    seen = set()
+    """One batch PER MEETING, grouped by each claim's own sources
+    field -- not one batch per export. The export-shaped version put a
+    month of meetings into a single "conversation" stamped with the day
+    the operator ran the import: the first pilot reviewer opened his
+    Conversations panel and reasonably concluded everything before that
+    date had vanished. The per-meeting identity was in every claim all
+    along; now it is used. Returns (batches, report)."""
+    groups, order = {}, []
     for i, rec in enumerate(records):
-        sig, why, how = claim_signal(rec, batch_id, i, bootstrap,
-                                     transcripts)
-        if how:
-            report["anchored"] += 1
-            kind = how.split()[0]      # exact / contained / fuzzy
-            report["anchor_how"][kind] = report["anchor_how"].get(kind, 0) + 1
-        if sig is None:
-            report["dropped"].append({"index": i, "reason": why,
-                                      "task": (rec.get("task") or "")[:60]})
-            continue
-        if sig["signal_id"] in seen:
-            report["dropped"].append({"index": i, "reason": "duplicate",
-                                      "task": sig["title"][:60]})
-            continue
-        seen.add(sig["signal_id"])
-        batch["signals"].append(sig)
-        report["kept"] += 1
-    return batch, report
+        src = ((rec.get("sources") or ["export"])[0]
+               if isinstance(rec, dict) else "export") or "export"
+        if src not in groups:
+            groups[src] = []
+            order.append(src)
+        groups[src].append((i, rec))
+
+    batches = []
+    report = {"records": len(records), "kept": 0, "dropped": [],
+              "anchored": 0, "anchor_how": {}, "meetings": len(order)}
+    for src in order:
+        met = _meeting_date(src, exported_at)
+        source_ref = "copilot-{0}-{1}".format(met, slug(src, 32))
+        batch_id = sha(source_ref, PROMPT_VERSION)[:32]
+        batch = {
+            "batch_id": batch_id,
+            "extracted_at": exported_at,
+            "extractor": {"model": "copilot:claims-export",
+                          "prompt_version": PROMPT_VERSION},
+            "window": {"source_type": "copilot_claims",
+                       "source_ref": source_ref,
+                       "time_start": met + "T00:00:00",
+                       "time_end": met + "T23:59:00"},
+            "signals": [],
+        }
+        seen = set()
+        for i, rec in groups[src]:
+            sig, why, how = claim_signal(rec, batch_id, i, bootstrap,
+                                         transcripts)
+            if how:
+                report["anchored"] += 1
+                kind = how.split()[0]      # exact / contained / fuzzy
+                report["anchor_how"][kind] = (
+                    report["anchor_how"].get(kind, 0) + 1)
+            if sig is None:
+                report["dropped"].append(
+                    {"index": i, "reason": why,
+                     "task": (rec.get("task") or "")[:60]
+                     if isinstance(rec, dict) else ""})
+                continue
+            if sig["signal_id"] in seen:
+                report["dropped"].append({"index": i,
+                                          "reason": "duplicate",
+                                          "task": sig["title"][:60]})
+                continue
+            seen.add(sig["signal_id"])
+            batch["signals"].append(sig)
+            report["kept"] += 1
+        if batch["signals"]:
+            batches.append(batch)
+    return batches, report
 
 
 def _scan_json(text):
@@ -505,22 +557,29 @@ def main():
                 print("   (no transcripts found in {0} -- claims will stay "
                       "unverified)".format(inbox))
                 transcripts = None
-        batch, report = build_batch(records, exported_at, args.label,
-                                    args.bootstrap, transcripts)
+        batches, report = build_batch(records, exported_at, args.label,
+                                      args.bootstrap, transcripts)
 
         import jsonschema
         with open(os.path.join(ROOT, "contracts",
                                "extraction_schema.json")) as f:
-            jsonschema.validate(batch, json.load(f))
+            _schema = json.load(f)
+        for b in batches:
+            jsonschema.validate(b, _schema)
 
+        all_signals = [s for b in batches for s in b["signals"]]
         kinds = {}
-        for s in batch["signals"]:
+        for s in all_signals:
             kinds[s["type"]] = kinds.get(s["type"], 0) + 1
-        people = sorted(set(c["person_ref"] for s in batch["signals"]
+        people = sorted(set(c["person_ref"] for s in all_signals
                             for c in s["owner_candidates"]))
-        print("{0}: {1} record(s) -> {2} signal(s), {3} people".format(
-            os.path.basename(path), report["records"], report["kept"],
-            len(people)))
+        print("{0}: {1} record(s) -> {2} signal(s) across {3} "
+              "meeting(s), {4} people".format(
+                  os.path.basename(path), report["records"],
+                  report["kept"], report["meetings"], len(people)))
+        for b in batches:
+            print("   {0}: {1} claim(s)".format(
+                b["window"]["source_ref"], len(b["signals"])))
         print("   types: " + ", ".join(
             "{0}={1}".format(k, v) for k, v in sorted(kinds.items())))
         n_anchored = report["anchored"]
@@ -540,19 +599,24 @@ def main():
             print("   dropped [{0}]: {1}".format(d["reason"], d["task"]))
 
         if args.dry_run:
-            print(json.dumps(batch["signals"][:1], indent=1)[:900])
+            if all_signals:
+                print(json.dumps(all_signals[:1], indent=1)[:900])
             continue
         if not args.dsn:
             raise SystemExit("set TL_COPILOT_DSN or pass --dsn (or use "
                              "--dry-run)")
         import signal_store_pg
-        fallback = sorted(set(c["person_ref"] for s in batch["signals"]
-                              for c in s["owner_candidates"]))
-        result = signal_store_pg.write_batch(args.dsn, batch, fallback)
-        print("   db: {0} inserted, {1} already present, {2} pool event(s)"
-              .format(result["signals_inserted"], result["already_present"],
-                      result["pool_events"]))
-        total += result["signals_inserted"]
+        for b in batches:
+            fallback = sorted(set(c["person_ref"]
+                                  for s in b["signals"]
+                                  for c in s["owner_candidates"]))
+            result = signal_store_pg.write_batch(args.dsn, b, fallback)
+            print("   db[{0}]: {1} inserted, {2} already present, {3} "
+                  "pool event(s)".format(
+                      b["window"]["source_ref"],
+                      result["signals_inserted"],
+                      result["already_present"], result["pool_events"]))
+            total += result["signals_inserted"]
 
     if total:
         print("\nwrote {0} signal(s). They are proposals-in-waiting like "
