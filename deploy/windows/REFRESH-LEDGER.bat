@@ -58,13 +58,20 @@ echo   [%TIME%] checking the database server...
 if errorlevel 1 (
   echo   [%TIME%] server not running -- starting it first; a database
   echo            nobody is serving cannot be dropped
-  "%PGBIN%\pg_ctl.exe" -D "%PGDATA%" -o "-p %PGPORT%" -l "%PGDATA%\pg.log" start >nul 2>&1
+  rem -w -t 20: bounded wait. Unbounded, a server that cannot
+rem start holds this window silent for over a minute -- the
+rem first teammate to hit it photographed the silence.
+"%PGBIN%\pg_ctl.exe" -D "%PGDATA%" -o "-p %PGPORT%" -l "%PGDATA%\pg.log" -w -t 20 start >nul 2>&1
   for /l %%i in (1,1,10) do (
     "%PGBIN%\pg_isready.exe" -p %PGPORT% >nul 2>&1
     if not errorlevel 1 goto :srvup
     ping -n 2 127.0.0.1 >nul
   )
   echo   [X] The server would not start. Details: %PGDATA%\pg.log
+  echo   ---- why, from the last lines of pg.log ----
+  powershell -NoProfile -Command "Get-Content -Tail 25 '%PGDATA%\pg.log'"
+  echo   -------------------------------------------
+  echo   Photograph this window -- it is the complete report.
   pause
   exit /b 1
 )

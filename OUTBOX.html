@@ -22,18 +22,21 @@
 <h1>OUTBOX</h1>
 <p class="stamp">The current outgoing message, ready to paste. Replaced
 with each new message; pull first and this is always the latest.
-Revision: 2026-10-12 &middot; to: Jason, two-step unblock, no new
-download.</p>
+Revision: 2026-10-12b &middot; to: Jason, the database that will not
+start.</p>
 
 <h2>The reply</h2>
-<div class="block"><pre>Jason — my fault, and my own instructions walked you into it: on a fresh extract the database tools are still packed inside postgres.zip, and it's the normal START that unpacks them. The refresh script assumed they'd already be there. You don't need to download anything — two steps with the kit you have:
+<div class="block"><pre>Jason — your screenshot shows exactly where it stopped: the database server on your machine won't start, and the reason is written in a log the script should have read out to you (fixed for next time). Two things, with the kit you have:
 
-1. Double-click START-TASK-LEDGER.bat once. Let it do its one-time setup (file names scroll — that's the unpacker working). When the browser opens, you're done with this step: close the black window.
-2. Now double-click REFRESH-LEDGER.bat, type YES, press Enter. This time it finds its tools, narrates every step with timestamps, and rebuilds from the new data.
+1. One retry with patience: run REFRESH-LEDGER.bat again, type YES, and give that "starting it first" line a full two minutes before judging it. The wait can genuinely be that long when it fails slowly.
 
-Then START again, and September/October should greet you — your three status-report tasks included, as cards with your own report as the receipt.
+2. If it's still sitting there after two minutes: close it, open a regular command window (Windows key, type cmd, Enter) and paste this one line — it prints the database's own explanation:
 
-The script itself is fixed so order never matters again — future kits unpack their own tools from either entry point. You keep finding the seams exactly one step before the rest of the team walks over them, and I mean it as a compliment.
+powershell -NoProfile -Command "Get-Content -Tail 25 $env:USERPROFILE\pgdata-taskledger\pg.log"
+
+One photo of what that prints is the complete report — it will name the actual reason (a leftover lock from a previous session, a port in use, or whatever it turns out to be), and the fix is usually one line once we can read it.
+
+Also send me, if you still have it, the window from step 1 (the first START run) — you mentioned an issue there too, and it may be the same root cause wearing two hats.
 
 — Alex</pre></div>
 <script>
