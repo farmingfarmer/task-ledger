@@ -58,11 +58,20 @@ echo   [%TIME%] checking the database server...
 if errorlevel 1 (
   echo   [%TIME%] server not running -- starting it first; a database
   echo            nobody is serving cannot be dropped
-  rem -w -t 20: bounded wait. Unbounded, a server that cannot
-rem start holds this window silent for over a minute -- the
-rem first teammate to hit it photographed the silence.
-"%PGBIN%\pg_ctl.exe" -D "%PGDATA%" -o "-p %PGPORT%" -l "%PGDATA%\pg.log" -w -t 20 start >nul 2>&1
-  for /l %%i in (1,1,10) do (
+  rem Started DETACHED via Start-Process: a Postgres launched from
+rem this console dies when the console closes -- 0xC000013A in
+rem the first teammate's log, mid-checkpoint, because the
+rem instructions said "close the black window" and on Windows
+rem that killed the database with it. Hidden own console now:
+rem closing THIS window stops only the app, never the data.
+rem The port rides the PGPORT environment variable, which
+rem postgres reads natively -- no -o quoting gymnastics.
+powershell -NoProfile -Command "Start-Process -WindowStyle Hidden -FilePath '%PGBIN%\pg_ctl.exe' -ArgumentList '-D','%PGDATA%','-l','%PGDATA%\pg.log','start'" >nul 2>&1
+  rem up to ~60s: after an unclean stop the server replays its
+  rem write-ahead log before answering; that is recovery, not
+  rem a hang -- say so instead of giving up at ten seconds.
+  for /l %%i in (1,1,30) do (
+    if %%i==10 echo   [%TIME%] still starting -- recovering after an unclean stop is normal, give it a minute
     "%PGBIN%\pg_isready.exe" -p %PGPORT% >nul 2>&1
     if not errorlevel 1 goto :srvup
     ping -n 2 127.0.0.1 >nul

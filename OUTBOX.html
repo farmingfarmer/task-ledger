@@ -22,21 +22,23 @@
 <h1>OUTBOX</h1>
 <p class="stamp">The current outgoing message, ready to paste. Replaced
 with each new message; pull first and this is always the latest.
-Revision: 2026-10-12b &middot; to: Jason, the database that will not
-start.</p>
+Revision: 2026-10-12c &middot; to: Jason, root cause found (it was my
+instruction), one-move fix.</p>
 
 <h2>The reply</h2>
-<div class="block"><pre>Jason — your screenshot shows exactly where it stopped: the database server on your machine won't start, and the reason is written in a log the script should have read out to you (fixed for next time). Two things, with the kit you have:
+<div class="block"><pre>Jason — your log photo solved it completely, and the culprit is me: my earlier instruction said "when the browser opens, close the black window" — and on Windows, closing that window also kills the database that was started from it. Your log shows exactly that (exception 0xC000013A = console closed), mid-write. Every symptom since follows from it. The scripts are fixed so the database now runs detached — closing any window only ever stops the app, never the data.
 
-1. One retry with patience: run REFRESH-LEDGER.bat again, type YES, and give that "starting it first" line a full two minutes before judging it. The wait can genuinely be that long when it fails slowly.
+For you, right now, one move fixes everything AND gets you the new data in the same stroke — since the refresh was going to replace your local copy anyway, we can simply remove the damaged copy and let the launcher rebuild fresh:
 
-2. If it's still sitting there after two minutes: close it, open a regular command window (Windows key, type cmd, Enter) and paste this one line — it prints the database's own explanation:
+1. Make sure no Task Ledger black window is open, then in a command window paste:
 
-powershell -NoProfile -Command "Get-Content -Tail 25 $env:USERPROFILE\pgdata-taskledger\pg.log"
+rmdir /s /q "%USERPROFILE%\pgdata-taskledger"
 
-One photo of what that prints is the complete report — it will name the actual reason (a leftover lock from a previous session, a port in use, or whatever it turns out to be), and the fix is usually one line once we can read it.
+2. Double-click START-TASK-LEDGER.bat. It will set up the database from scratch and load this kit's September/October data directly — you don't need REFRESH-LEDGER at all this time. Expect the one-time setup lines, then your greeting, then the new cards — your three status-report tasks among them.
 
-Also send me, if you still have it, the window from step 1 (the first START run) — you mentioned an issue there too, and it may be the same root cause wearing two hats.
+(Your my-answers feedback files are untouched by any of this, as always.)
+
+Thank you for running the log command — that photo turned a week of guessing into a one-line diagnosis. This was the deepest bug of the whole pilot and you found it.
 
 — Alex</pre></div>
 <script>
