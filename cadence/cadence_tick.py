@@ -626,10 +626,10 @@ def main():
         # model he already had. Extraction leaves the inbox alone,
         # reconciliation runs the offline matcher and holds ambiguity,
         # and this line says the one thing worth doing about it.
-        log("Ollama is not answering at {0} -- start it (Windows key, "
-            "type Ollama, Enter; look for the tray icon). Running this "
-            "tick OFFLINE: transcripts wait in the inbox, matching uses "
-            "the offline embedder, ambiguity holds.".format(host))
+        log("Ollama is not answering at {0} -- start it with "
+            "'tl.bat ollama' (finds the exe wherever it lives). Running "
+            "this tick OFFLINE: transcripts wait in the inbox, matching "
+            "uses the offline embedder, ambiguity holds.".format(host))
         log("models: extract=offline judge=offline embed=offline")
         return _run_stages(dsn, user, host, inbox)
     if have == []:

@@ -109,11 +109,14 @@ def main():
         print("\nOllama is not answering at {0}.".format(host))
         print("  Reconciling needs it for embeddings, so this would import")
         print("  the claims and then fail once per person.")
-        print("  Easiest: press the Windows key, type Ollama, press Enter")
-        print("  -- the app starts its server and sits in the tray.")
-        print("  Or from a terminal (ollama is usually NOT on PATH):")
-        print('     start "ollama" "%LOCALAPPDATA%\\Programs\\Ollama'
-              '\\ollama.exe" serve')
+        # One command, not a path: this hint used to dictate a start
+        # line with %LOCALAPPDATA% baked in, and on the machine where
+        # ollama lives under %USERPROFILE% the operator typed it
+        # faithfully and it failed. tl ollama probes every home we have
+        # ever found it in; the error message must not know less than
+        # the tool does.
+        print("  Start it with:   tl.bat ollama")
+        print("  (finds ollama.exe wherever it lives and starts the server)")
         print("  Then run this again -- rebuilds are free.")
         return 2
 
