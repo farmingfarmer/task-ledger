@@ -1410,7 +1410,13 @@
         if(sdet && !sdet.open) sdet.open = true;
       }
       if(!parts.length){
-        box.hidden = true;
+        // an explicit all-clear, not absence: the person who finished
+        // everything deserves to be TOLD so, and a strip that vanishes
+        // reads as a strip that broke
+        box.hidden = false;
+        box.innerHTML = "";
+        box.appendChild(el("span", null,
+          "All caught up \u2014 nothing is waiting on you."));
         return;
       }
       box.hidden = false;
@@ -1791,16 +1797,20 @@
         btn.appendChild(el("span","cnt", String(n)));
         btn.onclick = openReview;
       } else {
-        // The queue is empty -- which is exactly when the survey
-        // matters, and the survey's only door used to be inside this
-        // popup. A finished reviewer who lost the form mid-fill had
-        // NO way back: the button that led to it hid itself the
-        // moment they finished. If the form is still owed, the button
-        // stays, relabelled, and leads straight there.
-        btn.hidden = true;
+        // The button NEVER hides. Its absence at zero has now read as
+        // breakage three separate times to the same careful reviewer
+        // -- the survey door, then this button itself -- because a
+        // control that vanishes when its count hits zero looks like a
+        // missing feature, not an empty queue. Priority when empty:
+        // an owed feedback form first; otherwise a calm "All caught
+        // up" that still opens the popup, whose empty sections say in
+        // words that nothing waits.
+        btn.hidden = false;
+        btn.appendChild(document.createTextNode("All caught up"));
+        btn.onclick = function(){ REVIEW.shown = true; openReview(); };
         get("/api/survey").then(function(spec){
           if(spec && spec.submitted === false){
-            btn.hidden = false;
+            btn.innerHTML = "";
             btn.appendChild(document.createTextNode(
               "Finish the feedback form"));
             btn.onclick = function(){ openSurvey(true); };
