@@ -759,6 +759,19 @@
   </header>
 
   <main>
+    <section class="sect" id="sect-week">
+      <h2>Your week
+        <span class="sub">priority, hours so far, and a proposed plan
+          &mdash; suggestions until you save them</span></h2>
+      <div id="radar"></div>
+      <div class="capture" id="capturebox"></div>
+      <div id="weekpanel"></div>
+      <details class="more"><summary>Your standup, drafted &mdash; copy
+        it before the meeting; every line carries its receipt</summary>
+        <div class="more-body"><div id="standup"></div></div>
+      </details>
+    </section>
+
     <section class="sect" id="sect-signals">
       <h2>Signals over time
         <span class="sub">what the ledger has measured about your work, and
@@ -770,19 +783,6 @@
         <figure class="fig viz" id="fig-friction"></figure>
         <figure class="fig viz" id="fig-queue"></figure>
       </div>
-    </section>
-
-    <section class="sect" id="sect-week">
-      <h2>Your week
-        <span class="sub">priority, hours so far, and a proposed plan
-          &mdash; suggestions until you save them</span></h2>
-      <div id="radar"></div>
-      <div class="capture" id="capturebox"></div>
-      <div id="weekpanel"></div>
-      <details class="more"><summary>Your standup, drafted &mdash; the
-        board turned into words, every line with its receipt</summary>
-        <div class="more-body"><div id="standup"></div></div>
-      </details>
     </section>
 
     <section class="sect" id="sect-more">
@@ -973,6 +973,11 @@
   function wkInput(row, field, value, source){
     var inp = document.createElement("input");
     inp.type = "number"; inp.step = field === "priority" ? "1" : "0.5";
+    // a proposed zero born of unstated capacity is not a plan of zero
+    // hours -- show blank, not a number nobody chose
+    if(source === "proposed" && value === 0
+       && WEEK.data && WEEK.data.capacity
+       && WEEK.data.capacity.value == null) value = null;
     inp.min = "0"; inp.value = value == null ? "" : String(value);
     if(source === "proposed") inp.className = "proposed";
     inp.oninput = function(){
@@ -1014,11 +1019,14 @@
     };
     cap.appendChild(capin);
     cap.appendChild(el("span","wkmeta",
-      "meetings are projected to take " + d.meeting_hours_projected
-      + " h of it (measured from your transcripts). Speaking in "
-      + "points? 1 point = " + d.story_point_hours + " h here \u2014 "
-      + "the rate lives in matching_policy.yaml. Spoken estimates on "
-      + "your tasks drive the proposal; priority splits the rest."));
+      d.capacity.value == null
+        ? "type your hours for this week and the sheet proposes a "
+          + "split \u2014 until then the plan column stays blank, "
+          + "because zeros would be a guess about your time"
+        : "meetings are projected to take " + d.meeting_hours_projected
+          + " h of it (measured from your transcripts). 1 point = "
+          + d.story_point_hours + " h. Spoken estimates on your tasks "
+          + "drive the proposal; priority splits the rest."));
     box.appendChild(cap);
 
     var t = el2("table","wktable");
@@ -2414,6 +2422,15 @@
       + (p.sources || 0) + " source(s)"
       + (p.conflict_type ? " \u00b7 conflict: " + p.conflict_type : "")));
     if(p.rationale) row.appendChild(el("div","why", p.rationale));
+    if(p.target_task_id){
+      // the chain of custody, one click from the question about it
+      var rcl = document.createElement("a");
+      rcl.href = "/receipt/" + encodeURIComponent(p.target_task_id)
+               + "?as=" + encodeURIComponent(state.viewer);
+      rcl.target = "_blank"; rcl.className = "tid";
+      rcl.textContent = "this task\u2019s receipt \u2197";
+      row.appendChild(rcl);
+    }
     // Accepting this may create a SECOND task -- the parent it gets filed
     // under. Saying so on the card is not a nicety: a board that grows a
     // task nobody asked for is a board people stop trusting, and the
@@ -4145,7 +4162,11 @@
       sel.hidden = false; txt.hidden = true;
       sel.innerHTML = "";
       d.viewers.forEach(function(v){
-        var o = el("option", null, v); o.value = v; sel.appendChild(o);
+        // label is the person's name; the machine ref stays the value.
+        // "aad-jason-tjia" in a dropdown reads as a system id to debug,
+        // not a person to be.
+        var o = el("option", null, personName(v)); o.value = v;
+        sel.appendChild(o);
       });
       var keep = d.viewers.indexOf(state.viewer) !== -1
                  ? state.viewer : d.viewers[0];
