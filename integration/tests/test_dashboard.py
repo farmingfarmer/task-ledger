@@ -1240,6 +1240,34 @@ def main():
            "self-only in both directions")
         code, _ = as_viewer(client, "/api/workload?profile=synthetic")
         ok(code == 401, "and anonymous gets nothing")
+        # Hours WORKED: fact outranks intention in the projection
+        code, body = spost("/api/workload?profile=synthetic",
+                           {"week_start": WKN,
+                            "rows": [{"subject": sid, "worked": 5}]})
+        ok(code == 200,
+           "hours actually spent save like any stated number")
+        code, sheet3 = as_viewer(client,
+                                 "/api/workload?profile=synthetic&week="
+                                 + WKN, OWNER)
+        row3 = [r for r in sheet3["rows"] if r["subject"] == sid][0]
+        ok(row3["worked"] == 5.0
+           and abs(row3["eow_total"] - 25.0) < 1e-9
+           and row3["eow_basis"] == "worked",
+           "and once worked hours exist, end-of-week is arithmetic on "
+           "what HAPPENED: 20 opening + 5 worked = 25, planned 9.5 "
+           "set aside, and the row says which basis it used")
+
+        # the day's first sentence
+        code, td = as_viewer(client, "/api/today?profile=synthetic",
+                             OWNER)
+        ok(code == 200 and td["pending"] >= 1
+           and "due" in td and "moved_yesterday" in td,
+           "the today strip has its counts: answers waiting, blockers "
+           "cleared, movement since yesterday, the nearest deadline")
+        code, _ = as_viewer(client, "/api/today?profile=synthetic")
+        ok(code == 401, "and it is self-only like every judgement "
+                        "surface")
+
         # One CURRENT-week statement too: the team-week test asserts the
         # grantee sees a 9.5 h plan, and the shared view reads the
         # current week by design. Computed HERE, not taken from the

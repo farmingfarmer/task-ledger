@@ -114,7 +114,8 @@ CREATE TABLE IF NOT EXISTS workload_events (
                  'opening_total',   -- stated: cumulative hours before this week
                  'planned',         -- stated: hours the person will spend
                  'priority',        -- stated: 1 = most important
-                 'meeting_time')),  -- measured: minutes, from transcripts
+                 'meeting_time',    -- measured: minutes, from transcripts
+                 'worked')),        -- stated: hours actually spent
   hours       numeric(6,2),
   priority    smallint CHECK (priority BETWEEN 1 AND 99),
   -- 'stated' rows come from the person; 'measured' rows carry the

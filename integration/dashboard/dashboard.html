@@ -531,6 +531,12 @@
     flex:1;border:1px solid var(--line,#d9dee5);
     border-radius:var(--r1,6px)}
   .vfixed{font-weight:600;font-size:14px}
+  .today{font-size:15px;padding:12px 16px;margin-bottom:14px;
+         background:var(--panel);border:1.5px solid var(--line);
+         border-radius:10px;line-height:1.6}
+  .today a{cursor:pointer;text-decoration:underline;
+         text-underline-offset:3px}
+  .today .tsep{color:var(--faint);margin:0 .5em}
   .wktable{width:100%;border-collapse:collapse;font-size:13px}
   .wktable th{text-align:left;font-size:11px;text-transform:uppercase;
          letter-spacing:.06em;color:var(--muted);padding:6px 8px;
@@ -759,6 +765,7 @@
   </header>
 
   <main>
+    <div class="today" id="todaystrip" hidden></div>
     <section class="sect" id="sect-week">
       <h2>Your week
         <span class="sub">priority, hours so far, and a proposed plan
@@ -773,9 +780,9 @@
     </section>
 
     <section class="sect" id="sect-signals">
-      <h2>Signals over time
-        <span class="sub">what the ledger has measured about your work, and
-          about itself</span></h2>
+      <h2>The measurements
+        <span class="sub">what the ledger can prove about your work
+          \u2014 and the score it keeps on itself</span></h2>
       <div id="tiles" class="tiles"></div>
       <div class="charts">
         <figure class="fig viz" id="fig-latency"></figure>
@@ -995,8 +1002,10 @@
       var open_ = e.opening_total != null ? e.opening_total
                   : r.opening_total.value;
       var plan = e.planned != null ? e.planned : r.planned.value;
+      var wkd = e.worked != null ? e.worked : r.worked;
+      var eff = wkd != null ? wkd : plan;
       var cell = document.getElementById("wkeow-" + r.subject);
-      if(cell) cell.textContent = (Math.round((open_ + plan) * 10) / 10);
+      if(cell) cell.textContent = (Math.round((open_ + eff) * 10) / 10);
     });
   }
 
@@ -1032,7 +1041,7 @@
     var t = el2("table","wktable");
     var hr = el2("tr");
     ["Priority","Project","Status","Started","Hours so far",
-     "+ This week","= End of week"].forEach(function(h){
+     "+ Planned","Worked","= End of week"].forEach(function(h){
       hr.appendChild(el("th", null, h)); });
     t.appendChild(hr);
     d.rows.forEach(function(r){
@@ -1076,9 +1085,15 @@
       td5.appendChild(wkInput(r, "planned", r.planned.value,
                               r.planned.source));
       tr.appendChild(td5);
+      // hours actually spent: typed, never derived. Once stated, the
+      // end-of-week column is arithmetic on what happened.
+      var td5b = el2("td");
+      td5b.appendChild(wkInput(r, "worked", r.worked, "stated"));
+      tr.appendChild(td5b);
       var td6 = el2("td");
       var eow = el("span","wkeow", String(r.eow_total));
       eow.id = "wkeow-" + r.subject;
+      if(r.eow_basis === "worked") eow.title = "from hours worked";
       td6.appendChild(eow);
       tr.appendChild(td6);
       t.appendChild(tr);
@@ -1349,6 +1364,63 @@
     });
   }
 
+  // ---- the first sentence of the day ----
+  //
+  // One line the system composed, before anything else renders: what
+  // is waiting, what moved, what is due. The difference between a tool
+  // you check and a tool that greets you. Each clause is a link to the
+  // thing it names.
+  function loadToday(){
+    get("/api/today").then(function(d){
+      var box = document.getElementById("todaystrip");
+      box.innerHTML = "";
+      var parts = [];
+      function clause(text, onclick){
+        var a = el("a", null, text);
+        a.onclick = onclick;
+        parts.push(a);
+      }
+      if(d.pending > 0)
+        clause(d.pending + " answer" + (d.pending === 1 ? "" : "s")
+               + " waiting for you", function(){
+          REVIEW.shown = true; openReview(); });
+      if(d.unblocked > 0)
+        clause((d.unblocked === 1 ? "a blocker you were waiting on has"
+                : d.unblocked + " blockers you were waiting on have")
+               + " been cleared", function(){
+          REVIEW.shown = true; openReview(); });
+      if(d.moved_yesterday > 0)
+        clause("standup ready to copy \u2014 " + d.moved_yesterday
+               + " change" + (d.moved_yesterday === 1 ? "" : "s")
+               + " since yesterday", function(){
+          var n = document.getElementById("standup");
+          var det = n && n.closest ? n.closest("details") : null;
+          if(det){ det.open = true; det.scrollIntoView(); }
+        });
+      if(d.due)
+        clause("\u201c" + d.due.title + "\u201d due "
+               + String(d.due.deadline).slice(5), function(){
+          document.getElementById("radar").scrollIntoView(); });
+      // a drafted standup with content opens its own drawer -- it is
+      // the strongest daily hook in the product, and a closed drawer
+      // is where habits go to die. Opening it triggers the lazy load.
+      if(d.moved_yesterday > 0){
+        var sn = document.getElementById("standup");
+        var sdet = sn && sn.closest ? sn.closest("details") : null;
+        if(sdet && !sdet.open) sdet.open = true;
+      }
+      if(!parts.length){
+        box.hidden = true;
+        return;
+      }
+      box.hidden = false;
+      parts.forEach(function(a, i){
+        if(i) box.appendChild(el("span","tsep","\u00b7"));
+        box.appendChild(a);
+      });
+    })["catch"](function(){ /* a greeting is never worth an error */ });
+  }
+
   function loadWeek(){
     panel("weekpanel", "/api/workload",
           function(_node, data){ paintWeek(data); });
@@ -1362,6 +1434,7 @@
     loadWork(); loadPending(); loadHeld(); loadMetrics();
     loadTimeline();
     loadProjects(); loadRecent();
+    loadToday();
     loadWeek(); loadRadar();
     paintCapture();
     // Everything living inside a closed <details> loads when the
@@ -2163,6 +2236,49 @@
       ? "Suggestions, each with its sentence attached. Nothing below is "
         + "on your board until you say so."
       : "Nothing new since your last review."));
+    // Ten similar cards answered one at a time was the popup's
+    // biggest remaining friction. Everything unconflicted and traceable
+    // can be accepted as a batch -- with an inline confirm, because a
+    // bulk accept is still a decision and gets said out loud. Conflicts
+    // and untraceable cards never qualify: those are the ones the
+    // one-at-a-time ritual exists for.
+    var bulkable = props.filter(function(p){
+      return !p.conflict_type && p.traceable !== false;
+    });
+    if(d.writable && bulkable.length >= 3){
+      var bwrap = el2("div","revacts");
+      var ball = el2("button", null); ball.type = "button";
+      ball.textContent = "Accept all " + bulkable.length
+                         + " unconflicted";
+      ball.onclick = function(){
+        if(ball.textContent.indexOf("Really") !== 0){
+          ball.textContent = "Really accept " + bulkable.length
+                             + "? Click again";
+          return;
+        }
+        lockActs(bwrap, ball);
+        var k = 0;
+        function next(){
+          if(k >= bulkable.length){
+            bwrap.innerHTML = "";
+            bwrap.appendChild(el("span","revdone",
+              "All " + bulkable.length + " recorded as accepted by you"));
+            REVIEW.dirty = true;
+            loadReview(false);
+            return;
+          }
+          var p = bulkable[k++];
+          post("/api/decide", {proposal_id: p.proposal_id,
+                               decision: "accept"})
+            .then(next)["catch"](next);
+        }
+        next();
+      };
+      bwrap.appendChild(ball);
+      bwrap.appendChild(el("span","wkmeta",
+        "  conflicted and unverifiable cards stay one-at-a-time"));
+      sec.appendChild(bwrap);
+    }
     props.forEach(function(p){ sec.appendChild(proposalRow(p, d.writable)); });
     if(props.length)
       sec.appendChild(el("div","revnote",
@@ -2369,9 +2485,9 @@
 
     var foot = document.getElementById("revfoot");
     foot.textContent = d.packet
-      ? ("Packet " + String(d.packet.packet_id).slice(0, 8)
-         + " \u00b7 board v" + d.packet.board_version
-         + " \u00b7 nothing moves without a decision recorded against it")
+      ? ("Prepared " + String(d.packet.generated_at).slice(0, 10)
+         + " \u00b7 nothing moves without a decision recorded "
+         + "against it")
       : "Nothing moves without a decision recorded against it.";
     // Closing the form must not be the end of it. Someone who wants to
     // say something after the fact should not have to redo their cards

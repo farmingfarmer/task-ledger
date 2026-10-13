@@ -2419,6 +2419,51 @@ def _propose_plan(capacity, meeting_hours, subjects, priorities, stated,
     return plan
 
 
+@app.route("/api/today")
+def today():
+    """The page's first sentence: what this day holds, in one line the
+    system composed. SELF ONLY, and deliberately CHEAP -- five count
+    queries, no joins through evidence -- because it renders before
+    everything else and must never be the thing a person waits on."""
+    v = viewer()
+    if not v:
+        return _need_viewer()
+    pend = q("""
+        WITH latest AS (SELECT DISTINCT ON (packet_id) packet_id, state
+          FROM packet_state_events ORDER BY packet_id, event_id DESC)
+        SELECT count(*) AS n FROM proposals p
+        JOIN review_packets rp USING (packet_id)
+        JOIN latest l ON l.packet_id = rp.packet_id
+        LEFT JOIN decisions d ON d.proposal_id = p.proposal_id
+        WHERE rp.user_ref = %s AND d.decision_id IS NULL
+          AND l.state IN ('draft','delivered','partially_decided')""",
+        (v,))[0]["n"]
+    unblocked = q("""
+        SELECT count(*) AS n FROM task_blockers b
+        JOIN tasks_current t ON t.task_id = b.task_id
+        JOIN tasks_current bt ON bt.task_id = b.blocking_task_id
+        WHERE t.user_ref = %s AND b.resolved_event_id IS NULL
+          AND t.status NOT IN ('completed','cancelled')
+          AND bt.status IN ('completed','cancelled')""", (v,))[0]["n"]
+    due = q("""
+        SELECT title, deadline FROM tasks_current
+        WHERE user_ref = %s AND merged_into IS NULL
+          AND status NOT IN ('completed','cancelled')
+          AND deadline IS NOT NULL AND deadline <= CURRENT_DATE + 7
+        ORDER BY deadline LIMIT 1""", (v,))
+    moved = q("""
+        SELECT count(*) AS n FROM task_events e
+        JOIN tasks_current t USING (task_id)
+        WHERE t.user_ref = %s
+          AND e.occurred_at > now() - interval '1 day'""", (v,))[0]["n"]
+    return jsonify({
+        "pending": pend,
+        "unblocked": unblocked,
+        "due": due[0] if due else None,
+        "moved_yesterday": moved,
+    })
+
+
 @app.route("/api/workload")
 def workload():
     """SELF ONLY: the sheet is a person's own week."""
@@ -2494,6 +2539,8 @@ def workload():
         basis = sorted({ser for (subj, _w), (_m, sers) in per.items()
                         if subj == sid for ser in sers})
         opening_v = float(opening["hours"]) if opening else 0.0
+        worked = stated.get((sid, "worked"))
+        worked_v = float(worked["hours"]) if worked else None
         rows.append({
             "subject": sid, "label": s["label"],
             "active": not s.get("blocker"),
@@ -2507,10 +2554,17 @@ def workload():
                                        "basis": basis,
                                        "source": "measured"},
             "planned": plan[sid],
+            "worked": worked_v,
             "estimate": ({"hours": round(estimates[sid][0], 1),
                           "phrases": estimates[sid][1]}
                          if sid in estimates else None),
-            "eow_total": round(opening_v + plan[sid]["value"], 1),
+            # Fact outranks intention: once hours WORKED are stated, the
+            # end-of-week total is arithmetic on what happened, not on
+            # what was planned.
+            "eow_total": round(opening_v + (worked_v if worked_v
+                                            is not None
+                                            else plan[sid]["value"]), 1),
+            "eow_basis": "worked" if worked_v is not None else "planned",
         })
     rows.sort(key=lambda r: r["priority"]["value"])
     return jsonify({
@@ -2565,6 +2619,8 @@ def workload_save():
         if r.get("opening_total") is not None:
             events.append((sid, "opening_total",
                            float(r["opening_total"]), None))
+        if r.get("worked") is not None:
+            events.append((sid, "worked", float(r["worked"]), None))
         if r.get("priority") is not None:
             events.append((sid, "priority", None, int(r["priority"])))
     if not events:
