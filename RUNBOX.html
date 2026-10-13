@@ -32,19 +32,24 @@
 whenever the sequence changes &mdash; <b>pull first</b> and this is always
 current. Every dark block is pure commands: paste the whole block, nothing
 in it is commentary.</p>
-<p class="stamp">Revision: 2026-10-06b &middot; mission: ingest the expanded
-Copilot export + all new sources, run the pipeline, reship the kits</p>
+<p class="stamp">Revision: 2026-10-13 &middot; mission: second freshness
+cycle (expanded Copilot export, Jason&rsquo;s missing-tasks hunt) + ship
+all four teammate kits</p>
 
-<div class="mission"><b>Right now:</b> copilot_claims_raw.txt has grown new
-meeting summaries. Feed everything new into both ledgers &mdash;
-transcripts first (anchoring matches Copilot&rsquo;s quotes against
-transcripts already on disk, so order matters), then the Copilot export,
-then any status reports &mdash; run the tick, review your own cards, and
-rebuild the kits so the team finally sees September and October.</div>
+<div class="mission"><b>Right now:</b> copilot_claims_raw.txt grew again
+(the meetings that should carry Jason&rsquo;s Yesha-assigned tasks). One
+NEW step this cycle: the <code>worked</code>-hours migration, once per
+ledger, before anything else touches the databases. The dry run now
+lists one line PER MEETING &mdash; check the Sep 24 sprint planning
+appears, and note the anchor rate for the memo.</div>
 
 <h2>1 &middot; Update the machine</h2>
 <div class="block"><pre>cd %USERPROFILE%\dev\task-ledger
 git pull</pre></div>
+
+<h2>1b &middot; One-time migration (this cycle only)</h2>
+<div class="block"><pre>%USERPROFILE%\pgsql-portable\pgsql\bin\psql.exe -p 5433 -d taskintel -f storage\migrate_worked.sql
+%USERPROFILE%\pgsql-portable\pgsql\bin\psql.exe -p 5433 -d taskintel_copilot -f storage\migrate_worked.sql</pre></div>
 
 <h2>2 &middot; Transcripts first (only if transcripts_raw.txt has new meetings)</h2>
 <p class="why">This must run BEFORE the Copilot import: quotes in the
