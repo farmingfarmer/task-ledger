@@ -32,107 +32,80 @@
 whenever the sequence changes &mdash; <b>pull first</b> and this is always
 current. Every dark block is pure commands: paste the whole block, nothing
 in it is commentary.</p>
-<p class="stamp">Revision: 2026-10-13 &middot; mission: second freshness
-cycle (expanded Copilot export, Jason&rsquo;s missing-tasks hunt) + ship
-all four teammate kits</p>
+<p class="stamp">Revision: 2026-10-16 &middot; mission: the pilot is
+decided &mdash; Copilot is the extractor. Build the single-mechanism
+ledger and ship all five v2 kits.</p>
 
-<div class="mission"><b>Right now:</b> copilot_claims_raw.txt grew again
-(the meetings that should carry Jason&rsquo;s Yesha-assigned tasks). One
-NEW step this cycle: the <code>worked</code>-hours migration, once per
-ledger, before anything else touches the databases. The dry run now
-lists one line PER MEETING &mdash; check the Sep 24 sprint planning
-appears, and note the anchor rate for the memo.</div>
+<div class="mission"><b>Right now:</b> Jason&rsquo;s verdict landed and we
+agree: one mechanism, the Copilot-summaries ledger. The cycle below is
+SHORTER than the old one &mdash; no tick, no blind, no second arm.
+<code>tl kit</code> now ships the copilot ledger by default, and
+status reports reconcile themselves on ingest. Transcripts still go in
+first: they are what turns Copilot&rsquo;s quotes into receipts.</div>
 
 <h2>1 &middot; Update the machine</h2>
 <div class="block"><pre>cd %USERPROFILE%\dev\task-ledger
 git pull</pre></div>
 
-<h2>1b &middot; One-time migration (this cycle only)</h2>
-<div class="block"><pre>%USERPROFILE%\pgsql-portable\pgsql\bin\psql.exe -p 5433 -d taskintel -f storage\migrate_worked.sql
-%USERPROFILE%\pgsql-portable\pgsql\bin\psql.exe -p 5433 -d taskintel_copilot -f storage\migrate_worked.sql</pre></div>
-
-<h2>2 &middot; Transcripts first (only if transcripts_raw.txt has new meetings)</h2>
-<p class="why">This must run BEFORE the Copilot import: quotes in the
-export can only earn receipts against transcripts the system already
-holds.</p>
+<h2>2 &middot; Transcripts first (whenever transcripts_raw.txt has new meetings)</h2>
+<p class="why">The local extractor is retired, but transcripts are
+promoted, not dropped: every Copilot quote that matches a sentence on
+disk earns a checkable receipt, the real speaker, and the confidence to
+propose completions. No transcripts, no receipts.</p>
 <div class="block"><pre>tl.bat transcripts transcripts_raw.txt</pre></div>
 
-<h2>3 &middot; The expanded Copilot export</h2>
-<p class="why">Dry run first, and read one line of its output: &ldquo;N of
-M claim(s) matched a sentence in your transcripts&rdquo;. That anchor rate
-is the round-2 number for the decision memo &mdash; write it down.</p>
+<h2>3 &middot; Rebuild THE ledger from the Copilot export</h2>
+<p class="why">Model server first (the build refuses to drop anything
+without it), then a dry run &mdash; write down the anchor-rate line
+(&ldquo;N of M claim(s) matched a sentence&rdquo;), it goes in the
+decision memo &mdash; then the rebuild. This database is now the
+product, not the comparison arm; rebuilds are free and total.</p>
+<div class="block"><pre>tl.bat ollama</pre></div>
 <div class="block"><pre>python scripts\copilot_claims_ingest.py copilot_claims_raw.txt --dry-run</pre></div>
-<p class="why">Then rebuild the comparison ledger from scratch (it exists
-only for this; rebuilds are free):</p>
 <div class="block"><pre>tl.bat copilot copilot_claims_raw.txt --apply</pre></div>
 
-<h2>4 &middot; Status reports (repeat per person, as they arrive)</h2>
-<p class="why">Each line becomes a claim authored by that person about
-their own work, with the report line as its receipt &mdash; and it still
-arrives as a review card, never a board row. The report CONTENT never
-enters the repo (same fence as transcripts); this block writes the file
-on this machine from the excerpt Jason already gave in his survey:</p>
-<div class="block"><pre>(
-echo Week of 07/13:
-echo - AI Sandbox Guide ^& Communication
-echo - Drafting Practice Questions for RAI Taskforce Training
-echo.
-echo Week of 08/24:
-echo - Smart Utilization Project Charter
-) > jason-status.txt</pre></div>
-<div class="block"><pre>tl.bat statusreport jason-status.txt --for jason-tjia</pre></div>
-<p class="why">When his FULL report arrives (the OUTBOX message asks for
-it), overwrite jason-status.txt with it and run the same command &mdash;
-re-ingesting is an upsert-shaped no-op for unchanged weeks.</p>
+<h2>4 &middot; Status reports &mdash; EVERY cycle, right after the rebuild</h2>
+<p class="why">The rebuild starts from scratch, so reports re-apply each
+time (deterministic ids: nothing duplicates). New: <code>--dbname</code>
+lands them in the shipping ledger and reconciles the person on the spot
+&mdash; report in, review cards out, no tick. Report content never
+enters the repo, same fence as transcripts.</p>
+<div class="block"><pre>tl.bat statusreport jason-status.txt --for jason-tjia --dbname taskintel_copilot</pre></div>
+<p class="why">Repeat per person as reports arrive. When Jason&rsquo;s
+FULL report lands, overwrite jason-status.txt and run the same line.</p>
 
-<h2>5 &middot; Run the pipeline</h2>
-<div class="block"><pre>tl.bat ollama</pre></div>
-<div class="block"><pre>tl.bat tick</pre></div>
-<p class="why">The tick announces which models it picked and reconciles
-everyone with claims waiting. If it bows out on the lock and you are sure
-nothing real is running: <code>tl.bat tick --steal</code>.</p>
+<h2>5 &middot; Review the ledger that ships</h2>
+<p class="why">New flag: the dashboard serves the copilot ledger
+directly &mdash; no environment editing. The banner confirms with
+&ldquo;ledger: copilot extraction&rdquo;. Check Jason&rsquo;s missing
+list while here: sharepoint revamping, one-pagers, the Abbott deck
+(that one arrives only via his status report). Ctrl-C when done &mdash;
+the kit build needs port 8090 free.</p>
+<div class="block"><pre>tl.bat dashboard --ledger copilot --hands-on --picker</pre></div>
 
-<h2>6 &middot; Review your own cards</h2>
-<div class="block"><pre>tl.bat dashboard --hands-on --picker</pre></div>
-<p class="why">Answer your review popup. Things worth eyeballing while you
-are in there: estimate phrases on cards (&ldquo;Estimate: 2 points&rdquo;
-driving the week sheet), &ldquo;Files under&hellip;&rdquo; parent hints,
-and a receipt page on any accepted task naming its meeting in words.
-Ctrl-C the dashboard when done &mdash; the kit build needs port 8090 free
-later.</p>
-
-<h2>7 &middot; Build the five kits</h2>
-<p class="why">No session lines remain &mdash; at all. The kit finds the
-comparison ledger by itself, and the blind salt is PINNED to the default
-(task-ledger-blind-v1) for the pilot&rsquo;s lifetime: every survey
-already collected was produced under it, and changing it mid-pilot would
-silently swap which ledger is &ldquo;A&rdquo; under everyone&rsquo;s
-feet. Do not set TL_BLIND_SALT.</p>
+<h2>6 &middot; Build the five kits</h2>
+<p class="why">Same five lines as ever &mdash; but the kit now ships the
+copilot ledger BY DEFAULT, alone. Each plan must open with
+&ldquo;ledger: copilot extraction (the decided mechanism)&rdquo; and
+must NOT mention ledger-b or a second ledger. If it says BLOCKED, step
+3 has not run on this machine.</p>
 <div class="block"><pre>tl.bat kit --for alexander-marunycz --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
 tl.bat kit --for jason-tjia --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
 tl.bat kit --for yesha-m-patel --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
 tl.bat kit --for lorenzo-rossi --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
 tl.bat kit --for patrick-toral --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply</pre></div>
-<p class="why">Each plan must say &ldquo;second ledger: found
-taskintel_copilot&rdquo; and list ledger-b.sql with non-zero counts. If a
-plan says it is shipping ONE ledger, stop &mdash; the comparison database
-is missing and the --apply for the Copilot export has not run.</p>
 
-<h2>8 &middot; Prove one cold, then ship</h2>
-<div class="note">New in every kit: <b>REFRESH-LEDGER.bat</b> &mdash;
-loads a kit&rsquo;s newer data on a machine that already has an older
-copy. It narrates every step with timestamps, starts the database if it
-is down, and closes lingering sessions before dropping. Teammates whose
-kit carries newer meetings run it once; the message says so.</div>
+<h2>7 &middot; Prove one cold, then ship</h2>
 <div class="rule">No Task Ledger black window open anywhere. Zip
-<b>your own</b> kit, extract the zip somewhere fresh, double-click
-START-TASK-LEDGER.bat. The startup lines now carry [time] stamps &mdash;
-glance at where the minutes go. Walk to the greeting, type one capture
-note and watch it become a card, open one receipt. Then: per-kit check
-(<code>kit-config.json</code> names the right person; zero
-<code>OWNER TO</code> hits in <code>ledger.sql</code>), zip, send &mdash;
-named folder to named person, attendees only. Jason&rsquo;s message is in
-OUTBOX.html.</div>
+<b>your own</b> kit, extract somewhere fresh, double-click
+START-TASK-LEDGER.bat &mdash; it must boot straight into the single
+ledger, no A/B picker. Walk to the greeting, type one capture note,
+watch it become a card, open one receipt. Then per-kit check
+(<code>kit-config.json</code> names the right person and says
+<code>"ledger": "copilot"</code>; zero <code>OWNER TO</code> hits in
+<code>ledger.sql</code>), zip, send &mdash; named folder to named
+person, attendees only. Jason upgrades with REFRESH-LEDGER.bat; the
+other three get first kits. The message is in OUTBOX.html.</div>
 
 <h2>Rescues</h2>
 <p class="why">Ollama not answering:</p>

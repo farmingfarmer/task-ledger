@@ -22,25 +22,34 @@
 <h1>OUTBOX</h1>
 <p class="stamp">The current outgoing message, ready to paste. Replaced
 with each new message; pull first and this is always the latest.
-Revision: 2026-10-12c &middot; to: Jason, root cause found (it was my
-instruction), one-move fix.</p>
+Revision: 2026-10-16 &middot; two messages: Jason (verdict adopted),
+and the first-kit note for Yesha, Lorenzo and Patrick.</p>
 
-<h2>The reply</h2>
-<div class="block"><pre>Jason — your log photo solved it completely, and the culprit is me: my earlier instruction said "when the browser opens, close the black window" — and on Windows, closing that window also kills the database that was started from it. Your log shows exactly that (exception 0xC000013A = console closed), mid-write. Every symptom since follows from it. The scripts are fixed so the database now runs detached — closing any window only ever stops the app, never the data.
+<h2>To Jason</h2>
+<div class="block"><pre>Jason — decision made, and it's yours: the task ledger now runs on ONE mechanism, the Ledger B you picked — Copilot's meeting summaries do the extraction, and the ledger does what Copilot can't: remember across meetings, corroborate, keep receipts, and never move a board without your say-so. The two-ledger comparison is retired; you made it unnecessary.
 
-For you, right now, one move fixes everything AND gets you the new data in the same stroke — since the refresh was going to replace your local copy anyway, we can simply remove the damaged copy and let the launcher rebuild fresh:
+Your upgraded kit is on its way. Same drill as last time: drop it in, run REFRESH-LEDGER.bat, and you get the single ledger — no more A/B, no survey popups, just your cards. Your my-answers files survive, as always.
 
-1. Make sure no Task Ledger black window is open, then in a command window paste:
+Two asks remain from your missing-tasks list. First: if those sprint assignments from Yesha happened in a meeting around Sep 24, pull that transcript from Teams and send it over — it feeds the next cycle and those cards appear with proper receipts. Second, and it covers everything at once including the Abbott deck that was never said aloud: your current full status report. Every line of it lands as a card in your ledger with the report as its receipt.
 
-rmdir /s /q "%USERPROFILE%\pgdata-taskledger"
-
-2. Double-click START-TASK-LEDGER.bat. It will set up the database from scratch and load this kit's September/October data directly — you don't need REFRESH-LEDGER at all this time. Expect the one-time setup lines, then your greeting, then the new cards — your three status-report tasks among them.
-
-(Your my-answers feedback files are untouched by any of this, as always.)
-
-Thank you for running the log command — that photo turned a week of guessing into a one-line diagnosis. This was the deepest bug of the whole pilot and you found it.
+And thank you for the pilot — your blind reviews are the reason this decision is a measurement instead of an argument.
 
 — Alex</pre></div>
+
+<h2>To Yesha, Lorenzo, Patrick (with their kits)</h2>
+<div class="block"><pre>Hi — this is the task ledger Jason has been test-driving, now in its first team release. It reads our meetings (via Copilot's summaries) and turns what each of us said we'd do into review cards — nothing lands on any board until YOU accept it, and every card shows the exact sentence it came from.
+
+Getting started is one double-click:
+1. Unzip the folder anywhere (right-click the zip, Properties, tick Unblock if you see it, then Extract).
+2. Double-click START-TASK-LEDGER.bat. First run sets up its own private database — give it a couple of minutes of scrolling text.
+3. Your browser opens, greets you by name, and shows your cards. Accept what's right, fix what's not, dismiss what's junk.
+
+Everything runs ONLY on your machine — nothing leaves it, nothing phones anywhere. The data inside is from our all-team meetings (the same ones you were in).
+
+One ask when you've had a look: reply with what was wrong — a task it missed, a task it invented, a name it got wrong. That list is what makes the next version better. Jason's did.
+
+— Alex</pre></div>
+
 <script>
 document.querySelectorAll("pre").forEach(function(pre){
   var b=document.createElement("button");
