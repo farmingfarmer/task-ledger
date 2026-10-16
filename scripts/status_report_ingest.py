@@ -147,6 +147,13 @@ def main():
                     help="whose report this is -- author, owner and pool "
                          "target, all three")
     ap.add_argument("--dsn", default=os.environ.get("DB_DSN"))
+    ap.add_argument("--dbname", default=None,
+                    help="land the report in a different database on the "
+                         "same server, e.g. --dbname taskintel_copilot. "
+                         "The copilot ledger is rebuilt from the claims "
+                         "file, which wipes anything ingested after the "
+                         "last rebuild -- so status reports are re-applied "
+                         "with this flag each cycle, AFTER tl copilot.")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
 
@@ -179,6 +186,12 @@ def main():
                 print("    - " + s["title"])
         if args.dry_run:
             continue
+        if args.dsn and args.dbname:
+            _p = dict(kv.split("=", 1)
+                      for kv in args.dsn.split() if "=" in kv)
+            _p["dbname"] = args.dbname
+            args.dsn = " ".join(
+                "{0}={1}".format(k, v) for k, v in _p.items())
         if not args.dsn:
             print("no --dsn and DB_DSN unset; stopping before any write")
             return 2
@@ -188,6 +201,29 @@ def main():
             print("  -> {0}".format(out))
     if args.dry_run:
         print("total: {0} task(s) -- DRY RUN, nothing written".format(total))
+    elif args.dbname:
+        # No tick serves a --dbname target (the copilot ledger is
+        # rebuilt, never ticked), so pooled-until-later would mean
+        # pooled-forever. Reconcile the person right here: report in,
+        # review cards out, one command. Signal ids are deterministic,
+        # so a failed run re-runs without duplicating anything.
+        import subprocess
+        print("total: {0} task(s) pooled for {1}; reconciling now..."
+              .format(total, person))
+        cmd = [sys.executable,
+               os.path.join(ROOT, "reconciler", "run_reconcile.py"),
+               "--user", person, "--dsn", args.dsn, "--write",
+               "--embed-model",
+               os.environ.get("TL_EMBED_MODEL", "nomic-embed-text")]
+        judge = os.environ.get("TL_JUDGE_MODEL")
+        if judge:
+            cmd += ["--judge-model", judge]
+        if subprocess.run(cmd).returncode != 0:
+            print("reconcile failed -- the report is safely pooled. "
+                  "Start the model server (tl.bat ollama) and re-run "
+                  "this same command; nothing duplicates.")
+            return 1
+        print("done: review cards are live in '{0}'".format(args.dbname))
     else:
         print("total: {0} task(s) pooled for {1}; they become review "
               "cards at the next tick".format(total, person))

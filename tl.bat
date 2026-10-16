@@ -249,6 +249,11 @@ rem not belong in invisible shell state.
 echo %ARGS% | findstr /C:"--blind" >nul && set "TL_BLIND=1"
 echo %ARGS% | findstr /C:"--hands-on" >nul && set "TL_HANDS_ON=1"
 echo %ARGS% | findstr /C:"--picker" >nul && set "TL_VIEWER_PICKER=1"
+rem --ledger copilot serves the ledger kits actually ship (built by
+rem tl copilot); --ledger real forces back to DB_DSN as named. Both are
+rem explicit flags for the same reason --blind is one.
+echo %ARGS% | findstr /C:"--ledger copilot" >nul && set "TL_LEDGER=copilot"
+echo %ARGS% | findstr /C:"--ledger real" >nul && set "TL_LEDGER="
 call :preflight || exit /b 1
 rem Browse the literal IP; bare hostnames get https-upgraded on Windows.
 echo tl: http://127.0.0.1:8090  ^(ctrl-c to stop^)

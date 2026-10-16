@@ -155,9 +155,10 @@ def main():
         print('     set TL_JUDGE_MODEL=llama3.1:8b')
         return 2
 
-    print("comparison ledger '{0}' (beside your real '{1}')".format(
-        args.dbname, real))
-    print("  1. drop and recreate it -- it exists only for this comparison")
+    print("copilot ledger '{0}' (beside '{1}', which stays untouched)"
+          .format(args.dbname, real))
+    print("  1. drop and recreate it -- it rebuilds whole from the claims "
+          "file")
     print("  2. load schema.sql + access_control.sql")
     print("  3. import {0} (bootstrap: claims may create work)".format(
         os.path.basename(args.claims)))
@@ -225,14 +226,14 @@ def main():
               "rebuilds from scratch, so a second run costs nothing.")
         return 1
 
-    print("\nBuilt. To see both side by side:\n")
-    print('   set "TL_COPILOT_DSN={0}"'.format(target))
-    print("   set TL_VIEWER_PICKER=1")
-    print("   set TL_HANDS_ON=1")
-    print("   tl.bat dashboard\n")
-    print("A 'Ledger' control appears in the header: Real ledger vs "
-          "Copilot claims.")
-    print("Pick the same person on each and compare what they are asked.")
+    print("\nBuilt. Since the pilot decided for Copilot extraction, this")
+    print("database is what kits ship ('tl kit' defaults to it). Rebuilds")
+    print("start from scratch, so re-apply any status reports NOW:")
+    print("   tl statusreport <report.txt> --for <person> "
+          "--dbname {0}".format(args.dbname))
+    print("Then build kits:   tl kit --for <person> --apply")
+    print("(To compare arms again: set TL_COPILOT_DSN and "
+          "TL_VIEWER_PICKER=1, as before.)")
     return 0
 
 

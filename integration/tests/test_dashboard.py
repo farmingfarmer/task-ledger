@@ -432,7 +432,7 @@ def main():
     # explicitly and restore it.
     for flag in ("TL_VIEWER_PICKER", "TL_HANDS_ON", "TL_BLIND",
                  "TL_BLIND_SALT", "TL_KIT_CONFIG", "TL_COPILOT_DSN",
-                 "TL_SYNTH_DSN", "TL_SURVEY_DIR"):
+                 "TL_SYNTH_DSN", "TL_SURVEY_DIR", "TL_LEDGER"):
         os.environ.pop(flag, None)
     # ...and the copilot autodiscovery, which would otherwise adopt any
     # taskintel_copilot living on the developer's server and quietly
@@ -1067,6 +1067,63 @@ def main():
            "and without a kit config the page gets nothing, so a generic "
            "kit keeps the picker and the generic welcome")
         dashboard_api.KIT = saved_kit
+
+        print("kit ships the decided mechanism")
+        # The blind pilot ended with a verdict: Copilot's summaries are
+        # the extractor. From that day a bare `tl kit` must ship ONE
+        # ledger -- the copilot one -- and never quietly resurrect the
+        # comparison because taskintel_copilot still exists on the
+        # server. Plan mode is read-only, so these run the real tool.
+        import subprocess as _sp
+        _kit = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "..", "..", "scripts", "team_kit.py")
+        _env = dict(os.environ, DB_DSN=dsn)
+
+        def _plan(*extra):
+            r = _sp.run([sys.executable, _kit] + list(extra),
+                        capture_output=True, text=True, env=_env)
+            return r.returncode, r.stdout + r.stderr
+
+        _cp = dict(kv.split("=", 1) for kv in dsn.split() if "=" in kv)
+        _cp["dbname"] = "taskintel_copilot"
+        try:
+            psycopg2.connect(" ".join("{0}={1}".format(k, v)
+                             for k, v in _cp.items()),
+                             connect_timeout=3).close()
+            has_cp = True
+        except Exception:                               # noqa: BLE001
+            has_cp = False
+
+        rc, out = _plan()
+        if has_cp:
+            ok("ledger: copilot extraction" in out
+               and "taskintel_copilot" in out
+               and "second ledger: found" not in out
+               and "ledger-b" not in out,
+               "default kit ships the copilot ledger alone -- the "
+               "comparison is decided and does not auto-resurrect")
+        else:
+            ok(rc == 2 and "tl copilot copilot_claims_raw.txt --apply"
+               in out,
+               "default kit without a copilot ledger stops and names "
+               "the one command that builds it")
+
+        rc, out = _plan("--ledger", "real")
+        ok(rc == 0 and "second ledger: found" not in out
+           and "ledger: copilot extraction" not in out,
+           "--ledger real ships the local extractor's ledger alone, "
+           "no autodiscovered second arm")
+
+        rc, out = _plan("--ledger", "copilot",
+                        "--copilot-dsn", "host=x dbname=y")
+        ok("--copilot-dsn ignored" in out,
+           "a single-mechanism kit says so when handed a second arm, "
+           "instead of quietly shipping a comparison")
+
+        rc, out = _plan("--ledger", "both")
+        ok("second ledger:" in out,
+           "--ledger both still probes for the comparison arm -- the "
+           "pilot's layout remains buildable on purpose")
 
         print("the blocker moved")
         # The most connective fact the ledger holds: blocking_task_id

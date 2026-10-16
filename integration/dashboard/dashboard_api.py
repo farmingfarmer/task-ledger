@@ -76,6 +76,18 @@ app = Flask(__name__)
 DSN = os.environ.get(
     "DB_DSN", "host=/tmp/pgsock port=5433 dbname=taskintel user=postgres")
 
+# `tl dashboard --ledger copilot` -- review the ledger that actually
+# ships, in the operator's own dashboard, without editing DB_DSN. The
+# pilot decided Copilot is the extractor, so the shipping ledger lives
+# in taskintel_copilot while DB_DSN keeps naming the original database
+# for every other tool. tl.bat turns the flag into TL_LEDGER, the same
+# visible-flag-to-env pattern --blind uses.
+if os.environ.get("TL_LEDGER", "").strip().lower() == "copilot":
+    _lp = dict(kv.split("=", 1) for kv in DSN.split() if "=" in kv)
+    if _lp.get("dbname") != "taskintel_copilot":
+        _lp["dbname"] = "taskintel_copilot"
+        DSN = " ".join("{0}={1}".format(k, v) for k, v in _lp.items())
+
 # Two ledgers, one dashboard. Demoing this system means showing real
 # extraction on real conversations AND a synthetic set wide enough to cover
 # interactions the real week happened not to contain -- and switching
@@ -3927,6 +3939,9 @@ def _startup_banner():
                           if HANDS_ON else
                           "synthetic only -- set TL_HANDS_ON=1 to let "
                           "people answer their own cards"))
+    if os.environ.get("TL_LEDGER", "").strip().lower() == "copilot":
+        print("ledger:   copilot extraction (taskintel_copilot) -- the "
+              "one kits ship")
     print("feedback: " + SURVEY_DIR)
     print("code:     " + BUILD_ID)
     if KIT and KIT.get("for"):

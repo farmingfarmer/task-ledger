@@ -162,6 +162,15 @@ def main():
     ap.add_argument("--no-ledger", action="store_true",
                     help="ship the code only -- for someone who was not in "
                          "the meetings")
+    ap.add_argument("--ledger", choices=("copilot", "real", "both"),
+                    default="copilot",
+                    help="which extraction mechanism's ledger ships. The "
+                         "blind pilot decided this: Copilot's summaries "
+                         "won, so 'copilot' is the default -- ONE ledger, "
+                         "from taskintel_copilot, no comparison arm. "
+                         "'real' ships the local extractor's ledger alone; "
+                         "'both' rebuilds the two-arm blind kit the pilot "
+                         "used.")
     ap.add_argument("--with-runtime", action="store_true",
                     help="bundle the portable Python from "
                          "deploy/windows/build_portable_python.bat, so the "
@@ -177,6 +186,20 @@ def main():
 
     dsn = os.environ.get("DB_DSN")
     parts = dict(kv.split("=", 1) for kv in (dsn or "").split() if "=" in kv)
+
+    # The pilot's verdict, executed: the ledger that ships IS the one
+    # built from Copilot's summaries. DB_DSN keeps naming the original
+    # database because every other tool still reads it; this tool swaps
+    # the dbname rather than asking the operator to maintain a second
+    # session line -- that disease is cured and stays cured. --for is
+    # resolved against the SAME swapped dsn, because the kit's identity
+    # must exist in the ledger the kit actually carries.
+    if args.ledger == "copilot" and dsn and \
+            parts.get("dbname") != "taskintel_copilot":
+        parts["dbname"] = "taskintel_copilot"
+        dsn = " ".join("{0}={1}".format(k, v) for k, v in parts.items())
+        print("  ledger: copilot extraction (the decided mechanism) -- "
+              "'taskintel_copilot' ships as ledger.sql")
 
     # Resolve --for against the people the ledger actually knows. A typo
     # here would build a kit that greets nobody and locks the dashboard
@@ -264,7 +287,17 @@ def main():
     # And when it IS unset, do what the dashboard already does: the
     # comparison ledger has a conventional name on the same server.
     # Probe for it, announce, use it. The session line stops existing.
-    if not args.no_ledger and not args.copilot_dsn and dsn:
+    if args.ledger != "both":
+        # A single-mechanism kit must not quietly grow a second arm just
+        # because the comparison database still exists on this server.
+        # The comparison ended; only --ledger both rebuilds it.
+        if args.copilot_dsn:
+            print("  (--copilot-dsn ignored: --ledger {0} ships one "
+                  "ledger. Pass --ledger both for a blind comparison "
+                  "kit.)".format(args.ledger))
+        args.copilot_dsn = None
+    if args.ledger == "both" and not args.no_ledger \
+            and not args.copilot_dsn and dsn:
         _p = dict(kv.split("=", 1) for kv in dsn.split() if "=" in kv)
         _p["dbname"] = "taskintel_copilot"
         _cand = " ".join("{0}={1}".format(k, v) for k, v in _p.items())
@@ -292,6 +325,11 @@ def main():
         except Exception as exc:                        # noqa: BLE001
             print("could not read the ledger ({0}) -- is the database "
                   "running?".format(exc.__class__.__name__))
+            if args.ledger == "copilot":
+                print("  (--ledger copilot ships '{0}'. If it does not "
+                      "exist yet, build it first:\n"
+                      "     tl copilot copilot_claims_raw.txt --apply)"
+                      .format(parts.get("dbname", "taskintel_copilot")))
             return 2
 
     print("kit for one teammate -> {0}".format(args.out))
@@ -312,9 +350,13 @@ def main():
         print("  2. BLOCKED: '{0}' holds 0 signals and 0 tasks.".format(db))
         print("     A kit from this ledger contains no meetings, and the")
         print("     dashboard would open with nothing to review.")
-        print("     Ingest transcripts and run a tick first:")
-        print("       tl transcripts <your transcripts file>")
-        print("       tl tick")
+        if args.ledger == "copilot":
+            print("     Build it from the Copilot export first:")
+            print("       tl copilot copilot_claims_raw.txt --apply")
+        else:
+            print("     Ingest transcripts and run a tick first:")
+            print("       tl transcripts <your transcripts file>")
+            print("       tl tick")
         print("     (--no-ledger builds a code-only kit deliberately.)")
         return 2
     else:
@@ -507,7 +549,8 @@ def main():
     if kit_for:
         with open(os.path.join(args.out, "kit-config.json"), "w") as f:
             json.dump({"for": kit_for, "for_name": kit_for_name,
-                       "return_to": return_to}, f, indent=1)
+                       "return_to": return_to,
+                       "ledger": args.ledger}, f, indent=1)
 
     launcher = os.path.join(ROOT, "deploy", "windows",
                             "START-TASK-LEDGER.bat")
