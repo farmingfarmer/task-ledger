@@ -93,3 +93,8 @@ echo   [%TIME%] removing the old copy...
 echo   [%TIME%] old copy removed. Starting the app -- it rebuilds from
 echo            this kit's data; watch the timestamps.
 call "%~dp0START-TASK-LEDGER.bat"
+rem The launcher titles the console "Task ledger" for its own window;
+rem when the refresher ran in a caller's terminal, that name outlives
+rem the run and confuses anything that identifies windows by title
+rem (it cost an evening of remote-hands debugging). Give the name back.
+title Command Prompt
