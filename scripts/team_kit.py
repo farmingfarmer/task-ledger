@@ -154,6 +154,11 @@ def main():
                          "into ~/task-ledger-kit-<name>. The plan lists "
                          "who qualifies; --apply builds them all. "
                          "Combine with --zip to get send-ready archives.")
+    ap.add_argument("--except", dest="except_people", default="",
+                    help="with --for-everyone: comma-separated names to "
+                         "skip (same matching as --for), e.g. somebody "
+                         "who has left the team. Their work stays in the "
+                         "ledger; they just get no kit.")
     ap.add_argument("--zip", action="store_true", dest="make_zip",
                     help="after a successful build, pack the kit folder "
                          "into <out>.zip, ready to send")
@@ -235,6 +240,20 @@ def main():
         # ledger is a fixture or a test artifact and gets no kit.
         people = [r for r in refs if r.startswith("aad-")]
         skipped = [r for r in refs if not r.startswith("aad-")]
+        excused = []
+        for want in [w.strip().lower().replace(" ", "-")
+                     for w in args.except_people.split(",") if w.strip()]:
+            toks = [t for t in want.split("-") if t and t != "aad"]
+            hit = [r for r in people
+                   if all(t in r.split("-") for t in toks)]
+            if len(hit) != 1:
+                print("--except '{0}' matches {1} people -- say which "
+                      "one, exactly.".format(want, len(hit)))
+                return 2
+            people.remove(hit[0])
+            excused.append(hit[0])
+        if excused:
+            print("  (skipped by request: {0})".format(", ".join(excused)))
         print("kits for everyone this ledger knows ({0} people):"
               .format(len(people)))
         for r in people:
