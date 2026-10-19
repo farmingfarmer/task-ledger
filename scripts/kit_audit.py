@@ -95,8 +95,13 @@ def audit_static(kit, expect_return):
         # them, so byte-hashing flags identical data as different (it
         # did, eight ways). Hash the SORTED lines: same multiset of
         # lines means the same dump, whatever order it was written in.
-        digest = hashlib.sha256(b"\n".join(
-            sorted(blob.splitlines()))).hexdigest()
+        # ...and pg_dump 17 stamps each dump with a RANDOM \restrict
+        # guard token (meta-command injection protection), so those two
+        # lines differ by design. Same data, same digest, nothing else.
+        digest = hashlib.sha256(b"\n".join(sorted(
+            ln for ln in blob.splitlines()
+            if not ln.startswith((b"\\restrict", b"\\unrestrict"))
+        ))).hexdigest()
 
     # The launcher must be the single-mechanism one.
     lp = os.path.join(kit, "START-TASK-LEDGER.bat")
