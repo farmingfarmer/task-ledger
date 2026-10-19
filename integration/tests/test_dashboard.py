@@ -1120,6 +1120,17 @@ def main():
            "a single-mechanism kit says so when handed a second arm, "
            "instead of quietly shipping a comparison")
 
+        rc, out = _plan("--for-everyone")
+        if has_cp:
+            ok(rc == 0 and "kits for everyone" in out and "DRY RUN" in out
+               and "aad-" in out and "sup-test" not in out.replace(
+                   "skipped", "SKIPMARK").split("SKIPMARK")[0],
+               "--for-everyone enumerates the ledger's real people as a "
+               "plan, skips fixtures, and builds nothing without --apply")
+        else:
+            ok(rc == 2,
+               "--for-everyone without the shipping ledger stops")
+
         rc, out = _plan("--ledger", "both")
         ok("second ledger:" in out,
            "--ledger both still probes for the comparison arm -- the "

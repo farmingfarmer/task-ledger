@@ -32,9 +32,9 @@
 whenever the sequence changes &mdash; <b>pull first</b> and this is always
 current. Every dark block is pure commands: paste the whole block, nothing
 in it is commentary.</p>
-<p class="stamp">Revision: 2026-10-16 &middot; mission: the pilot is
-decided &mdash; Copilot is the extractor. Build the single-mechanism
-ledger and ship all five v2 kits.</p>
+<p class="stamp">Revision: 2026-10-19 &middot; mission: kits for the
+whole ledger &mdash; one command builds and zips a kit per person;
+return address is the med.usc.edu one.</p>
 
 <div class="mission"><b>Right now:</b> Jason&rsquo;s verdict landed and we
 agree: one mechanism, the Copilot-summaries ledger. The cycle below is
@@ -83,17 +83,15 @@ list while here: sharepoint revamping, one-pagers, the Abbott deck
 the kit build needs port 8090 free.</p>
 <div class="block"><pre>tl.bat dashboard --ledger copilot --hands-on --picker</pre></div>
 
-<h2>6 &middot; Build the five kits</h2>
-<p class="why">Same five lines as ever &mdash; but the kit now ships the
-copilot ledger BY DEFAULT, alone. Each plan must open with
-&ldquo;ledger: copilot extraction (the decided mechanism)&rdquo; and
-must NOT mention ledger-b or a second ledger. If it says BLOCKED, step
-3 has not run on this machine.</p>
-<div class="block"><pre>tl.bat kit --for alexander-marunycz --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
-tl.bat kit --for jason-tjia --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
-tl.bat kit --for yesha-m-patel --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
-tl.bat kit --for lorenzo-rossi --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply
-tl.bat kit --for patrick-toral --return-to "Alex Marunycz (amarunyc@gmail.com)" --with-runtime --with-postgres --apply</pre></div>
+<h2>6 &middot; Build a kit for EVERYONE (one command)</h2>
+<p class="why">Enumerates every real person the shipping ledger knows,
+builds each kit, and packs each into a send-ready zip. Run it once
+WITHOUT --apply first and read the list of names it prints &mdash; the
+ledger is identical in every kit, so each zip goes only to someone who
+was in the corpus meetings. The return address on every kit is the
+work one.</p>
+<div class="block"><pre>tl.bat kit --for-everyone --return-to "Alex Marunycz (alexander.marunycz@med.usc.edu)" --with-runtime --with-postgres --zip</pre></div>
+<div class="block"><pre>tl.bat kit --for-everyone --return-to "Alex Marunycz (alexander.marunycz@med.usc.edu)" --with-runtime --with-postgres --zip --apply</pre></div>
 
 <h2>7 &middot; Prove one cold, then ship</h2>
 <div class="rule">No Task Ledger black window open anywhere. Zip

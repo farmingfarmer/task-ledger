@@ -148,6 +148,15 @@ def main():
                          "pick the wrong person in), and shows them the "
                          "steps and the return address. Matched against "
                          "the people the ledger actually knows.")
+    ap.add_argument("--for-everyone", action="store_true",
+                    help="build one kit per person the shipping ledger "
+                         "knows (every aad-* ref with work in it), each "
+                         "into ~/task-ledger-kit-<name>. The plan lists "
+                         "who qualifies; --apply builds them all. "
+                         "Combine with --zip to get send-ready archives.")
+    ap.add_argument("--zip", action="store_true", dest="make_zip",
+                    help="after a successful build, pack the kit folder "
+                         "into <out>.zip, ready to send")
     ap.add_argument("--return-to", default=None,
                     help="where the answer files go back to, shown on "
                          "their final screen. Defaults to your git "
@@ -200,6 +209,62 @@ def main():
         dsn = " ".join("{0}={1}".format(k, v) for k, v in parts.items())
         print("  ledger: copilot extraction (the decided mechanism) -- "
               "'taskintel_copilot' ships as ledger.sql")
+
+    # One kit per person the shipping ledger knows. Enumerate, show,
+    # and (on --apply) re-run this same tool once per ref -- each build
+    # is the ordinary single-kit path, so everything it checks and
+    # refuses stays checked and refused.
+    if args.for_everyone:
+        if not dsn:
+            print("--for-everyone needs DB_DSN set.")
+            return 2
+        try:
+            import psycopg2
+            conn = psycopg2.connect(dsn, connect_timeout=5)
+            with conn, conn.cursor() as cur:
+                cur.execute("""
+                    SELECT DISTINCT user_ref FROM signal_pool_events
+                    UNION SELECT DISTINCT user_ref FROM tasks_current""")
+                refs = sorted(r[0] for r in cur.fetchall())
+            conn.close()
+        except Exception as exc:                        # noqa: BLE001
+            print("could not read the ledger ({0})".format(
+                exc.__class__.__name__))
+            return 2
+        # aad-* refs are real directory people; everything else in a
+        # ledger is a fixture or a test artifact and gets no kit.
+        people = [r for r in refs if r.startswith("aad-")]
+        skipped = [r for r in refs if not r.startswith("aad-")]
+        print("kits for everyone this ledger knows ({0} people):"
+              .format(len(people)))
+        for r in people:
+            print("   " + r)
+        if skipped:
+            print("  (not people, skipped: {0})".format(", ".join(skipped)))
+        print("REMINDER: the ledger is the same in every kit. Hand a kit "
+              "only to someone who was in the corpus meetings.")
+        if not args.apply:
+            print("\nDRY RUN -- nothing built. Re-run with --apply.")
+            return 0
+        fails = []
+        for r in people:
+            print("\n=== building: {0} ===".format(r))
+            cmd = [sys.executable, os.path.abspath(__file__),
+                   "--for", r, "--apply", "--ledger", args.ledger]
+            if args.return_to:
+                cmd += ["--return-to", args.return_to]
+            if args.make_zip:
+                cmd += ["--zip"]
+            if args.with_runtime:
+                cmd += ["--with-runtime", "--runtime", args.runtime]
+            if args.with_postgres:
+                cmd += ["--with-postgres", "--postgres", args.postgres]
+            if subprocess.run(cmd).returncode != 0:
+                fails.append(r)
+        print("\n=== everyone: {0} built, {1} failed{2}".format(
+            len(people) - len(fails), len(fails),
+            " (" + ", ".join(fails) + ")" if fails else ""))
+        return 1 if fails else 0
 
     # Resolve --for against the people the ledger actually knows. A typo
     # here would build a kit that greets nobody and locks the dashboard
@@ -632,6 +697,14 @@ def main():
     with open(os.path.join(args.out, "if-something-goes-wrong.md"), "w",
               encoding="utf-8") as f:
         f.write(START_HERE)
+
+    if args.make_zip:
+        print("  packing {0}.zip ...".format(os.path.basename(args.out)))
+        base = shutil.make_archive(args.out, "zip",
+                                   root_dir=os.path.dirname(args.out),
+                                   base_dir=os.path.basename(args.out))
+        print("  send-ready: {0} ({1} MB)".format(
+            base, os.path.getsize(base) // (1024 * 1024)))
 
     print("\nkit ready: {0}".format(args.out))
     for name in sorted(os.listdir(args.out)):
