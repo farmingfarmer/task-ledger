@@ -131,10 +131,11 @@ def audit_static(kit, expect_return):
     return bad, digest, cfg
 
 
-def http_json(path, timeout=5):
-    with urllib.request.urlopen(
-            "http://127.0.0.1:{0}{1}".format(PORT, path),
-            timeout=timeout) as r:
+def http_json(path, timeout=5, viewer=None):
+    req = urllib.request.Request(
+        "http://127.0.0.1:{0}{1}".format(PORT, path),
+        headers={"X-Viewer": viewer} if viewer else {})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
         return json.loads(r.read().decode("utf-8"))
 
 
@@ -183,9 +184,12 @@ def audit_boot(kit, cfg):
             if k.get("for") != cfg.get("for"):
                 bad += fail(kit, "greets {0!r}, config says {1!r}".format(
                     k.get("for"), cfg.get("for")))
-            today = http_json("/api/today?as=" + (cfg.get("for") or ""))
-            if not isinstance(today, dict):
-                bad += fail(kit, "/api/today gave no counts")
+            try:
+                today = http_json("/api/today", viewer=cfg.get("for"))
+                if not isinstance(today, dict):
+                    bad += fail(kit, "/api/today gave no counts")
+            except Exception as exc:                    # noqa: BLE001
+                bad += fail(kit, "/api/today errored: {0}".format(exc))
             if not bad:
                 ok("boots, greets {0}, one ledger, blind off, today "
                    "strip answers".format(k.get("for_name") or
