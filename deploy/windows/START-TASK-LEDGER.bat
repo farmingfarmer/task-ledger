@@ -298,6 +298,18 @@ if exist "%KITROOT%ledger-b.sql" (
   )
 )
 
+if not exist "%KITROOT%ledger-b.sql" (
+  rem Single-mechanism kit. On the operator's own machine the demo
+  rem database shares a server with the dev databases, and the calling
+  rem console may carry TL_BLIND from pilot days -- either one quietly
+  rem rebuilt the retired A/B comparison inside this kit. A kit without
+  rem ledger-b.sql serves ONE ledger, whatever the neighborhood offers.
+  set "TL_BLIND="
+  set "TL_BLIND_SALT="
+  set "TL_COPILOT_DSN="
+  set "TL_DISABLE_COPILOT_PROBE=1"
+)
+
 rem Only one Task Ledger can serve this computer at a time. If another
 rem is already listening, starting this one FAILS -- but the browser
 rem window would have opened first and been answered by the OLD server,

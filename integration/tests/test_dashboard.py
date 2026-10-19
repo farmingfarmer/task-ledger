@@ -1125,6 +1125,27 @@ def main():
            "--ledger both still probes for the comparison arm -- the "
            "pilot's layout remains buildable on purpose")
 
+        print("a single-mechanism kit stays single")
+        # The cold prove found the A/B pilot resurrected inside the
+        # first copilot-only kit: the probe adopted the dev comparison
+        # database next door, inherited TL_BLIND blinded the labels.
+        import tempfile as _tf
+        _kd = _tf.mkdtemp()
+        _kc = os.path.join(_kd, "kit-config.json")
+        with open(_kc, "w") as _f:
+            json.dump({"for": OWNER, "ledger": "copilot"}, _f)
+        ok(dashboard_api._kit_ledger(_kc) == "copilot"
+           and dashboard_api._kit_ledger(_kc + ".missing") is None
+           and dashboard_api._kit_ledger("") is None,
+           "the kit's mechanism is read from its config, and an absent "
+           "or unreadable config means no claim either way")
+        with open(_kc, "w") as _f:
+            json.dump({"for": OWNER}, _f)
+        ok(dashboard_api._kit_ledger(_kc) is None,
+           "a pilot-era kit config (no ledger field) keeps today's "
+           "behavior -- only kits that DECLARE one mechanism refuse "
+           "the second arm and the blind flag")
+
         print("the blocker moved")
         # The most connective fact the ledger holds: blocking_task_id
         # can point at a task on somebody ELSE's board, and until now

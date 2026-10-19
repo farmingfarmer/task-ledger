@@ -143,7 +143,29 @@ if SYNTH_DSN:
 # its conventional name and use it if it answers. The variable still
 # overrides; TL_DISABLE_COPILOT_PROBE=1 turns the probe off (the test
 # suite does, so its profile assumptions stay its own).
-if (not COPILOT_DSN and DSN
+def _kit_ledger(path):
+    """The 'ledger' field of a kit config file, or None. Read BEFORE the
+    copilot probe: a kit that ships one mechanism must stay one
+    mechanism. The cold prove of the first single-ledger kit ran on the
+    operator's own machine, where the dev comparison database lives on
+    the same server -- the probe adopted it, an inherited TL_BLIND
+    blinded the labels, and the retired A/B pilot rose from its grave
+    inside the very kit that ended it."""
+    try:
+        with open(path, encoding="utf-8") as f:
+            return (json.load(f) or {}).get("ledger")
+    except Exception:                                   # noqa: BLE001
+        return None
+
+
+SINGLE_MECH_KIT = _kit_ledger(
+    os.environ.get("TL_KIT_CONFIG") or "") in ("copilot", "real")
+
+if SINGLE_MECH_KIT and COPILOT_DSN:
+    print("kit ships one mechanism -- ignoring TL_COPILOT_DSN")
+    COPILOT_DSN = None
+
+if (not COPILOT_DSN and DSN and not SINGLE_MECH_KIT
         and os.environ.get("TL_DISABLE_COPILOT_PROBE") != "1"):
     _parts = dict(kv.split("=", 1) for kv in DSN.split() if "=" in kv)
     _parts["dbname"] = "taskintel_copilot"
@@ -231,7 +253,8 @@ REDACTED = "[shared at progress level - detail hidden]"
 # notes at lunch and decode it. The mapping is never sent to the browser;
 # it is written into the survey file, which is for the person collecting
 # the answers.
-BLIND = os.environ.get("TL_BLIND", "").strip() in ("1", "true", "yes")
+BLIND = (os.environ.get("TL_BLIND", "").strip() in ("1", "true", "yes")
+         and not SINGLE_MECH_KIT)
 BLIND_SALT = os.environ.get("TL_BLIND_SALT", "task-ledger-blind-v1")
 BLIND_ARMS = ("real", "copilot")
 ARM_NAMES = ("arm-a", "arm-b")
