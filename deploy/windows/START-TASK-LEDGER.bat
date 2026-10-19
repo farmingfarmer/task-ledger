@@ -329,5 +329,7 @@ netstat -ano | findstr /C:":8090 " | findstr "LISTENING" >nul && (
 echo.
 echo   [%TIME%] ready -- opening http://127.0.0.1:8090 in your browser.
 echo.
-start "" http://127.0.0.1:8090
+rem TL_KIT_NO_BROWSER=1 skips the browser pop -- set by the kit
+rem audit, which boots every kit in sequence and asks over HTTP instead.
+if not defined TL_KIT_NO_BROWSER start "" http://127.0.0.1:8090
 "%PY%" integration\dashboard\dashboard_api.py
