@@ -630,6 +630,18 @@ def main():
     # not a directory that needs explaining. The written instructions
     # come second and exist for the person who wants them; the product
     # itself greets whoever just double-clicks.
+    # A reused output folder keeps whatever an EARLIER build put there,
+    # and a single-mechanism kit must not inherit the pilot's comparison
+    # gear: September's ledger-b.sql and blind-salt.txt rode fresh zips
+    # to within one audit of being sent. Scrub anything this build will
+    # not itself write.
+    if not args.copilot_dsn:
+        for stale in ("ledger-b.sql", "blind-salt.txt"):
+            sp = os.path.join(args.out, stale)
+            if os.path.exists(sp):
+                os.remove(sp)
+                print("  removed pilot-era leftover: " + stale)
+
     if kit_for:
         with open(os.path.join(args.out, "kit-config.json"), "w") as f:
             json.dump({"for": kit_for, "for_name": kit_for_name,

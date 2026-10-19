@@ -91,7 +91,12 @@ def audit_static(kit, expect_return):
         if re.search(rb"OWNER TO", blob):
             bad += fail(kit, "ledger.sql contains OWNER TO -- dump was "
                              "not taken with --no-owner")
-        digest = hashlib.sha256(blob).hexdigest()
+        # pg_dump emits COPY rows in whatever order the scan returns
+        # them, so byte-hashing flags identical data as different (it
+        # did, eight ways). Hash the SORTED lines: same multiset of
+        # lines means the same dump, whatever order it was written in.
+        digest = hashlib.sha256(b"\n".join(
+            sorted(blob.splitlines()))).hexdigest()
 
     # The launcher must be the single-mechanism one.
     lp = os.path.join(kit, "START-TASK-LEDGER.bat")
