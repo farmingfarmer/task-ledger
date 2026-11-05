@@ -706,15 +706,33 @@ def main():
                     return 2
             # v2: the layout fix above changes the arcnames, so caches
             # packed before it must not be reused.
-            cache = path.rstrip("\\/") + ".kitcache-v2.zip"
+            # Subtrees the kit never touches. pgAdmin alone is hundreds
+            # of MB of GUI nobody opens, thousands of tiny files Defender
+            # scans one by one on the teammate's machine -- and, decisive:
+            # its python\Lib\site-packages paths are so deep that after
+            # Explorer's extract-into-a-folder-named-like-the-zip they
+            # cross Windows' 260-char MAX_PATH and tar dies mid-unpack.
+            # That is not a theoretical limit; it ended Jason's first
+            # double-click of the team release.
+            PRUNE = {"postgres": ("pgAdmin 4", "StackBuilder", "doc",
+                                  "symbols", "include")}
+            cache = path.rstrip("\\/") + ".kitcache-v3.zip"
             if not os.path.exists(cache):
                 print("  packing {0} ({1} MB -- a few minutes, ONCE; "
                       "later kits reuse it)...".format(name, _dir_mb(path)),
                       flush=True)
                 import zipfile
                 tmp = cache + ".part"
+                prune = PRUNE.get(name, ())
                 with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
-                    for droot, _dirs, files in os.walk(src_root):
+                    for droot, dirs, files in os.walk(src_root):
+                        if droot == src_root:
+                            kept = [d for d in dirs if d not in prune]
+                            if len(kept) != len(dirs):
+                                print("  {0}: leaving out {1}".format(
+                                    name, ", ".join(
+                                        d for d in dirs if d in prune)))
+                            dirs[:] = kept
                         for fn in files:
                             full = os.path.join(droot, fn)
                             rel = os.path.relpath(full, src_root)

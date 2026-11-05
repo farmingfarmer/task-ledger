@@ -65,6 +65,10 @@ if not exist "%KITROOT%python-runtime\python.exe" if exist "%KITROOT%python-runt
   echo   the virus scanner checks every file, so this can take a while.
   tar -xvf "%KITROOT%python-runtime.zip" -C "%KITROOT%." || (
     echo   [X] Could not unpack python-runtime.zip. Details above.
+    echo       Most common cause: this folder's path is too LONG for
+    echo       Windows ^(260 characters^). Move the whole kit folder to
+    echo       C:\Users\%USERNAME%\ and double-click START again --
+    echo       it picks up where it left off.
     pause
     exit /b 1
   )
@@ -75,6 +79,10 @@ if not exist "%KITROOT%postgresin\pg_ctl.exe" if exist "%KITROOT%postgres.zip" 
   echo   laptop whose virus scanner inspects each file.
   tar -xvf "%KITROOT%postgres.zip" -C "%KITROOT%." || (
     echo   [X] Could not unpack postgres.zip. Details above.
+    echo       Most common cause: this folder's path is too LONG for
+    echo       Windows ^(260 characters^). Move the whole kit folder to
+    echo       C:\Users\%USERNAME%\ and double-click START again --
+    echo       it picks up where it left off.
     pause
     exit /b 1
   )
