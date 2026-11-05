@@ -297,19 +297,29 @@ def main():
                   "the ledger.")
             return 2
         want = args.for_person.strip().lower().replace(" ", "-")
-        try:
-            import psycopg2
-            conn = psycopg2.connect(dsn, connect_timeout=5)
-            with conn, conn.cursor() as cur:
-                cur.execute("""
-                    SELECT DISTINCT user_ref FROM signal_pool_events
-                    UNION SELECT DISTINCT user_ref FROM tasks_current""")
-                refs = sorted(r[0] for r in cur.fetchall())
-            conn.close()
-        except Exception as exc:                        # noqa: BLE001
-            print("could not read the ledger to check --for ({0})"
-                  .format(exc.__class__.__name__))
-            return 2
+        refs = None
+        for attempt in range(3):
+            # A batch of nine builds hits this connect nine times in
+            # quick succession; one transient refusal cost one person
+            # their kit while eight siblings built fine. Three tries,
+            # two seconds apart, before giving up.
+            try:
+                import psycopg2
+                conn = psycopg2.connect(dsn, connect_timeout=5)
+                with conn, conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT DISTINCT user_ref FROM signal_pool_events
+                        UNION SELECT DISTINCT user_ref FROM tasks_current""")
+                    refs = sorted(r[0] for r in cur.fetchall())
+                conn.close()
+                break
+            except Exception as exc:                    # noqa: BLE001
+                if attempt == 2:
+                    print("could not read the ledger to check --for "
+                          "({0})".format(exc.__class__.__name__))
+                    return 2
+                import time as _t
+                _t.sleep(2)
         hits = [r for r in refs if r == want or r == "aad-" + want]
         if not hits:
             hits = [r for r in refs if want in r]
@@ -716,7 +726,7 @@ def main():
             # double-click of the team release.
             PRUNE = {"postgres": ("pgAdmin 4", "StackBuilder", "doc",
                                   "symbols", "include")}
-            cache = path.rstrip("\\/") + ".kitcache-v3.zip"
+            cache = path.rstrip("\\/") + ".kitcache-v4.zip"
             if not os.path.exists(cache):
                 print("  packing {0} ({1} MB -- a few minutes, ONCE; "
                       "later kits reuse it)...".format(name, _dir_mb(path)),
@@ -733,6 +743,12 @@ def main():
                                     name, ", ".join(
                                         d for d in dirs if d in prune)))
                             dirs[:] = kept
+                            # ...and the loose files that belong to the
+                            # pruned trees: license texts for software
+                            # the kit no longer ships.
+                            files = [f for f in files if not any(
+                                f.startswith(pr.split()[0])
+                                for pr in prune)]
                         for fn in files:
                             full = os.path.join(droot, fn)
                             rel = os.path.relpath(full, src_root)
