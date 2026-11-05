@@ -112,6 +112,22 @@ def audit_static(kit, expect_return):
             bad += fail(kit, "launcher predates the single-mechanism "
                              "fix -- rebuild this kit")
 
+    # The slimmed postgres bundle: pgAdmin's tree is what pushed
+    # extracted paths past MAX_PATH and killed the first team install.
+    pz = os.path.join(kit, "postgres.zip")
+    if os.path.exists(pz):
+        try:
+            with zipfile.ZipFile(pz) as z:
+                fat = [n for n in z.namelist()
+                       if "pgAdmin" in n or "StackBuilder" in n]
+                if fat:
+                    bad += fail(kit, "postgres.zip still carries {0} "
+                                     "pgAdmin/StackBuilder file(s) -- "
+                                     "delete the .kitcache and rebuild"
+                                .format(len(fat)))
+        except zipfile.BadZipFile:
+            bad += fail(kit, "postgres.zip does not open")
+
     zp = kit + ".zip"
     if not os.path.exists(zp):
         bad += fail(kit, "no send-ready zip beside the folder")
